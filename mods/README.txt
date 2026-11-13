@@ -8,18 +8,25 @@ updates itself.
 
 INSIDE THE GAME
 ---------------
-The installer also puts a "Cheats" tab into the game's own menu bar (next to Mods and Help).
-Cheats > Cheats... opens the cheat list in a window of the game itself: tick a cheat and it is on at
-once (no restart, no rebuild, code mods included). Cheats > Save editor... and Treasure maps... open the
-web tools in your browser. What you tick is saved in mods\system\menu-state.txt (the cheat menu program
-uses the same file) and sent again by itself when the game starts. "Play with mods.bat" works as before.
+The installer is a patcher: it puts a "Cheats" tab into the game's own menu bar (next to Mods and Help)
+and builds the game with it. Nothing else is started or put on your desktop; you start the game as always
+(game\dqix.exe) and choose what you want:
+
+- Cheats > Cheats...  opens the cheat list in a window of the game itself. Tick a cheat and it is on at
+  once (no restart, no rebuild, code mods included). What you tick is saved in mods\system\menu-state.txt
+  and sent again by itself when the game starts. Nothing is on until you switch it on.
+- Cheats > Save editor...  opens your save in the editor website (the language box is in the page, at
+  the bottom right). Close the game before you export.
+- Cheats > Treasure maps...  opens the treasure map search website.
+
 When the game updates itself (Help > Check for updates) the tab is put back automatically; if you
-ever update by hand (new download), run Install mods.bat or Play with mods.bat once more.
+ever update by hand (new download), run Install mods.bat once more.
 
 
 INSTALL
 -------
-Copy this "mods" folder into your DQIX Enhanced folder, next to BUILD.bat:
+Double-click "Install mods.bat" in the folder you downloaded (it finds your DQIX Enhanced folder, copies
+this "mods" folder next to BUILD.bat, and builds the Cheats tab into the game):
 
     DQIX Enhanced\
         BUILD.bat
@@ -27,40 +34,37 @@ Copy this "mods" folder into your DQIX Enhanced folder, next to BUILD.bat:
         mods\          <- here
 
 Build the game once the normal way first (if you haven't already).
-Then start with "mods\Play with mods.bat" (the installer also puts a shortcut
-to it on your desktop).
+"mods\Play with mods.bat" is the same patcher without the copying: run it again after an update by hand.
 
-What is in the mods folder (only these three things are for you):
+What is in the mods folder (only these things are for you):
 
-    Play with mods.bat    start here
+    Play with mods.bat    the patcher (apply the mods to the game)
     README.txt            this file
-    settings.txt          a few switches (yes / no), explained inside
-    system\               everything the mods run on: the menu, the cheat
+    settings.txt          a switch (yes / no), explained inside
+    system\               everything the mods run on: the cheat
                           lists (system\cheats, with yours too),
-                          translations, your saved switches and the save
-                          backups (system\save-backups).
+                          translations of the save editor, your saved
+                          switches and the save backups (system\save-backups).
 
 
-THE CHEAT MENU
+THE CHEAT LIST
 --------------
-"Play with mods.bat" opens the cheat menu. On the left the pages (Speed &
-comfort, Experience & gold, Party, Battle, Items...), a search box, and
-"Switched on" with everything that is on now. Press Play to start the game;
-keep the menu open while you play.
-The menu is black with neon green text, set in JetBrains Mono (mods/system/fonts, SIL Open
-Font License); without those font files it falls back to Consolas.
+Cheats > Cheats... in the game. On the left the pages (Speed & comfort, Experience & gold, Party,
+Battle, Items...) and, last, "Keybinds": which buttons to hold for the cheats that use buttons.
+Under each cheat a grey line says who needs it (one player, all players...), and its note.
+You can keep the window open while you play.
 
 Each cheat is one of these:
 
-- A switch. On = it works from now on, every frame, like a code that is ticked
-  on an R4. Switch what you like before you press Play, or while you play.
-- "Once" / "Do it": carries the code out one time, now (99 of every shield,
+- A switch (check box). On = it works from now on, every frame, like a code that is ticked
+  on an R4. Switch what you like before you start the game, or while you play.
+- "Do it now": carries the code out one time, now (99 of every shield,
   all Zoom places...). Many cheats have both.
-- A choice (Experience x2 / x4 / ... / x128, movement speed, a vocation...):
-  only one of them can be on.
+- A choice (Experience x2 / x4 / ... / x128, movement speed, a vocation...): a drop-down
+  with "Off" and the options; only one of them can be on.
 - A cheat with buttons next to its name (SELECT, L+R...) works as on a DS:
-  switch it on, then hold those buttons in the game. "Once" does it right
-  away without the buttons.
+  switch it on, then hold those buttons in the game (see the Keybinds page).
+  "Do it now" does it right away without the buttons.
 
 The labels:
 
@@ -223,21 +227,13 @@ lines after it that write instructions are patches. USA or European addresses.
 Swapping an instruction for another (nop, mov, a branch to a place inside the
 game's code) is safe; a jump to code of your own is not, and isn't possible.
 
-Press "Reload list" in the menu after you add or change a file.
-
-
-WITHOUT THE MENU
-----------------
-"cheat_window = no" in settings.txt: "Play with mods.bat" builds the code mods
-whose files say "enabled: yes" (and the database codes named in
-mods\system\menu-state.txt) into the game and starts it, without the menu. Live
-cheats need the menu.
+Run "Play with mods.bat catalog" after you add or change a file, then reopen the game.
 
 
 UNDO EVERYTHING
 ---------------
-Press "Everything off" in the menu, set "sync_cheats = no" in settings.txt,
-and press Play once (it takes the mods out and rebuilds). Then delete the mods
+Press "Everything off" in the cheat window, set "sync_cheats = no" in settings.txt,
+and run "Play with mods.bat" once (it takes the mods out and rebuilds). Then delete the mods
 folder.
 
 

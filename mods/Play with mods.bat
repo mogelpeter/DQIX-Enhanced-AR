@@ -1,28 +1,24 @@
 @echo off
-rem Dragon Quest IX (PC) with your mods. Start the game with this (or with the
-rem shortcut "Make a desktop shortcut.bat" makes).
+rem The patcher for DQIX Enhanced: puts the mods into the game and builds it. Install mods.bat runs it;
+rem you can run it again any time (after an update of the game, or after you changed a code mod).
 rem
-rem It opens the cheat menu: a window with every cheat as a switch, and a Play
-rem button. Before that it
+rem   Play with mods.bat            = apply, then wait for a key
+rem   Play with mods.bat apply      = the same, nothing waits (used by the installer and by the game's updater)
+rem   Play with mods.bat catalog    = only make the cheat list again
+rem
+rem What "apply" does:
 rem   1. works the cheat list out against your ROM (mods\system\tools\catalog.py)
-rem   2. makes the menu itself from its source (mods\system\src\CheatMenu.cs) when it's
-rem      missing or older, with the C# compiler that comes with Windows
-rem
-rem The menu's Play button runs this file again as "Play with mods.bat apply":
-rem   1. puts the code mods that are on, and the cheats' own part of the game (so
-rem      they work with friends too), into the game's build: an update of the
-rem      game takes them out, this puts them back
-rem   2. rebuilds the game if they changed (only what changed: a few minutes)
-rem and then the menu starts the game. "catalog" only makes the list again.
-rem
-rem "cheat_window = no" in settings.txt: no menu; this builds the mods in and
-rem starts the game (switch mods on in the files, as the README says).
+rem   2. puts the code mods that are on, and the cheats' own part of the game (so they work with friends too),
+rem      into the game's build: an update of the game takes them out, this puts them back
+rem   3. rebuilds the game if they changed (only what changed: a few minutes)
+rem   4. makes the save editor's helper (mods\system\src\EditorHost.cs) with the C# compiler that comes with Windows
+rem Then start the game as always (game\dqix.exe) and use the menu bar: Cheats > Cheats...
 setlocal
 cd /d "%~dp0.."
 set "WHAT=%~1"
-rem (run by the menu: nothing may wait for a key)
+rem (run by the installer or the updater: nothing may wait for a key)
 if defined WHAT set DQIX_NOPAUSE=1
-if not defined WHAT title DQIX Enhanced - mods
+if not defined WHAT title DQIX Enhanced - apply mods
 if not exist "BUILD.bat" goto wrong_place
 if not exist "patches.txt" goto wrong_place
 
@@ -54,53 +50,50 @@ call BUILD.bat
 if errorlevel 1 goto build_failed
 :built
 
-if /i "%WHAT%"=="apply" goto apply
-if /i "%WHAT%"=="catalog" goto catalog
+:built
 
-rem ---- no menu wanted: the old way
-findstr /i /r /c:"^ *cheat_window *= *no" "mods\settings.txt" >nul 2>&1 && goto no_menu
+if /i "%WHAT%"=="catalog" goto catalog
 
 rem ---- the cheat list, worked out against this ROM
 echo Reading the cheat list...
 "%BASH%" -lc "%PYRUN% mods/system/tools/catalog.py ."
 if errorlevel 1 goto list_failed
 
-rem ---- the menu, made here from its source when it's missing or older
+rem ---- the mods into the game (and the build, when something changed)
+call :put_in
+if errorlevel 1 goto end_bad
+
+rem ---- the save editor's helper, made here from its source when it's missing or older
 if not exist "mods\system\bin" mkdir "mods\system\bin"
-"%BASH%" -lc "[ mods/system/bin/dqix-cheat-menu.exe -nt mods/system/src/CheatMenu.cs ]" && goto menu_made
+"%BASH%" -lc "[ mods/system/bin/dqix-editor.exe -nt mods/system/src/EditorHost.cs ]" && goto editor_made
 set "NET=%WINDIR%\Microsoft.NET\Framework64\v4.0.30319"
 if not exist "%NET%\csc.exe" goto no_csc
 set "ICON="
 if exist "build\icon\dqix.ico" set "ICON=-win32icon:build\icon\dqix.ico"
-echo Making the cheat menu...
-tasklist /fi "imagename eq dqix-cheat-menu.exe" 2>nul | find /i "dqix-cheat-menu.exe" >nul && goto menu_made
-"%NET%\csc.exe" -nologo -target:winexe -platform:x64 -optimize+ "-out:mods\system\bin\dqix-cheat-menu.exe" %ICON% "-r:%NET%\WPF\PresentationFramework.dll" "-r:%NET%\WPF\PresentationCore.dll" "-r:%NET%\WPF\WindowsBase.dll" -r:System.Xaml.dll -r:System.Core.dll "mods\system\src\CheatMenu.cs"
+echo Making the save editor helper...
+tasklist /fi "imagename eq dqix-editor.exe" 2>nul | find /i "dqix-editor.exe" >nul && goto editor_made
+"%NET%\csc.exe" -nologo -target:winexe -platform:x64 -optimize+ "-out:mods\system\bin\dqix-editor.exe" %ICON% -r:System.Windows.Forms.dll -r:System.Core.dll "mods\system\src\EditorHost.cs"
 if errorlevel 1 goto no_csc
-:menu_made
-if not exist "mods\system\bin\dqix-cheat-menu.exe" goto no_csc
-start "" "mods\system\bin\dqix-cheat-menu.exe" "%CD%"
+:editor_made
+echo.
+echo Done. Start the game as always (game\dqix.exe), then: menu bar, Cheats, Cheats...
+if not defined WHAT pause
 exit /b 0
 
 :no_csc
 echo.
-echo The cheat menu couldn't be made (it needs the C# compiler of .NET Framework 4,
-echo which comes with Windows 10 and 11). The game starts without it; switch mods
-echo on in the files in mods\system\code, as the README says.
-:no_menu
-call :put_in
-if errorlevel 1 exit /b %errorlevel%
-echo Starting the game...
-start "Dragon Quest IX" /min cmd /c "game\play.bat"
+echo The save editor helper couldn't be made (it needs the C# compiler of .NET Framework 4,
+echo which comes with Windows 10 and 11). The cheats work without it; only Cheats, Save editor needs it.
+if not defined WHAT pause
 exit /b 0
+
+:end_bad
+exit /b %errorlevel%
 
 :catalog
 "%BASH%" -lc "%PYRUN% mods/system/tools/catalog.py ."
 if errorlevel 1 exit /b 1
 exit /b 0
-
-:apply
-call :put_in
-exit /b %errorlevel%
 
 rem ---- the mods into the game's build (mods\system\tools\put_in.sh), and the build itself when
 rem      something changed. Leaves 0 = the game has them, 1 = it failed, 3 = the game is running

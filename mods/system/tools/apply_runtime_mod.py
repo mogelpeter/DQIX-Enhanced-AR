@@ -101,7 +101,7 @@ ACT_PATCHED = ACT_BEGIN + r"""
                 "Your save is not touched by the cheats (copies go to mods\system\save-backups). Updating the game from the Help menu keeps this tab.", g_win);
             break;
         }
-        if (id == 362) { if (!mod_editor_launch("party")) info_box(SDL_MESSAGEBOX_ERROR, "Save editor", "The editor couldn't be started: the cheat menu program is missing. Run mods\Play with mods.bat once.", g_win); break; }
+        if (id == 362) { if (!mod_editor_launch("party")) info_box(SDL_MESSAGEBOX_ERROR, "Save editor", "The editor couldn't be started: the editor helper is missing. Run Install mods.bat again.", g_win); break; }
         if (id == 363) { if (!mod_open_url("https://dqix.github.io/Grotto-Searcher/")) info_box(SDL_MESSAGEBOX_ERROR, "Treasure maps", "The browser couldn't be opened. The page is https://dqix.github.io/Grotto-Searcher/", g_win); break; }
         mod_cheatwin_show();
         break;
@@ -322,7 +322,7 @@ def main():
             print(f"   [on] {what}")
         elif state == "unknown":
             print(f"   [skipped] {what}: this version of the game has runtime\\{name} written differently."
-                  + ("  Cheats still work when you play alone." if i == 0 else "  The cheat menu still starts with Play with mods.bat."
+                  + ("  Cheats still work when you play alone." if i == 0 else "  Cheats can still be switched in the files (see mods\README.txt)."
                      if name in ("menu_win32.c", "frontend_sdl.c", "update.c") else "  \"Instant loading\" stays off."))
     lp_changed, lp_wrap, nfn, nsite = livepatch_files(root, on)
     changed |= lp_changed

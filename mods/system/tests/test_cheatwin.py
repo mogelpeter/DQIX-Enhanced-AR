@@ -3,8 +3,8 @@
 
    1  the window opens by itself (DQIX_CHEATWIN_TEST), switches "Gold always 9,999,999" on the way a click does
       (tab, then the row's check box) and draws itself into a picture:
-        - the gold is in the game's RAM            (window -> mailbox -> game, no cheat menu program involved)
-        - the state file has `live file:cheats/max-gold.txt`   (the cheat menu program reads the same file)
+        - the gold is in the game's RAM            (window -> mailbox -> game)
+        - the state file has `live file:cheats/max-gold.txt`   
         - the picture exists (look at it: <work>/one/shot.bmp)
    2  a new start with that state file and no window: the cheat is sent again by itself (the gold is in RAM)
    3  a state with a choice from a group (x2 then x4) keeps only the last one

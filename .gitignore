@@ -7,4 +7,4 @@ mods/system/msys2-root.txt
 mods/system/dev-root.txt
 mods/system/AR-codes-*.txt
 mods/system/lang/rom-*.tsv
-mods/system/menu-lang.txt
+mods/system/editor-lang.txt

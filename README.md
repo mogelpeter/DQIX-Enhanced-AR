@@ -1,13 +1,13 @@
 # DQIX Enhanced AR
 
-A cheat menu and mods for [DQIX Enhanced](https://github.com/sackchief/dqix-enhanced) (Dragon Quest IX on PC), in the style of an R4 / Action Replay cheat menu: black and neon green, JetBrains Mono, a hover info on every cheat.
+A cheat list and mods for [DQIX Enhanced](https://github.com/sackchief/dqix-enhanced) (Dragon Quest IX on PC), in the style of an R4 / Action Replay cheat menu, built into the game's own menu bar.
 
 - **170 live cheats and 50 built-in code mods**, all checked against your own ROM before they can run, so they cannot crash the game.
 - **A "Cheats" tab inside the game's own menu bar**: *Cheats...* opens the cheat list in a window of the game itself, and a switch works at once while you play: no restart, no rebuild (also the code mods, which used to need one). *Save editor...* and *Treasure maps...* open the web tools. The tab is put back automatically after the game updates itself.
 - **Works alone and in sessions with friends** (cheats travel with the buttons, so every PC stays in sync).
-- **Save editor** and **Treasure maps** tabs: opens the DQIX project's browser editor with your save already loaded (downloaded on first use, needs the internet once; not part of this repo).
-- **Five languages**: English, Deutsch, Francais, Espanol, Italiano (box at the top right of the cheat menu). Game words come from your own ROM's texts, also the item names in the save editor.
-- **Your save is protected**: every time you press Play, a copy of your save goes to `mods\system\save-backups` (the last 30 are kept).
+- **Save editor** and **Treasure maps**: the DQIX project's browser editor opens with your save already loaded (downloaded on first use, needs the internet once; not part of this repo), and the map search website.
+- **Five languages in the save editor**: English, Deutsch, Francais, Espanol, Italiano (box in the editor page). Game words come from your own ROM's texts, also the item names.
+- **Your save is protected**: the save editor copies your save to `mods\system\save-backups` before it writes (the last 30 are kept).
 
 The ROM and the game itself are never part of this repo.
 
@@ -31,8 +31,8 @@ The ROM and the game itself are never part of this repo.
 ## Quick install
 
 1. Build DQIX Enhanced once (its installer, or its `BUILD.bat`, with your own ROM).
-2. Double-click **`Install mods.bat`** from this repo. It finds your DQIX Enhanced folder itself (it asks only if it can't), copies the mods in, puts a shortcut on your desktop, and builds the **Cheats** tab into the game (a few minutes the first time).
-3. Start the game with `game\dqix.exe` and open **Cheats > Cheats...** in the menu bar, or start the desktop shortcut **"Dragon Quest IX (mods)"**, which opens the cheat menu first.
+2. Double-click **`Install mods.bat`** from this repo. It is a patcher: it finds your DQIX Enhanced folder itself (it asks only if it can't), copies the mods in, and builds the **Cheats** tab into the game (a few minutes the first time). No shortcut, nothing extra to start.
+3. Start the game as always with `game\dqix.exe`. Whether you want cheats is up to you: open **Cheats > Cheats...** in the menu bar and switch on what you like.
 
 Trouble? `mods\system\dev.bat doctor` says what is missing and how to fix it.
 
@@ -60,7 +60,7 @@ This guide assumes nothing. You need a Windows 10 or 11 PC (64-bit), about 4 GB 
 
 If it says it can't find your ROM, copy the `.nds` file (or a `.zip` that has it inside) into the **`rom`** folder inside the DQIX Enhanced folder and double-click **`BUILD.bat`** instead.
 
-### Step 3: Get this cheat menu
+### Step 3: Get the mods
 
 1. Open <https://github.com/mogelpeter/DQIX-Enhanced-AR>.
 2. Click the green **Code** button, then **Download ZIP**.
@@ -71,17 +71,13 @@ If it says it can't find your ROM, copy the `.nds` file (or a `.zip` that has it
 1. In the extracted folder double-click **`Install mods.bat`**.
 2. Again, if Windows says **"Windows protected your PC"**: **More info**, then **Run anyway**.
 3. It looks for your DQIX Enhanced folder on its own. If it can't find it, a window opens: pick the folder from Step 1 (the one with `BUILD.bat` in it).
-4. Wait. It copies the files, makes a desktop shortcut and builds the **Cheats** tab into your game. **A few minutes the first time.** Do not close the window; it says *"The Cheats tab is in the game."* when it's done.
-5. It asks *"Start the menu now?"*. Type `Y` and press Enter if you like, or `N`.
+4. Wait. It copies the files and builds the **Cheats** tab into your game. **A few minutes the first time.** Do not close the window; it says *"Done."* when it's finished.
 
 Make sure the game is **closed** while installing. If it is still running the installer tells you so; close the game and run **`Install mods.bat`** again.
 
 ### Step 5: Play with cheats
 
-There are two ways:
-
-- **In the game (new, no restart):** start the game (`game\dqix.exe`). In the menu bar at the top of the window open **Cheats > Cheats...**. A window opens (the game keeps running): pick a page, tick a cheat, and it is on at once. *Do it now* carries out a "once" cheat. Choices (experience x2, x4...) switch one at a time. What you tick is saved and sent again by itself the next time the game starts. *Cheats > Save editor...* and *Treasure maps...* open the editor / the map search in your browser (close the game before you export a save).
-- **The cheat menu program (as before):** double-click **"Dragon Quest IX (mods)"**. Same list and the same saved switches; its Play button starts the game. It also has the languages and the hover info.
+Start the game (`game\dqix.exe`). In the menu bar at the top of the window open **Cheats > Cheats...**. A window opens (the game keeps running): pick a page, tick a cheat, and it is on at once. *Do it now* carries out a "once" cheat. Choices (experience x2, x4...) are a drop-down with *Off* and the options. The last page, **Keybinds**, lists the buttons to hold for the cheats that use buttons. What you tick is saved and sent again by itself the next time the game starts. *Cheats > Save editor...* and *Treasure maps...* open the editor / the map search in your browser; the editor's language box is in the page.
 
 The very first time after an update of the mods the game is built once (a few minutes). After that, switching cheats, including the code mods, never needs a rebuild again. (Options for the *next start*, like "Battle any monster", are applied when the game starts.)
 
@@ -95,14 +91,14 @@ The very first time after an update of the mods the game is built once (a few mi
 
 ## Using the cheats
 
-The cheat menu has pages on the left (Speed & comfort, Experience & gold, Party, Battle, Items, Custom...), a **search box**, and **Switched on**, which lists everything that is on right now. Press **Play** to start the game; you can keep the menu open while you play and switch cheats on the fly. Hover a cheat to read what it does.
+The cheat window has pages on the left (Speed & comfort, Experience & gold, Party, Battle, Items, Custom..., Keybinds). Keep it open while you play and switch cheats on the fly. The grey line under a cheat says what it does and who needs it.
 
 Each cheat is one of these:
 
 | Kind | What it does |
 |---|---|
 | **Switch** | On = it works from now on, every frame, like a ticked code on an R4. |
-| **Once / Do it** | Carries the code out one time, now (99 of every shield, all Zoom places...). |
+| **Do it now** | Carries the code out one time, now (99 of every shield, all Zoom places...). |
 | **Choice** | Experience x2 / x4 / ... / x128, movement speed, a vocation: only one can be on. |
 | **With buttons** (SELECT, L+R...) | Works like on a DS: switch it on, then hold those buttons in the game. *Once* does it right away without the buttons. |
 
@@ -121,15 +117,15 @@ The labels on the cards:
 
 ## How the Cheats tab works
 
-The game's menu bar (Game, Graphics, Screen, View, Wireless, Modern, Mods, **Cheats**, Help) gets one more entry with **Cheats...** (the window inside the game), **Save editor...** and **Treasure maps...**. Under the hood the window sends the cheats through the same mailbox as the cheat menu program, so they also work in a session with friends. Code mods work because the game is built once with a wrapper around every function a code mod touches; while a mod is on, that function runs in the game's ARM interpreter with the mod's instruction in it (`mods\system\src\livepatch.c`).
+The game's menu bar (Game, Graphics, Screen, View, Wireless, Modern, Mods, **Cheats**, Help) gets one more entry with **Cheats...** (the window inside the game), **Save editor...** and **Treasure maps...**. Under the hood the window sends the cheats through a mailbox in the game, so they also work in a session with friends. Code mods work because the game is built once with a wrapper around every function a code mod touches; while a mod is on, that function runs in the game's ARM interpreter with the mod's instruction in it (`mods\system\src\livepatch.c`).
 
 ### Why it survives updates of the game
 
 The tab is not a copy of the game's files: it is a handful of small, clearly marked changes (`>>> mods ... <<< mods`) that `mods\system\tools\apply_runtime_mod.py` puts into the game's source before it is built. An update of the game replaces those files, so:
 
-- **Update from inside the game (Help > Check for updates):** the updater also runs `Play with mods.bat apply` before it rebuilds, so the new game comes out with the tab, the cheats and your switches again. Nothing to do.
+- **Update from inside the game (Help > Check for updates):** the updater also runs `Play with mods.bat apply` (the patcher) before it rebuilds, so the new game comes out with the tab, the cheats and your switches again. Nothing to do.
 - **Update by hand (a new download):** run **`Install mods.bat`** or **`Play with mods.bat`** once; every change is put back and the game is rebuilt.
-- **A place the new version wrote differently:** it is skipped with a message and the rest still works. The cheat menu through `Play with mods.bat` always works.
+- **A place the new version wrote differently:** it is skipped with a message and the rest still works. The list through `Play with mods.bat catalog` always works.
 - The update never deletes the `mods` folder, so what you switched on stays (`mods\system\menu-state.txt`).
 
 To take everything out of the game again set `sync_cheats = no` in `mods\settings.txt` and run `Play with mods.bat` once.
@@ -162,9 +158,9 @@ An Action Replay code is written for a real DS, where it may change anything at 
 - **Built-in mod:** it changes instructions. Every instruction was found in your ROM where the code says it is; exactly those words and nothing else are written into the build.
 - **Not available:** it can't work here or can't be checked (adds its own routine, jumps out of the program, writes into the program, mixes program and data, DS hardware, doesn't fit your ROM, anti-piracy and Wi-Fi codes). It is hidden in the menu and can't be switched on.
 
-The cheat menu is a program of its own: whatever happens in it, the game keeps running. What a program can't check is what a data cheat does to your *save* ("Max everything" codes can make a save odd): that is what `UNTESTED` warns about and what the save backups are for.
+What a program can't check is what a data cheat does to your *save* ("Max everything" codes can make a save odd): that is what `UNTESTED` warns about and what the save backups are for.
 
-The cheat list comes from the community's R4 database (DeadSkullzJr's NDS(i) Cheat Databases): 216 codes for the European version, 271 for the USA one, plus hand-made ones. Both ROM versions work; the menu takes the list for your ROM's game code (YDQP or YDQE).
+The cheat list comes from the community's R4 database (DeadSkullzJr's NDS(i) Cheat Databases): 216 codes for the European version, 271 for the USA one, plus hand-made ones. Both ROM versions work; the game takes the list for your ROM's game code (YDQP or YDQE).
 
 ---
 
@@ -174,8 +170,7 @@ The cheat list comes from the community's R4 database (DeadSkullzJr's NDS(i) Che
 
 | Setting | Default | Meaning |
 |---|---|---|
-| `cheat_window` | `yes` | Open the cheat menu when starting `Play with mods.bat`. `no`: the game starts at once with the code mods that are switched on. |
-| `sync_cheats` | `yes` | Build the part that makes cheats work with friends (and the **Cheats** tab) into the game. `no`: leave it all out; cheats then only work alone and are written from outside. |
+| `sync_cheats` | `yes` | Build the part that makes cheats work with friends (and the **Cheats** tab) into the game. `no`: leave it all out; cheats then only work alone. |
 
 ---
 
@@ -185,11 +180,11 @@ The cheat list comes from the community's R4 database (DeadSkullzJr's NDS(i) Che
 |---|---|
 | *"Windows protected your PC"* | Click **More info**, then **Run anyway**. The files are plain batch scripts you can open in Notepad. |
 | The installer can't find the game folder | Choose the folder with `BUILD.bat` in the window that opens. It must be built first (`game\dqix.exe` exists). |
-| *"The game is still running"* | Close the game (and the cheat menu), run `Install mods.bat` again. |
+| *"The game is still running"* | Close the game, run `Install mods.bat` again. |
 | The **Cheats** tab is missing in the game | The game was built without it (for example after a hand-made update). Run `Install mods.bat` or `Play with mods.bat` once, wait for the build. |
 | *"cmp: command not found"* at the end of a build | Harmless. To silence it: open the MSYS2 UCRT64 terminal and run `pacman -S diffutils`. |
 | The build fails | Read the last lines of the black window; run `mods\system\dev.bat doctor`; check that you have ~4 GB free and the internet on. |
-| The cheat menu doesn't open | It needs the C# compiler that comes with Windows 10/11 (.NET Framework 4). Then switch cheats on in `mods\system\cheats` by hand (see `mods\README.txt`). |
+| *Cheats > Save editor* does nothing | The editor helper needs the C# compiler that comes with Windows 10/11 (.NET Framework 4); run `Install mods.bat` again. The cheat list works without it. |
 | A friend's session says OUT OF SYNC | Everyone needs the same built-in mods (or none), and the same version of these mods. See [Playing with friends](#playing-with-friends). |
 | Something else | Press **F10** in the game: it saves a bug report and can open GitHub for you. |
 
@@ -198,7 +193,7 @@ The cheat list comes from the community's R4 database (DeadSkullzJr's NDS(i) Che
 ## Uninstall
 
 1. Set `sync_cheats = no` in `mods\settings.txt` and open a Command Prompt in your DQIX Enhanced folder (type `cmd` in the folder's address bar) and run `"mods\Play with mods.bat" apply`: this takes the Cheats tab and the cheats' part out of the game's source and rebuilds it. Switch all code mods off first (**Everything off**) so the build is clean.
-2. Delete the `mods` folder and the desktop shortcut.
+2. Delete the `mods` folder.
 
 Your save (`game\dqix.sav`) is never touched.
 
@@ -206,15 +201,15 @@ Your save (`game\dqix.sav`) is never touched.
 
 ## For development
 
-See [WORKFLOW.md](WORKFLOW.md) (fast loop, which test for which change, moving to another PC) and [NOTES.md](NOTES.md) (change notes). `mods\README.txt` is the user manual of the menu.
+See [WORKFLOW.md](WORKFLOW.md) (fast loop, which test for which change, moving to another PC) and [NOTES.md](NOTES.md) (change notes). `mods\README.txt` is the user manual of the mods.
 
 Layout:
 
 ```
-Install mods.bat            one-click installer (copies mods\, shortcut, builds the Cheats tab in)
-mods\Play with mods.bat     start here: cheat menu, "apply" = put the mods into the game and build
-mods\settings.txt           cheat_window, sync_cheats
-mods\system\src\            CheatMenu.cs (WPF menu), mod_cheats.c, ar_engine.h, mod_menu.c, ...
+Install mods.bat            one-click patcher (copies mods\, builds the Cheats tab in)
+mods\Play with mods.bat     the patcher: cheat list for your ROM, mods into the game, build, save editor helper
+mods\settings.txt           sync_cheats
+mods\system\src\            mod_cheatwin.c (the cheat window), EditorHost.cs (save editor helper), mod_cheats.c, ar_engine.h, mod_menu.c, ...
 mods\system\tools\          catalog.py, apply_runtime_mod.py, apply_code_mods.py, build_stamp.py, dev.py
 mods\system\tests\          headless regression tests (run with dev.py test ...)
 mods\system\cheats\         the cheat lists (R4 database + hand-made, yours too)

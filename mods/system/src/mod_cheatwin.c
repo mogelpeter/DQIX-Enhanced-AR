@@ -1,9 +1,9 @@
 /* DQIX Enhanced mods: the Cheats window inside the emulator (menu bar: Cheats > Cheats...).
  *
- * It shows the same list as the cheat menu program (mods\system\bin\catalog.txt, made by tools\catalog.py), keeps the same
- * state file (mods\system\menu-state.txt) and puts live cheats into the game through the same mailbox, but from inside
- * the game's own process, so there is no second program, no restart and, with the live code mods (livepatch.c),
- * no rebuild: a switch is on the moment you click it.
+ * It shows the cheat list (mods\system\bin\catalog.txt, made by tools\catalog.py), keeps the switches in the state file
+ * (mods\system\menu-state.txt) and puts live cheats into the game through the cheat mailbox, from inside the game's own
+ * process, so there is no second program, no restart and, with the live code mods (livepatch.c), no rebuild:
+ * a switch is on the moment you click it.
  *
  *   mod_cheatwin_boot()  at program start (mod_cheats.c): sets the options for the next start from the state file
  *                        and starts a thread that (re)sends every cheat that is on whenever the game forgot them
@@ -458,7 +458,7 @@ static int entry_changed(Row* r, int idx, int on) {
         return 0;
     }
     apply(idx, on);
-    SetWindowTextW(g_note, !strcmp(e->kind, "live") ? (on ? L"On." : L"Off.") : !strcmp(e->kind, "launch") ? L"Saved: takes effect the next time the game starts." : L"Saved: takes effect after the next \"Play with mods\" (rebuild).");
+    SetWindowTextW(g_note, !strcmp(e->kind, "live") ? (on ? L"On." : L"Off.") : !strcmp(e->kind, "launch") ? L"Saved: takes effect the next time the game starts." : L"Saved: takes effect after you run \"Play with mods.bat\" (rebuild).");
     (void)r; update_count();
     return 1;
 }

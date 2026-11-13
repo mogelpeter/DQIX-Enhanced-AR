@@ -1,8 +1,4 @@
-# Settings for "Play with mods.bat"
-
-# Open the cheat menu (every cheat as a switch, and a Play button): yes / no
-# (no: the game starts at once, with the code mods that are switched on built in)
-cheat_window = yes
+# Settings for "Play with mods.bat" (the patcher)
 
 # Live cheats that also work while playing with friends: yes / no
 # (yes: a small part of the mods is built into the game; every player of a

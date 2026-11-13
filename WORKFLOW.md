@@ -15,7 +15,8 @@ One rule: **do the cheapest check that can catch the mistake, and never repeat a
 
 | You changed | Run | Why this and not more |
 |---|---|---|
-| `CheatMenu.cs` (look, texts, tooltips) | `dev shot "<page>"`, then `dev test menu-smoke` | pictures in 5 s; the smoke test builds every card (all tooltips) on 4 pages and fails if `menu-error.log` appears |
+| `mod_cheatwin.c` (the cheat window) | `dev test cheatwin` after `Play with mods.bat apply` (the test uses the built game) | opens the window, switches a cheat on like a click, checks RAM + state file |
+| `EditorHost.cs` (save editor helper) | `dev test editor` | starts the helper on a scratch save: token checks, export + backup, language box |
 | `catalog.py`, `cheats\`, `code\`, `database\` | `dev test static` then `dev test all-quick` | static reads every catalog line in 0.1 s; all-quick sends 12 cheats to a headless game |
 | `mod_cheats.c`, `ar_engine.h` | `dev test live session all-single all-session` after a build | the only code that runs inside the game and inside friends' sessions |
 | a code mod (patch) | `dev scratch` (add `--rounds` for the x4/x8/Always Fail alternatives) | builds in a scratch copy in about a minute, your `game\` is not touched |

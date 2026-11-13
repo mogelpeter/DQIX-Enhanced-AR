@@ -3,8 +3,7 @@
 
   dev.py doctor                 what is missing on this PC (and how to fix it)
   dev.py deploy [--pull]        repo mods\\ -> the game folder's mods\\ (only changed files); --pull = the other way
-  dev.py menu [--out EXE]       compile the cheat menu (only when the source is newer)
-  dev.py shot [PAGE ...]        pictures of the menu pages (default: a few) in <temp>\\dqix-mods-tests\\shots
+  dev.py editor [--out EXE]     compile the save editor's helper (only when the source is newer)
   dev.py test [fast|full|NAME ...] [--force] [--jobs N]
   dev.py scratch [--rounds]     build ALL code mods in a scratch copy of the project (the game folder stays as it is)
 
@@ -14,14 +13,14 @@ Where things are (nothing is hard-coded to one PC):
   Work on the repo copy of mods\\ and deploy: every command deploys first when this file is not in the game folder.
 
 Why it is fast (see WORKFLOW.md): tests are tiered (fast ~2 min, full ~8 min), results are cached by a hash of every
-input so unchanged work is skipped, independent game tests run in parallel on their own ports, and the menu tests
-(which attach to ANY running dqix.exe) run alone at the end.
+input so unchanged work is skipped, independent game tests run in parallel on their own ports, and the editor test
+runs alone at the end.
 """
 import argparse, concurrent.futures as cf, glob, hashlib, json, os, py_compile, re, shutil, subprocess, sys, tempfile, time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SRC_MODS = os.path.dirname(os.path.dirname(HERE))                       # the mods\ this file lives in (repo or game folder)
-USER_FILES = {"menu-state.txt", "menu-lang.txt", "msys2-root.txt", "settings.txt", "dev-root.txt", "built.txt"}
+USER_FILES = {"menu-state.txt", "editor-lang.txt", "msys2-root.txt", "settings.txt", "dev-root.txt", "built.txt"}
 SKIP_DIRS = {"bin", "save-backups", "__pycache__", ".cache"}
 TMP = os.path.join(tempfile.gettempdir(), "dqix-mods-tests")
 
@@ -123,7 +122,7 @@ def cmd_deploy(a):
     return 0
 
 
-# ------------------------------------------------------------------ the menu
+# ------------------------------------------------------------------ the save editor's helper
 def csc_path():
     for fw in ("Framework64", "Framework"):
         p = os.path.join(os.environ.get("WINDIR", r"C:\Windows"), "Microsoft.NET", fw, "v4.0.30319", "csc.exe")
@@ -132,51 +131,31 @@ def csc_path():
     return None
 
 
-def build_menu(root, out=None):
+def build_editor(root, out=None):
     live = os.path.join(root, "mods", "system")
-    src = os.path.join(live, "src", "CheatMenu.cs")
-    exe = out or os.path.join(live, "bin", "dqix-cheat-menu.exe")
+    src = os.path.join(live, "src", "EditorHost.cs")
+    exe = out or os.path.join(live, "bin", "dqix-editor.exe")
     if os.path.isfile(exe) and os.path.getmtime(exe) >= os.path.getmtime(src):
         return exe, False
     csc = csc_path()
     if not csc:
         sys.exit("The C# compiler (csc.exe of .NET Framework 4) isn't on this PC: it comes with Windows 10/11.")
-    net = os.path.dirname(csc)
     os.makedirs(os.path.dirname(exe), exist_ok=True)
     cmd = [csc, "-nologo", "-target:winexe", "-platform:x64", "-optimize+", "-out:" + exe]
     ico = os.path.join(root, "build", "icon", "dqix.ico")
     if os.path.isfile(ico):
         cmd.append("-win32icon:" + ico)
-    cmd += ["-r:" + os.path.join(net, "WPF", d + ".dll") for d in ("PresentationFramework", "PresentationCore", "WindowsBase")]
-    cmd += ["-r:System.Xaml.dll", "-r:System.Core.dll", src]
+    cmd += ["-r:System.Windows.Forms.dll", "-r:System.Core.dll", src]
     r = subprocess.run(cmd, capture_output=True, text=True, errors="replace")
     if r.returncode:
-        print(r.stdout + r.stderr); sys.exit("menu: compile failed")
+        print(r.stdout + r.stderr); sys.exit("editor helper: compile failed")
     return exe, True
 
 
-def run_shot(root, exe, page, png, wait="2"):
-    """a picture of one menu page (the menu takes no clicks for this and doesn't come to the front)"""
-    p = subprocess.run([exe, root, "--shot", png, page, wait], capture_output=True, timeout=90)
-    return p.returncode == 0 and os.path.isfile(png)
-
-
-def cmd_menu(a):
+def cmd_editor(a):
     root = need_root(a.root); ensure_deployed(root)
-    exe, built = build_menu(root, a.out)
+    exe, built = build_editor(root, a.out)
     print(("compiled " if built else "up to date: ") + exe)
-    return 0
-
-
-def cmd_shot(a):
-    root = need_root(a.root); ensure_deployed(root)
-    if game_running():
-        sys.exit("A dqix.exe is running: the menu would connect to it. Close it first (or run this later).")
-    exe, _ = build_menu(root)
-    out = os.path.join(TMP, "shots"); os.makedirs(out, exist_ok=True)
-    for page in (a.pages or ["Party", "Switched on", "Items"]):
-        png = os.path.join(out, re.sub(r"\W", "", page) + ".png")
-        print(("ok   " if run_shot(root, exe, "on" if page == "Switched on" else page, png) else "FAIL ") + page, "->", png)
     return 0
 
 
@@ -211,10 +190,10 @@ def t_static(root, work):
     rp = subprocess.run([sys.executable, "-X", "utf8", os.path.join(live, "tests", "test_runtime_patch.py"), root], capture_output=True, text=True)
     if rp.returncode != 0:                                  # the Cheats tab and the other marked places in the game's source
         problems.append("test_runtime_patch.py: " + (rp.stdout + rp.stderr)[-300:])
-    cs = open(os.path.join(live, "src", "CheatMenu.cs"), encoding="utf-8").read()
+    cs = open(os.path.join(live, "src", "EditorHost.cs"), encoding="utf-8").read()
     for pat, why in ((r'\$"', 'string interpolation'), (r'\w\?\.\w', '?. operator'), (r'nameof\(', 'nameof'), (r'\bout var\b', 'out var')):
         if re.search(pat, cs):
-            problems.append("CheatMenu.cs uses " + why + " (Windows' csc is C# 5)")
+            problems.append("EditorHost.cs uses " + why + " (Windows' csc is C# 5)")
     cat = os.path.join(live, "bin", "catalog.txt")
     if not os.path.isfile(cat):
         problems.append("no mods\\system\\bin\\catalog.txt: run Play with mods.bat catalog")
@@ -263,16 +242,9 @@ def judge(name, r):
     return r.returncode == 0, out
 
 
-def t_menu_smoke(root, work):
-    live = os.path.join(root, "mods", "system")
-    exe, _ = build_menu(root)
-    log = os.path.join(live, "bin", "menu-error.log")
-    before = os.path.getmtime(log) if os.path.isfile(log) else 0
-    bad = []
-    for page in ("Party", "on", "Not available", "All cheats", "tool:save", "tool:maps"):
-        if not run_shot(root, exe, page, os.path.join(work, re.sub(r"\W", "", page) + ".png"), "1"):
-            bad.append(page)
-    # the editor host: serves the cached editor, hands out / takes back a scratch save, refuses wrong tokens
+def t_editor(root, work):
+    """the editor's helper: serves the cached editor, hands out / takes back a scratch save, refuses wrong tokens, keeps the language"""
+    exe, _ = build_editor(root)
     res = os.path.join(work, "editor-selftest.txt")
     try:
         subprocess.run([exe, "--editor-selftest", res], capture_output=True, timeout=90)
@@ -280,15 +252,11 @@ def t_menu_smoke(root, work):
     except subprocess.TimeoutExpired:
         txt = "timeout"
     print("editor host:", txt)
+    bad = txt != "PASS" and not txt.startswith("FAIL prepare")
     if txt.startswith("FAIL prepare"):
         print("  (no internet for the first download: skipped)")
-    elif txt != "PASS":
-        bad.append("editor host")
-    if os.path.isfile(log) and os.path.getmtime(log) > before:
-        bad.append("menu-error.log was written")
-    print("menu smoke: pages that failed:", bad or "none")
     print("RESULT:", "FAIL" if bad else "PASS")
-    return 0 if not bad else 1
+    return 1 if bad else 0
 
 
 # name -> (runner, parallel?, expected seconds). Runner(root, work, port) -> (ok, text)
@@ -316,22 +284,20 @@ def runners(root, work):
         "all-session":    (fn("test_all.py", ["session", "", "{port}"]), True, 160),
         "cheatwin":       (fn("test_cheatwin.py", ["900"]), True, 60),             # the Cheats window inside the game (mod_cheatwin.c)
         "livepatch":      (fn("test_livepatch.py", ["4500"]), True, 400),         # live code mods; needs TEST_SAVE = a save with the hero in a dungeon
-        "menu-smoke":     (inproc(t_menu_smoke, "menu-smoke"), False, 10),
-        "menu-inside":    (fn("test_menu.py", ["inside"]), False, 150),
-        "menu-outside":   (fn("test_menu.py", ["outside"]), False, 150),
+        "editor":         (inproc(t_editor, "editor"), False, 10),
     }
 
 
 TIERS = {
-    "fast": ["static", "live-fast", "session-fast", "all-quick", "menu-smoke"],
-    "full": ["static", "live", "session", "all-single", "all-session", "cheatwin", "menu-smoke", "menu-inside", "menu-outside"],
+    "fast": ["static", "live-fast", "session-fast", "all-quick", "editor"],
+    "full": ["static", "live", "session", "all-single", "all-session", "cheatwin", "editor"],
 }
 
 
 def cmd_test(a):
     root = need_root(a.root); ensure_deployed(root)
     if game_running():
-        sys.exit("A dqix.exe is running (your game?): tests and the menu would collide with it. Close it first.")
+        sys.exit("A dqix.exe is running (your game?): tests would collide with it. Close it first.")
     names = []
     for n in (a.what or ["fast"]):
         names += TIERS.get(n, [n])
@@ -344,9 +310,9 @@ def cmd_test(a):
             sys.exit(f"no test called {n}. Tests: {', '.join(table)}; tiers: {', '.join(TIERS)}")
     if not os.path.isfile(os.path.join(root, "game", "dqix.exe")) and any(n != "static" for n in names):
         sys.exit("The game isn't built yet (game\\dqix.exe is missing): run BUILD.bat first.")
-    exe, built = build_menu(root)
+    exe, built = build_editor(root)
     if built:
-        print("menu compiled")
+        print("editor helper compiled")
     key = input_key(root)
     cache_file = os.path.join(root, "mods", "system", "bin", "test-cache.json")
     try:
@@ -375,7 +341,7 @@ def cmd_test(a):
         for f in futs:
             r = f.result(); results[r[0]] = r
             print(f"{'PASS' if r[1] else 'FAIL'}  {r[0]:<13} {r[3]:6.1f}s" + ("  (unchanged since the last pass: skipped)" if r[2] == "cached PASS" else ""), flush=True)
-    for i, n in enumerate(seq):                           # the menu attaches to any running game: alone, after the rest
+    for i, n in enumerate(seq):                           # the editor test runs alone, after the rest
         r = go(n, port + 60 + i); results[n] = r
         print(f"{'PASS' if r[1] else 'FAIL'}  {n:<13} {r[3]:6.1f}s" + ("  (unchanged since the last pass: skipped)" if r[2] == "cached PASS" else ""), flush=True)
     for n, r in results.items():
@@ -398,7 +364,7 @@ def cmd_doctor(a):
         nonlocal bad
         print(("  ok    " if ok else "  MISSING ") + what + ("" if ok else "\n          -> " + fix)); bad += (not ok)
     print("DQIX Enhanced mods: checking this PC")
-    line(sys.platform == "win32", "Windows", "the menu is a Windows (WPF) program")
+    line(sys.platform == "win32", "Windows", "the cheats window and the editor helper are Windows programs")
     line(bool(csc_path()), "C# compiler (csc.exe, .NET Framework 4)", "it is part of Windows 10/11: enable .NET Framework 4.x in Windows features")
     line(sys.version_info >= (3, 8), f"Python {sys.version.split()[0]}", "install Python 3.8+ (python.org), or run through MSYS2's python3")
     line(bool(root), "DQIX Enhanced folder (with BUILD.bat)" + (": " + root if root else ""), "run:  dev.py --root \"<folder>\" doctor   (or put the path in mods\\system\\dev-root.txt)")
@@ -410,7 +376,6 @@ def cmd_doctor(a):
         line(os.path.isfile(os.path.join(root, "build", "recomp", "dispatch_table.c")), "build\\recomp (the mods are checked against it)", "run BUILD.bat")
         msys = read(os.path.join(mods, "msys2-root.txt")) or r"C:\msys64"
         line(os.path.isfile(os.path.join(msys, "usr", "bin", "bash.exe")), "MSYS2 build tools: " + msys, "BUILD.bat installs them; Play with mods.bat finds them")
-        line(os.path.isfile(os.path.join(mods, "fonts", "JetBrainsMono-Regular.ttf")), "JetBrains Mono in mods\\system\\fonts", "copy mods\\system\\fonts from the repo (the menu falls back to Consolas without it)")
         line(os.path.isfile(os.path.join(mods, "bin", "catalog.txt")), "cheat list (mods\\system\\bin\\catalog.txt)", "run  Play with mods.bat catalog")
         line(not game_running(), "no game running right now", "close dqix.exe before tests")
     print("\nAll good." if not bad else f"\n{bad} thing(s) to fix.")
@@ -481,8 +446,7 @@ def main():
     sub = ap.add_subparsers(dest="cmd", required=True)
     sub.add_parser("doctor").set_defaults(f=cmd_doctor)
     p = sub.add_parser("deploy"); p.add_argument("--pull", action="store_true"); p.set_defaults(f=cmd_deploy)
-    p = sub.add_parser("menu"); p.add_argument("--out"); p.set_defaults(f=cmd_menu)
-    p = sub.add_parser("shot"); p.add_argument("pages", nargs="*"); p.set_defaults(f=cmd_shot)
+    p = sub.add_parser("editor"); p.add_argument("--out"); p.set_defaults(f=cmd_editor)
     p = sub.add_parser("test"); p.add_argument("what", nargs="*"); p.add_argument("--force", action="store_true"); p.add_argument("--jobs", type=int, default=3); p.set_defaults(f=cmd_test)
     p = sub.add_parser("scratch"); p.add_argument("--rounds", action="store_true", help="also the alternatives that clash (x4, x8 ... Always Fail)"); p.set_defaults(f=cmd_scratch)
     a = ap.parse_args()
