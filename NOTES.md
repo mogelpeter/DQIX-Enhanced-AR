@@ -2,6 +2,9 @@
 
 Newest first. One block per working session: what changed, why, how it was checked.
 
+## 2026-11-13 (15)  Claude Code project hooks
+- `.claude/hooks/dqix_hook.py` + `.claude/settings.json`: session status, deny edits in the game folder that have a repo twin, deny killing dqix.exe, automatic `dev test static` after edits under `mods/`, NOTES.md reminder at turn end. Checked by feeding each event a sample payload.
+
 ## 2026-11-13 (14)  Cheats reworked, new native cheats, hover descriptions, English first
 - Language: the menu always starts in English (the box remembers a changed choice).
 - "Not available" is empty now: our own versions replace the three R4 codes that could not work (`# replaces: <name>` in a cheat/code file removes the database entry of that name) and the R4 "Lower Level Characters Get More Exp." is gone. `# also: <page>` shows a cheat on a second page ("My cheats" holds our own: lower-level experience, monsters don't chase you, monsters can't flee, vanish, metal slimes only).
