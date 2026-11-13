@@ -2,6 +2,9 @@
 
 Newest first. One block per working session: what changed, why, how it was checked.
 
+## 2026-11-13 (4)  Status line removed, one-click installer
+- Header status line (counts, built-in set) hidden. `Install mods.bat` now finds the DQIX Enhanced folder itself (folder picker only as fallback), copies the mods, makes the desktop shortcut and offers to start the menu. Checked: auto-find, explicit path, menu-smoke PASS.
+
 ## 2026-11-13 (3)  Menu restyle: dark glass + red accent
 - Menu colours moved from black/neon green to neutral dark grey with a red accent (switches, primary button, selection, heading underline); UI font is Segoe UI (JetBrains Mono stays for the log). `CheatMenu.cs` only.
 - Checked: `dev test fast` 5/5 (33 s), `dev shot`; no compile errors found (menu compiles, static guards pass).

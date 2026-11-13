@@ -614,7 +614,7 @@ namespace DqixMenu
     <Grid>
       <StackPanel Margin='0,0,190,0'>
         <TextBlock FontSize='15' FontWeight='SemiBold'><Run Foreground='#C8413B' Text='&#x2726; '/><Run Text='Dragon Quest IX'/><Run Foreground='#8C8C92' FontWeight='Normal' Text='  cheat menu'/></TextBlock>
-        <TextBlock x:Name='Sub' Margin='0,3,0,0' FontSize='10' Foreground='{StaticResource Dim}' TextTrimming='CharacterEllipsis'/>
+        <TextBlock x:Name='Sub' Visibility='Collapsed' Margin='0,3,0,0' FontSize='10' Foreground='{StaticResource Dim}' TextTrimming='CharacterEllipsis'/>
       </StackPanel>
       <Border x:Name='Pill' HorizontalAlignment='Right' VerticalAlignment='Center' CornerRadius='3' Padding='8,3' Background='#17171A' BorderBrush='#2E2E33' BorderThickness='1'>
         <StackPanel Orientation='Horizontal'>
