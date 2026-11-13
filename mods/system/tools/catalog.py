@@ -842,6 +842,14 @@ def build(root):
         entries.append(dict(id=lid, name=name, note=note, cat=cat, group="", kind="launch",
                             status="untested" if env.startswith("DQIX_MOD_") and not env.startswith("DQIX_MOD_METAL") else "tested",
                             mode="", ops=[], keys=[], reason="", file="", on=False, patch=[], env=env, option=name, also=also))
+    # ---- cheats whose effect an automated test confirmed (mods/system/verified.txt) count as tried out
+    try:
+        ok = set(l.split()[0] for l in open(os.path.join(root, "mods", "system", "verified.txt"), encoding="utf-8") if l.strip() and not l.startswith("#"))
+    except OSError:
+        ok = set()
+    for e in entries:
+        if e["status"] == "untested" and e["id"] in ok:
+            e["status"] = "tested"
     return info, entries, groups
 
 

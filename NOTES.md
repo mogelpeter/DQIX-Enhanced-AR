@@ -2,6 +2,10 @@
 
 Newest first. One block per working session: what changed, why, how it was checked.
 
+## 2026-11-13 (23)  Verified cheats count as tried out
+- `mods/system/verified.txt` (46 live cheat ids confirmed by `test_effects.py`) is read by `catalog.py`: UNTESTED becomes tried out. Vanish and Monsters can't flee lost their `# status: untested` (test_vanish PASS; test_noflee PASS with `TEST_SAVE` = backup `dqix-20261113-170934.sav`, 6 re-asks).
+- Still UNTESTED on purpose: cheats whose condition can't be reached headless (battle-only, party 2-4...), the code mods (only shown to build, start and stay in sync, not what they do in play), the 288 monster launchers. `test fast` 5/5 PASS.
+
 ## 2026-11-13 (22)  RE helper, per-cheat effect test 
 - Research: no public DQIX RAM map or symbols exist (only AR address lists); Ghidra/NTRGhidra/DeSmuME not needed because the recompiled C already carries the ROM's function names. Playbook added to `WORKFLOW.md`.
 - `mods/system/tools/dqre.py`: `func`, `names`, `ar`, `ram`, `diff` over `dispatch_table.c` and `DQIX_RAMDUMP` files. (Not named `re.py`: it shadows Python's `re` and broke dev.py.)

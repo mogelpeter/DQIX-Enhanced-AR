@@ -1,0 +1,50 @@
+# Cheats whose effect was confirmed by tests/test_effects.py: fired alone into a headless game, every byte the code writes
+# was in RAM afterwards (an independent Python copy of the AR engine predicted it). The menu shows them as tried out.
+# Rerun: test_effects.py <root> <work> untested <first> <count>; lines are `id  # name`. Not proof for the game's later states.
+
+db:0228d3f9  # Defeated Monster List
+db:05c4e274  # Battle Won Max
+db:0773d73c  # Treasure Hunted Max
+db:07f8adaa  # Hero: Actual MP 9999
+db:09de39fd  # [L] for Invincibility (Soul Asylum)
+db:0db1ccd6  # All Accolades
+db:168e9df3  # Enemy HP 1: Enemy 1
+db:1a22d10e  # Enemy HP 1: Enemy 4
+db:1afe4186  # 99 of every: All Weapons
+db:1c9ac1f8  # Enemy in Confused Status
+db:22e1dbca  # Enemy HP 1: Enemy 5
+db:358f8aa8  # Guardian
+db:42b045e8  # Enable Zoom
+db:48c7e28b  # Max EXP in every vocation: Player 2
+db:4f506df2  # 99 of every: Consumable Items
+db:624764cd  # Hero: Current MP 9999
+db:6f9a2cd8  # Enemy in Poison Status
+db:7813c526  # Enemy HP 1: Enemy 2
+db:7d6a3746  # Max WiFi Time
+db:81aeff70  # Forge Max
+db:8eb6bfaf  # All Charaters All Stats 999
+db:90d14880  # Enemy HP 1: Enemy 6
+db:94601037  # 100% Monster List, Wardrobe, Item List and Alchenomicon
+db:9822b060  # Max EXP in every vocation: Player 4
+db:9cc12f58  # Hero: Actual HP 9999
+db:a492b733  # Hero: Current HP 9999
+db:a54268df  # Ranger
+db:a6f62b17  # Quest Completed Max
+db:bbb30e17  # Night Time, push Start and Down
+db:bc32dbfc  # Inn Max Level/Upgrades
+db:c08cdbb5  # Unlock All Jobs v2
+db:d11ee1c3  # Regain Wings in Angel Falls
+db:d49beac9  # Alchemy Recipies - Forged
+db:d5c55479  # [L+R] for Full Map Display
+db:e03aa5a5  # Max EXP in every vocation: Hero
+db:e09d4e01  # Enemy HP 1: Enemy 3
+db:e1e175db  # Ranger
+db:e2b6d025  # All Visitors Rooms Unlocked for Inn
+db:e30a289e  # Luminary
+db:e34576d7  # Max EXP in every vocation: Player 3
+db:e7e837f8  # Unlock All Extra Quests V2
+db:ec387061  # Fill in All ? ? ? of Extra Quest
+db:edca12f9  # Hold [L/R] Walkthrough A Door/Stairs to Go Observatory/Storn
+db:f50a60a9  # Ranger
+db:fde52bd8  # Max Game Time
+db:ff3b1e01  # Unlock All Menus
