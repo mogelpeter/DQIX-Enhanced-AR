@@ -2,6 +2,10 @@
 
 Newest first. One block per working session: what changed, why, how it was checked.
 
+## 2026-11-13 (24)  Monster launchers: host data test + in-game sample (in progress)
+- `tests/test_force_data.c` compiles `mod_data.c` as it is and applies every launcher (monster 1..288) to the ROM's own encounter tables: all 288 PASS (2102 roamer slots become that monster, weights and all other bytes untouched). Build: MSYS2 gcc, `-I <game>/runtime`, needs an `rt_getenv` stub.
+- `tests/test_launchers.py` runs the game per monster (`TEST_SAVE` with the hero in a dungeon, `TEST_EXE` without Monsters don't chase) and sees a battle by the orange bottom screen. Weak monsters do not chase a level-26 hero, so most runs end NOBATTLE; metal slime reaches a fight. A spread sample of 24 is running; launcher labels stay UNTESTED until it finishes.
+
 ## 2026-11-13 (23)  Verified cheats count as tried out
 - `mods/system/verified.txt` (46 live cheat ids confirmed by `test_effects.py`) is read by `catalog.py`: UNTESTED becomes tried out. Vanish and Monsters can't flee lost their `# status: untested` (test_vanish PASS; test_noflee PASS with `TEST_SAVE` = backup `dqix-20261113-170934.sav`, 6 re-asks).
 - Still UNTESTED on purpose: cheats whose condition can't be reached headless (battle-only, party 2-4...), the code mods (only shown to build, start and stay in sync, not what they do in play), the 288 monster launchers. `test fast` 5/5 PASS.
