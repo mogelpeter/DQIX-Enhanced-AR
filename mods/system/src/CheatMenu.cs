@@ -1044,7 +1044,6 @@ button{white-space:normal}
   <Border Grid.Row='0' Padding='16,9,16,8' BorderBrush='#26262B' BorderThickness='0,0,0,1'>
     <Grid>
       <StackPanel Margin='0,0,330,0'>
-        <TextBlock FontSize='14' FontWeight='SemiBold'><Run Text='Dragon Quest IX'/><Run x:Name='TitleSub' Foreground='#8C8C92' FontWeight='Normal' Text='  /  cheats'/></TextBlock>
         <TextBlock x:Name='Sub' Visibility='Collapsed' Margin='0,3,0,0' FontSize='10' Foreground='{StaticResource Dim}' TextTrimming='CharacterEllipsis'/>
       </StackPanel>
       <StackPanel Orientation='Horizontal' HorizontalAlignment='Right' VerticalAlignment='Center'>
@@ -1145,7 +1144,7 @@ button{white-space:normal}
             root = rootDir;
             mods = Path.Combine(root, "mods");
             gameDir = Path.Combine(root, "game");
-            Title = "Dragon Quest IX - cheat menu";
+            Title = "Dragon Quest IX  /  cheats";
             Width = 880; Height = 600; MinWidth = 680; MinHeight = 420;
             Background = B("#0E0E10");
             SourceInitialized += delegate
@@ -1217,8 +1216,7 @@ button{white-space:normal}
 
         void ApplyLang()
         {
-            Title = "Dragon Quest IX - " + Tr.T("cheat menu");
-            if (TitleSub != null) TitleSub.Text = "  /  " + Tr.T("cheats");
+            Title = "Dragon Quest IX  /  " + Tr.T("cheats");
             SearchHint.Text = Tr.T("Search all cheats");
             OffBtn.Content = Tr.T("Everything off"); ReloadBtn.Content = Tr.T("Reload list"); OverClose.Content = Tr.T("Close");
             UpdatePlay();

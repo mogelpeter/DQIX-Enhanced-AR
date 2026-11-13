@@ -2,6 +2,9 @@
 
 Newest first. One block per working session: what changed, why, how it was checked.
 
+## 2026-11-13 (20)  Title text moved into the window title
+- `CheatMenu.cs`: the "Dragon Quest IX / cheats" heading inside the window is gone; the window title is now "Dragon Quest IX  /  cheats" (cheats translated with the language box). Checked: `dev menu`, `test static menu-smoke`, shot.
+
 ## 2026-11-13 (19)  Dark title bar, no "Not available" page, no TRIED OUT chip, shortcut icon
 - `CheatMenu.cs`: dark title bar (DwmSetWindowAttribute 20/19, caption colours 35/36 on Windows 11); the "Not available" nav page, its count in the sub line and the "Not available here" list are gone (blocked codes stay hidden and off); only UNTESTED chips are shown (TRIED OUT removed).
 - `Make a desktop shortcut.bat`: the icon path had `..` in it and was ignored; now resolved with GetFullPath, `build\icon\dqix.ico` first, else the exe's own icon.
