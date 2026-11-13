@@ -160,3 +160,6 @@ Newest first. One block per working session: what changed, why, how it was check
 
 ## 2026-11-13 (29)  Cheat window: fewer glitches
 - Wheel scrolls the page wherever the pointer is over it (a focused drop-down no longer changes by the wheel); `&` in cheat names shows (was an underline); Esc closes; reopening the window re-reads the state; controls move in one batch (less flicker). `dev test static cheatwin` PASS on the rebuilt game.
+
+## 2026-11-13 (30)  Cheat window: smaller, dark
+- 800x560 (was 980x700), smaller type and rows, dark palette like the DS Lite black skin with a gold accent, owner-drawn toggle switches, dark title bar and dark drop-downs/buttons (system dark theme, falls back to the normal look). `dev test static cheatwin` PASS.
