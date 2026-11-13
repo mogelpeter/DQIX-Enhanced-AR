@@ -150,3 +150,10 @@ Newest first. One block per working session: what changed, why, how it was check
 
 ## 2026-11-13 (27)  Cheats window redesign
 - `mod_cheatwin.c`: page list on the left (owner-drawn), one row per cheat (check box + grey line with who/status/note), choose-one groups are a drop-down again (Off + options), keys moved to their own **Keybinds** page, current-style controls (comctl32 v6 through an activation context), scrolling panel, "Do it now" per row. Test hook unchanged. Checked: compiles, headless render with a group member switched on (state file written). Not run: `dev test cheatwin` (the game was running).
+(27, update) `dev test cheatwin` PASS on the rebuilt game (the new window).
+
+## 2026-11-13 (28)  Old cheat menu removed; installer is a patcher; language in the editor page
+- Removed `CheatMenu.cs` (WPF menu, `dqix-cheat-menu.exe`), `test_menu.py`, the JetBrains Mono fonts, `lang\ui.tsv`/`about.tsv`, `lang_keys.py` and the desktop-shortcut script. The only cheat UI is the window in the emulator (Cheats > Cheats...).
+- New `src\EditorHost.cs` -> `mods\system\bin\dqix-editor.exe` (no window, made by `Play with mods.bat` with csc): serves the browser save editor, opens it, leaves 3 minutes after the page closed (the page pings every 20 s). Cheats > Save editor starts it; Treasure maps is only the website. The language box moved into the editor page (bottom right, POST `/__lang`, kept in `mods\system\editor-lang.txt`).
+- `Play with mods.bat` is the patcher: catalog + mods into the game + build + editor helper; no menu, no game start. `cheat_window` setting removed. `Install mods.bat` no longer makes a shortcut (it removes the old one and the old files) and ends with how to use the Cheats tab.
+- `dev.py`: `editor` replaces `menu`/`shot`; the `editor` test replaces menu-smoke/inside/outside. Checked: installer run on the game folder (rebuild ok), `dev test static editor cheatwin --force` PASS. Note: .bat files must be CRLF (LF broke `call :label`).
