@@ -2,6 +2,9 @@
 
 Newest first. One block per working session: what changed, why, how it was checked.
 
+## 2026-11-13 (7)  Multiplayer tags, hover without repeats
+- Every card carries ONE PLAYER (live: one player is enough, sent to all PCs), ALL PLAYERS (built in: same set on every PC) or OWN PC (launch options). Hover now only says how to use it + the multiplayer rule; note, status, rebuild warning and code-line count are on the card, not repeated. menu-smoke PASS.
+
 ## 2026-11-13 (6)  Plainer menu
 - Dropped the decorative bits: sparkle/star/play/warning/lock glyphs, outlined pill chips (now plain small tags), gradient button, round switch knob, boxed nav selection (now a red edge bar), status pill box. Corners 2 px, switch smaller. `CheatMenu.cs` only; menu-smoke PASS.
 

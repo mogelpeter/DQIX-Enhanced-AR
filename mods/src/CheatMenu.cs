@@ -1130,6 +1130,9 @@ namespace DqixMenu
         {
             if (kind == "code") into.Children.Add(Chip("BUILT IN", Blue, "Changes how the game works, so it is built into the game: switching it takes a rebuild (a few minutes).\nEvery instruction it changes was found in your ROM first."));
             if (kind == "launch") into.Children.Add(Chip("NEXT START", Blue, "Takes effect the next time the game starts from this menu."));
+            if (kind == "live") into.Children.Add(Chip("ONE PLAYER", Dim, MpLive));
+            else if (kind == "code") into.Children.Add(Chip("ALL PLAYERS", Dim, MpCode));
+            else if (kind == "launch") into.Children.Add(Chip("OWN PC", Dim, MpLaunch));
             if (status == "tested") into.Children.Add(Chip("TRIED OUT", Green, "Tried in this version of the game."));
             else if (status == "untested") into.Children.Add(Chip("UNTESTED", Amber, "From the R4 cheat list for your ROM. Checked as far as a program can, but not tried in this version: save first."));
         }
@@ -1138,6 +1141,9 @@ namespace DqixMenu
         static FontFamily Mono = new FontFamily("Consolas");
         const string WarnBuilt = "Works only after a full rebuild and a restart of the game.";
         const string WarnNext = "Works after the next start of the game from this menu.";
+        const string MpLive = "Multiplayer: one player switching it on is enough. It is sent to every PC of the session and runs for everyone. Every player needs the mods folder installed in their game.";
+        const string MpCode = "Multiplayer: every player must have this built into their game, the same ones on every PC (the set code in the menu must match), or the session goes out of sync.";
+        const string MpLaunch = "Multiplayer: only changes your own PC; nobody else has to do anything.";
 
         static ToolTip MakeTip(string title, IEnumerable<string> lines, string warn)
         {
@@ -1167,20 +1173,16 @@ namespace DqixMenu
         ToolTip TipOf(Entry e)
         {
             List<string> l = new List<string>();
-            if (e.Note.Length > 0) l.Add(e.Note);
             if (e.Kind == "live")
             {
-                if (e.Mode == "once") l.Add("How: press \"Do it\" and the game carries it out one time, right now.");
-                else if (e.Mode == "both") l.Add("How: switch it on" + (e.Keys.Length > 0 ? " and hold " + e.Keys + " in the game" : "") + ", or press \"Once\" to do it right away without the buttons.");
-                else l.Add("How: switch it on. It then works every frame until you switch it off.");
-                l.Add("With friends: it travels with your buttons, so everyone sees it (every player needs the same mods folder in their game).");
+                if (e.Mode == "once") l.Add("Press \"Do it\": the game carries it out one time, right now.");
+                else if (e.Mode == "both") l.Add("Switch it on" + (e.Keys.Length > 0 ? " and hold " + e.Keys + " in the game" : "") + ", or press \"Once\" to do it right away.");
+                else l.Add("Switch it on: it works every frame until you switch it off.");
+                l.Add(MpLive);
             }
-            else if (e.Kind == "code") l.Add("How: switch it on, press Rebuild, close the game and press Play. It is part of the game's program afterwards. With friends every player needs the same ones (the menu shows a set code to compare).");
-            else if (e.Kind == "launch") l.Add("How: switch it on; it is applied each time the game is started from this menu.");
-            if (e.Status == "tested") l.Add("Status: tried out in this version of the game.");
-            else if (e.Status == "untested") l.Add("Status: UNTESTED. From the R4 list for your ROM and checked as far as a program can. Save first.");
-            if (e.Kind == "live" && e.Ops.Length > 0) l.Add("Code: " + (e.Ops.Length / 2) + " line(s)" + (e.Ops.Length / 2 > 40 ? " (long: it takes a few seconds to reach the game)" : "") + ".");
-            string warn = WarnFor(e);
+            else if (e.Kind == "code") { l.Add("Switch it on, press Rebuild, then restart the game."); l.Add(MpCode); }
+            else if (e.Kind == "launch") { l.Add("Applied each time the game is started from this menu."); l.Add(MpLaunch); }
+            string warn = null;
             if (e.Kind == "code" && IsOn(e) && !built.Contains(e.Id)) warn = "Switched on but not built into the game yet: press Rebuild, then restart the game.";
             return MakeTip(e.Name, l, warn);
         }
@@ -1226,7 +1228,7 @@ namespace DqixMenu
             if (e.Kind == "blocked")
             {
                 Border blocked = CardOf(TextOf(e.Name, e.Reason, null), new TextBlock { Text = "locked", FontSize = 10, Foreground = Grey, VerticalAlignment = VerticalAlignment.Center }, true);
-                Hover(blocked, MakeTip(e.Name, new[] { "Not available here: " + e.Reason, "It is kept out on purpose so it can never crash the game." }, null));
+                Hover(blocked, MakeTip(e.Name, new[] { "Kept out on purpose so it can never crash the game." }, null));
                 return blocked;
             }
 
@@ -1297,9 +1299,9 @@ namespace DqixMenu
             };
             Border grow = CardOf(left, cb, false);
             List<string> gl = new List<string>();
-            if (g.Note.Length > 0) gl.Add(g.Note);
-            gl.Add("A choice: only one option can be on. Pick \"Off\" to switch it off.");
-            Hover(grow, MakeTip(g.Title, gl, g.Kind == "code" ? WarnBuilt : (g.Kind == "launch" ? WarnNext : null)));
+            gl.Add("Only one option can be on. Pick \"Off\" to switch it off.");
+            gl.Add(g.Kind == "code" ? MpCode : (g.Kind == "launch" ? MpLaunch : MpLive));
+            Hover(grow, MakeTip(g.Title, gl, null));
             return grow;
         }
         static bool anyUntestedAll(Group g) { return g.Items.All(e => e.Status == "untested"); }
