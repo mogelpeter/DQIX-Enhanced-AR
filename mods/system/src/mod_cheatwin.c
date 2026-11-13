@@ -482,7 +482,10 @@ static DWORD WINAPI ui_thread(LPVOID unused) {
     for (int i = 0; i < g_npg; i++) {
         int has = 0; for (int k = 0; k < g_ne && !has; k++) has = strcmp(g_e[k].kind, "blocked") && (!strcmp(g_e[k].cat, g_pg[i]) || !strcmp(g_e[k].also, g_pg[i]));
         if (!has) continue;
-        wchar_t* w = wide(g_pg[i]);
+        char title[200]; size_t tl = 0;                      /* a tab shows "&" as an underline: double it */
+        for (const char* c = g_pg[i]; *c && tl < sizeof title - 3; c++) { title[tl++] = *c; if (*c == '&') title[tl++] = '&'; }
+        title[tl] = 0;
+        wchar_t* w = wide(title);
         TCITEMW ti; memset(&ti, 0, sizeof ti); ti.mask = TCIF_TEXT | TCIF_PARAM; ti.pszText = w; ti.lParam = i;
         SendMessageW(g_tab, TCM_INSERTITEMW, (WPARAM)TabCtrl_GetItemCount(g_tab), (LPARAM)&ti); free(w);
     }
