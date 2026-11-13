@@ -29,11 +29,17 @@ def now(root):
     except OSError:
         pass
     h.update(block.encode("utf-8"))
-    for name in ("mod_cheats.c", "ar_engine.h", "mod_menu.c"):
+    for name in ("mod_cheats.c", "ar_engine.h", "mod_menu.c", "mod_data.c", "lowexp.c", "vanish.c", "noflee.c"):
         try:
             h.update(open(os.path.join(root, "runtime", name), "rb").read().replace(b"\r\n", b"\n"))
         except OSError:
             h.update(b"-")
+    try:                                                   # the mods' lines in wrap.txt (which game functions are wrapped)
+        w = open(os.path.join(root, "wrap.txt"), encoding="utf-8").read().replace("\r\n", "\n")
+        m = re.search(re.escape(BEGIN) + r".*?" + re.escape(END), w, flags=re.S)
+        h.update((m.group(0) if m else "").encode("utf-8"))
+    except OSError:
+        pass
     for name in ("input.c", "card.c", "menu_win32.c", "frontend_sdl.c", "update.c"):   # is each place in the game patched?
         try:
             h.update(b"1" if b">>> mods" in open(os.path.join(root, "runtime", name), "rb").read() else b"0")

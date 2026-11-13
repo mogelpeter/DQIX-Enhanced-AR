@@ -153,8 +153,9 @@ WRAP_END = "# <<< mods"
 WRAP_LINES = """main 0202053c lowlvl
 ov023 021f4098 lowexp
 ov017 02196430 enccheck
+main 0208a91c noflee
 """
-WRAP_FILES = ["lowexp.c", "vanish.c"]
+WRAP_FILES = ["lowexp.c", "vanish.c", "noflee.c"]
 
 
 def wrap_site(root, on):

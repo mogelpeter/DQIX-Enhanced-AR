@@ -2,6 +2,11 @@
 
 Newest first. One block per working session: what changed, why, how it was checked.
 
+## 2026-11-13 (21)  Monsters can't flee: fixed at the source
+- **Cause found** by watching a headless fight (Guarantomb, `DQIX_MOD_FORCE=3` = every roamer a metal slime, frame dumps + a scratch build that logged function entries and the battle's command list): the monster's turn is built by ov000 `0215767c`, which asks `func_0208a92c` (main, USA `0208a91c`) for the action number; **225 and 917 are the two actions named "Flee"** (action table: 618 records of 60 bytes, id in the low 12 bits of the word at +4, name pointer at +0; found by dumping RAM at the battle). The AI picks them at random from the monster's list. The old code mod (ov024 `021F418C`, the "who can I aim at" query 112) was never on this path: the run with it was frame-identical to the run without it.
+- **Fix**: `src/noflee.c` wraps `0208a91c` (wrap.txt line, `WRAP_LINES`): while the cheat is on, a Flee answer is thrown away and the AI asked again (up to 200 times). The cheat is now a *live* cheat (`02F5A5A8` switch in `mod_cheats.c`, like lowexp/vanish), so it works in sessions too (same on every PC) and the code mod in ov024 is gone. 9000 frames of fighting metal slimes: no Flee command any more (before: flees at about frame 4900 and 6000).
+- `build_stamp.py` now also hashes `mod_data.c`, `lowexp.c`, `vanish.c`, `noflee.c` and the wrap.txt block (a wrap change did not trigger a rebuild). `test_all.py`: switches `02F5A5A0..AF` are not memory (vanish/noflee made the "plain writes in RAM" check fail). New `tests/test_noflee.py` (3 min, needs a fight: SKIP if none is reached) PASS on the real build (4 re-asks); `test fast`, `all-single`, `all-session` PASS.
+
 ## 2026-11-13 (20)  Title text moved into the window title
 - `CheatMenu.cs`: the "Dragon Quest IX / cheats" heading inside the window is gone; the window title is now "Dragon Quest IX  /  cheats" (cheats translated with the language box). Checked: `dev menu`, `test static menu-smoke`, shot.
 

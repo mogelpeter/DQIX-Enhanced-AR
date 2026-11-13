@@ -97,6 +97,9 @@ uint8_t g_mod_lowexp;
  *           makes the field's "did a monster touch you" check find nothing, so you walk through monsters. */
 uint8_t g_mod_vanish;
 #define MC_SWITCH_VANISH 0x02F5A5A4u
+/* "Monsters can't flee" (mods/system/cheats/monsters-cant-flee.txt): on for this frame while the code is on; noflee.c reads it. */
+uint8_t g_mod_noflee;
+#define MC_SWITCH_NOFLEE 0x02F5A5A8u
 #define MC_VANISH_KEYS  ((1 << 8) | (1 << 9) | (1 << 2))      /* R, L, SELECT */
 static uint8_t g_vanish_armed, g_vanish_on, g_vanish_prev;
 
@@ -104,6 +107,7 @@ static int mc_write(void* u, uint32_t a, const void* in, size_t n) {
     (void)u;
     if ((a & 0x0FFFFFFFu) == MC_SWITCH_LOWEXP) { g_mod_lowexp = 1; return 1; }
     if ((a & 0x0FFFFFFFu) == MC_SWITCH_VANISH) { g_vanish_armed = 1; return 1; }
+    if ((a & 0x0FFFFFFFu) == MC_SWITCH_NOFLEE) { g_mod_noflee = 1; return 1; }
     a &= MAIN_RAM_SIZE - 1;
     if (a + n > MAIN_RAM_SIZE) return 0;
     memcpy(&g_main_ram[a], in, n); return 1;
@@ -122,6 +126,7 @@ static void mc_forget(void) {
     for (int i = 0; i < MC_SLOTS; i++) { free(g_slot[i].ops); memset(&g_slot[i], 0, sizeof g_slot[i]); }
     g_type = g_len = g_got = 0;
     g_mod_lowexp = 0;
+    g_mod_noflee = 0;
     g_mod_vanish = 0;
     g_vanish_armed = g_vanish_on = g_vanish_prev = 0;
 }
@@ -218,6 +223,7 @@ uint32_t mod_cheats_in(uint32_t v) {
         v &= 0x1FFF;
     }
     g_mod_lowexp = 0;                                    /* the codes below set it again while they are on */
+    g_mod_noflee = 0;
     g_vanish_armed = 0;
     int keys = (int)(v & 0xFFF);                         /* this console's buttons this frame: the same on every PC */
     for (int i = 0; i < MC_SLOTS; i++) if (g_slot[i].used) ar_run(&g_mem, g_slot[i].ops, g_slot[i].nops, keys);
