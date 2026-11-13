@@ -166,3 +166,6 @@ Newest first. One block per working session: what changed, why, how it was check
 
 ## 2026-11-13 (31)  Cheat window: Enabled page, hover info, keys inline
 - Stale separator lines fixed (page erased again). Keybinds page removed: keys are in each cheat's grey line. New first page **Enabled** (everything on, all pages). Hover on a row: full note, who needs it (one player / all players), keys, untested warning (tooltip per row). Not checked by picture: the hover itself (headless); `dev test static cheatwin` PASS.
+
+## 2026-11-13 (32)  Cheat window: restart prompt, no On/Off text, group names on Enabled
+- Switching a launch option or a built-in code mod asks "restart now?" (warning: save first); Yes restarts the game by itself (code mods: `Play with mods.bat apply` runs first in a console, then the game starts). No keeps the switch for later. The little On./Off. note is gone. The Enabled page shows "Movement Speed Multiplier: x1.5". Not run headless: the restart itself (it would close the test game); `dev test static cheatwin` PASS.

@@ -463,11 +463,13 @@ static void build_page(void) {
                     continue;
                 }
             }
+            char shown[500]; snprintf(shown, sizeof shown, "%s", label(e));
+            if (p == g_on_page) { const Grp* gg = e->group[0] ? grp_of(e->group) : NULL; if (gg) snprintf(shown, sizeof shown, "%s: %s", gg->title, label(e)); else snprintf(shown, sizeof shown, "%s", e->name); }
             int once = !strcmp(e->mode, "once"), both = !strcmp(e->kind, "live") && (once || !strcmp(e->mode, "both"));
             Row* r = add_row(once ? R_ONCE : R_CHECK, i, -1); int id = IDC_ROW0 + g_nrows - 1;
-            if (once) r->main = mk(L"STATIC", p == g_on_page ? e->name : label(e), SS_NOPREFIX | SS_ENDELLIPSIS, g_font, id);
+            if (once) r->main = mk(L"STATIC", shown, SS_NOPREFIX | SS_ENDELLIPSIS, g_font, id);
             else {
-                r->main = mk(L"BUTTON", p == g_on_page ? e->name : label(e), BS_OWNERDRAW | WS_TABSTOP, g_font, id);
+                r->main = mk(L"BUTTON", shown, BS_OWNERDRAW | WS_TABSTOP, g_font, id);
                 r->on = ent_on(e);
             }
             char tag[700]; tag_text(e, tag, sizeof tag);
@@ -481,6 +483,33 @@ static void build_page(void) {
 }
 
 /* a switch was changed (click, or the test): state + game. Returns 0 when the change was refused (the control goes back). */
+/* a switch that only takes effect after a restart (a launch option) or a rebuild (a built-in code mod): ask, then do it */
+static void restart_game(int rebuild) {
+    wchar_t exe[MAX_PATH * 2], *rootw = wide(g_root), cmd[MAX_PATH * 6], script[MAX_PATH * 5];
+    (void)exe;
+    const wchar_t* cl = GetCommandLineW();
+    if (rebuild) swprintf(script, MAX_PATH * 5, L"ping -n 4 127.0.0.1 >nul & call \"%ls\\mods\\Play with mods.bat\" apply & start \"\" %ls", rootw, cl);
+    else swprintf(script, MAX_PATH * 5, L"ping -n 3 127.0.0.1 >nul & start \"\" %ls", cl);
+    swprintf(cmd, MAX_PATH * 6, L"cmd.exe /s /c \"%ls\"", script);
+    free(rootw);
+    STARTUPINFOW si; memset(&si, 0, sizeof si); si.cb = sizeof si; PROCESS_INFORMATION pi;
+    if (!CreateProcessW(NULL, cmd, NULL, NULL, FALSE, rebuild ? CREATE_NEW_CONSOLE : CREATE_NO_WINDOW, NULL, NULL, &si, &pi)) {
+        MessageBoxW(g_win, L"The game couldn't be restarted. Close it and start it again yourself.", L"Cheats", MB_OK | MB_ICONERROR);
+        return;
+    }
+    CloseHandle(pi.hThread); CloseHandle(pi.hProcess);
+    ExitProcess(0);
+}
+
+static void maybe_restart(const Ent* e) {
+    int launch = !strcmp(e->kind, "launch"), code = !strcmp(e->kind, "code");
+    if (!launch && !code) return;
+    const wchar_t* msg = launch
+        ? L"This setting only takes effect when the game starts again.\n\nRestart the game now? Progress you have not saved is lost: save first."
+        : L"This cheat is built into the game: the game has to be rebuilt (a few minutes) and started again.\n\nRebuild and restart now? Progress you have not saved is lost: save first.";
+    if (MessageBoxW(g_win, msg, L"Restart needed", MB_YESNO | MB_ICONWARNING | MB_DEFBUTTON2) == IDYES) restart_game(code);
+}
+
 static int entry_changed(Row* r, int idx, int on) {
     Ent* e = &g_e[idx];
     if (!strcmp(e->kind, "code") && e->file[0]) {              /* a hand-written code file: its own switch, needs the build */
@@ -488,8 +517,9 @@ static int entry_changed(Row* r, int idx, int on) {
         return 0;
     }
     apply(idx, on);
-    SetWindowTextW(g_note, !strcmp(e->kind, "live") ? (on ? L"On." : L"Off.") : !strcmp(e->kind, "launch") ? L"Saved: takes effect the next time the game starts." : L"Saved: takes effect after you run \"Play with mods.bat\" (rebuild).");
     (void)r; update_count();
+    SetWindowTextW(g_note, L"");
+    maybe_restart(e);
     return 1;
 }
 
@@ -497,9 +527,8 @@ static void group_changed(Row* r, int sel) {
     if (sel == 0) {
         for (int k = 0; k < r->nm; k++) {
             Ent* m = &g_e[r->members[k]];
-            if (ent_on(m) && !(!strcmp(m->kind, "code") && m->file[0])) apply(r->members[k], 0);
+            if (ent_on(m) && !(!strcmp(m->kind, "code") && m->file[0])) { apply(r->members[k], 0); SetWindowTextW(g_note, L""); update_count(); maybe_restart(m); }
         }
-        SetWindowTextW(g_note, L"Off.");
         update_count(); return;
     }
     if (!entry_changed(r, r->members[sel - 1], 1)) {           /* refused: show what is really on */
