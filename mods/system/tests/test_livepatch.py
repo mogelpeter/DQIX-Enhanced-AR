@@ -41,7 +41,7 @@ def run(tag, cheats=(), env_extra=None):
     shutil.rmtree(d, ignore_errors=True); os.makedirs(d)
     shutil.copy(save, os.path.join(d, "test.sav"))
     env = dict(os.environ); env.pop("NoDefaultCurrentDirectoryInExePath", None)
-    env.update(DQIX_NOWINDOW="1", DQIX_NO_SETTINGS="1", DQIX_NO_UPNP="1", DQIX_NO_RELAY="1", DQIX_RAMDUMP=".,%d" % FRAME)
+    env.update(DQIX_NOWINDOW="1", SDL_AUDIODRIVER="dummy", DQIX_NO_SETTINGS="1", DQIX_NO_UPNP="1", DQIX_NO_RELAY="1", DQIX_RAMDUMP=".,%d" % FRAME)
     # the boot menu uses none of the field code the mods touch: press A on a timer like the other tests, to get to the field
     env["DQIX_INPUT"] = "700:DOWN:6;800:A:6;" + ";".join("%d:A:6;%d:%s:30" % (f, f + 40, ("UP", "RIGHT", "DOWN", "LEFT")[(f // 90) % 4]) for f in range(900, FRAME + 100, 90))
     env.update(env_extra or {})

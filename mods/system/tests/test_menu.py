@@ -11,7 +11,7 @@ for f in os.listdir(work):
 shutil.copy(os.path.join(root, "game", "dqix.sav"), os.path.join(work, "test.sav"))
 env = dict(os.environ)
 env.pop("NoDefaultCurrentDirectoryInExePath", None)
-env.update(DQIX_NOWINDOW="1", DQIX_NO_SETTINGS="1", DQIX_RAMDUMP=f".,{frames - 20}")
+env.update(DQIX_NOWINDOW="1", SDL_AUDIODRIVER="dummy", DQIX_NO_SETTINGS="1", DQIX_RAMDUMP=f".,{frames - 20}")
 log = open(os.path.join(work, "run.log"), "wb")
 game = subprocess.Popen([os.path.join(root, "game", "dqix.exe"), os.path.join(root, "game", "data", "dqix.nds"),
                          os.path.join(root, "game", "data", "code"), str(frames), "1", "test.sav"], cwd=work, env=env, stdout=log, stderr=subprocess.STDOUT)

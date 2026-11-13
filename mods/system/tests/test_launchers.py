@@ -45,7 +45,7 @@ def run(item):
     shutil.copy(save, os.path.join(d, "test.sav"))
     env = dict(os.environ); env.pop("NoDefaultCurrentDirectoryInExePath", None)
     inp = "700:DOWN:6;800:A:6;" + ";".join("%d:A:6;%d:%s:30" % (f, f + 40, ("UP", "RIGHT", "DOWN", "LEFT")[(f // 90) % 4]) for f in range(900, FRAMES + 100, 90))   # A for menus, a step now and then
-    env.update(DQIX_NOWINDOW="1", DQIX_NO_SETTINGS="1", DQIX_NO_UPNP="1", DQIX_NO_RELAY="1", DQIX_MODLOG="1",
+    env.update(DQIX_NOWINDOW="1", SDL_AUDIODRIVER="dummy", DQIX_NO_SETTINGS="1", DQIX_NO_UPNP="1", DQIX_NO_RELAY="1", DQIX_MODLOG="1",
                DQIX_MOD_FORCE=num, DQIX_INPUT=inp, DQIX_DUMP=d + "," + "500")
     log = open(os.path.join(d, "run.log"), "wb")
     try:

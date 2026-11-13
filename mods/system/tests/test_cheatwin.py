@@ -26,7 +26,7 @@ def run(tag, state_lines, extra):
     st = os.path.join(d, "state.txt")
     open(st, "w", encoding="utf-8").write("".join(l + "\r\n" for l in state_lines))
     env = dict(os.environ); env.pop("NoDefaultCurrentDirectoryInExePath", None)
-    env.update(DQIX_NOWINDOW="1", DQIX_NO_SETTINGS="1", DQIX_NO_UPNP="1", DQIX_NO_RELAY="1", DQIX_MENU_STATE=st, DQIX_RAMDUMP=".,%d" % FRAME)
+    env.update(DQIX_NOWINDOW="1", SDL_AUDIODRIVER="dummy", DQIX_NO_SETTINGS="1", DQIX_NO_UPNP="1", DQIX_NO_RELAY="1", DQIX_MENU_STATE=st, DQIX_RAMDUMP=".,%d" % FRAME)
     env.update(extra(d))
     log = open(os.path.join(d, "run.log"), "wb")
     p = subprocess.run([exe, os.path.join(root, "game", "data", "dqix.nds"), os.path.join(root, "game", "data", "code"), str(FRAME + 30), "1", "test.sav"],
