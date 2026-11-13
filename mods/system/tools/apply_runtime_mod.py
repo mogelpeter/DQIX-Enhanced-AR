@@ -190,7 +190,7 @@ def wrap_site(root, on, extra=""):
 
 def livepatch_plan(root):
     """The functions the build wraps so that code mods can be switched while the game runs, and the instruction sites in them.
-    -> (functions [(module, start, usa_start)], sites [(module, address, function number)]) or None if the game isn't built yet.
+    -> (functions [(module, start, usa_start)], sites [(module, address, function number, allowed words)]) or None if the game isn't built yet.
     A function another mod already wraps, a Thumb function and anything that is not in a known function is left out: the code
     mods that touch those stay "built in" (rebuild)."""
     if not os.path.isfile(os.path.join(root, "build", "recomp", "dispatch_table.c")):
@@ -204,7 +204,7 @@ def livepatch_plan(root):
         w = line.split()
         if len(w) >= 2:
             fixed.add((w[0], int(w[1], 16)))
-    found = {}
+    found, words = {}, {}
     for e in entries:
         if e["id"].startswith("launch:") or not (e["kind"] == "code" or e.get("lp")):
             continue
@@ -218,10 +218,11 @@ def livepatch_plan(root):
             usa = rom.from_rom(f[0]) if n == "main" else f[0]
             if (n, usa) not in fixed:
                 found[(n, a)] = (f[0], usa)
+                words.setdefault((n, a), set()).add(w)
     sites = sorted(found)
     fns = sorted({(n, found[(n, a)][0], found[(n, a)][1]) for n, a in sites})
     num = {(n, st): i for i, (n, st, usa) in enumerate(fns)}
-    return fns, [(n, a, num[(n, found[(n, a)][0])]) for n, a in sites]
+    return fns, [(n, a, num[(n, found[(n, a)][0])], sorted(words[(n, a)])) for n, a in sites]
 
 
 def livepatch_files(root, on):
@@ -233,7 +234,7 @@ def livepatch_files(root, on):
            "void lp_call(unsigned, Cpu*, void (*)(Cpu*));"]
     tab.append("const unsigned g_lp_nfn = %d, g_lp_nsite = %d;" % (len(fns), len(sites)))
     first, count = {}, {}
-    for k, (n, a, fi) in enumerate(sites):
+    for k, (n, a, fi, ws) in enumerate(sites):
         first.setdefault(fi, k)
         count[fi] = count.get(fi, 0) + 1
 
@@ -242,8 +243,16 @@ def livepatch_files(root, on):
     tab.append(arr("uint32_t", "g_lp_entry", ["0x%08xu" % st for n, st, usa in fns]))
     tab.append(arr("uint16_t", "g_lp_first", [str(first.get(i, 0)) for i in range(len(fns))]))
     tab.append(arr("uint16_t", "g_lp_count", [str(count.get(i, 0)) for i in range(len(fns))]))
-    tab.append(arr("uint16_t", "g_lp_site_fn", [str(fi) for n, a, fi in sites]))
-    tab.append(arr("uint32_t", "g_lp_site_addr", ["0x%08xu" % a for n, a, fi in sites]))
+    tab.append(arr("uint16_t", "g_lp_site_fn", [str(fi) for n, a, fi, ws in sites]))
+    tab.append(arr("uint32_t", "g_lp_site_addr", ["0x%08xu" % a for n, a, fi, ws in sites]))
+    # the only instruction words a site may be patched with: the ones the catalog's code mods use (a peer in a session
+    # can't make the interpreter run anything else)
+    allw, wfirst = [], []
+    for n, a, fi, ws in sites:
+        wfirst.append(len(allw)); allw += ["0x%08xu" % x for x in ws]
+    tab.append(arr("uint32_t", "g_lp_words", allw))
+    tab.append(arr("uint16_t", "g_lp_wfirst", [str(x) for x in wfirst]))
+    tab.append(arr("uint8_t", "g_lp_wcount", [str(len(ws)) for n, a, fi, ws in sites]))
     for i in range(len(fns)):
         tab.append("void wrap_lp%d_orig(Cpu* c); void wrap_lp%d(Cpu* c) { lp_call(%d, c, wrap_lp%d_orig); }" % (i, i, i, i))
     text = "\n".join(tab) + "\n"
@@ -257,7 +266,7 @@ def livepatch_files(root, on):
         os.remove(dst)
         changed = True
     lp = ["# The instruction sites the built game can patch while it runs (apply_runtime_mod.py): number, module, address, function"]
-    lp += ["%d %s %08x %08x" % (k, n, a, fns[fi][1]) for k, (n, a, fi) in enumerate(sites)]
+    lp += ["%d %s %08x %08x" % (k, n, a, fns[fi][1]) for k, (n, a, fi, ws) in enumerate(sites)]
     out = os.path.join(root, "mods", "system", "bin", "livepatch.txt")
     os.makedirs(os.path.dirname(out), exist_ok=True)
     old = read(out) if os.path.isfile(out) else ""

@@ -1,5 +1,5 @@
 """Code mods that run live (livepatch.c): headless game, RAM compared at one frame.
-   test_livepatch.py <project root> <work dir> [frame]
+   test_livepatch.py <project root> <work dir> [frame]   (TEST_SAVE: a save with the hero in a dungeon, so the field is reached)
 
    Needs a game built with the mods' live-patch wrappers (mods/system/bin/livepatch.txt exists) and its catalog.
    A  nothing on                         (twice: the run must be repeatable)
@@ -11,7 +11,7 @@
 import mmap, os, re, shutil, struct, subprocess, sys, time
 
 root, work = os.path.abspath(sys.argv[1]), os.path.abspath(sys.argv[2])
-FRAME = int(sys.argv[3]) if len(sys.argv) > 3 else 2500
+FRAME = int(sys.argv[3]) if len(sys.argv) > 3 else 4500
 exe = os.environ.get("TEST_EXE", os.path.join(root, "game", "dqix.exe"))
 save = os.environ.get("TEST_SAVE", os.path.join(root, "game", "dqix.sav"))
 os.makedirs(work, exist_ok=True)
@@ -42,6 +42,8 @@ def run(tag, cheats=(), env_extra=None):
     shutil.copy(save, os.path.join(d, "test.sav"))
     env = dict(os.environ); env.pop("NoDefaultCurrentDirectoryInExePath", None)
     env.update(DQIX_NOWINDOW="1", DQIX_NO_SETTINGS="1", DQIX_NO_UPNP="1", DQIX_NO_RELAY="1", DQIX_RAMDUMP=".,%d" % FRAME)
+    # the boot menu uses none of the field code the mods touch: press A on a timer like the other tests, to get to the field
+    env["DQIX_INPUT"] = "700:DOWN:6;800:A:6;" + ";".join("%d:A:6;%d:%s:30" % (f, f + 40, ("UP", "RIGHT", "DOWN", "LEFT")[(f // 90) % 4]) for f in range(900, FRAME + 100, 90))
     env.update(env_extra or {})
     log = open(os.path.join(d, "run.log"), "wb")
     p = subprocess.Popen([exe, os.path.join(root, "game", "data", "dqix.nds"), os.path.join(root, "game", "data", "code"), str(FRAME + 30), "1", "test.sav"],
@@ -133,5 +135,12 @@ if cands:
     ok &= D is not None and hit and rd[0] == 0 and not rd[1]
 else:
     print("D  FAIL: no mod's function was reached in this run"); ok = False
+# F: a peer in a session sends a word no mod uses ("b ." = endless loop) for a site that is reached: it must be ignored
+if cands:
+    evil = {"name": "not a mod", "ops": [(a, 0xEAFFFFFE) for a, b in cands[0]["ops"]]}
+    F, rf = run("F", (evil,), {"DQIX_MODLOG": "1"})
+    refused = re.search(r"livepatch function ([0-9a-f]{8}) runs", LASTLOG) is None
+    print("F  a word no mod uses is refused, the game runs on:", refused, rf, flush=True)
+    ok &= F is not None and refused and rf[0] == 0 and not rf[1]
 print("RESULT:", "PASS" if ok else "FAIL")
 sys.exit(0 if ok else 1)

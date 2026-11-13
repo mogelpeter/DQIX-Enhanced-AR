@@ -30,6 +30,9 @@ extern const uint16_t g_lp_site_fn[];        /* the function of site n */
 extern const uint32_t g_lp_site_addr[];      /* the RAM address of site n */
 extern const uint16_t g_lp_first[];          /* function i: its sites are g_lp_site_*[first..first+count) (sorted by function) */
 extern const uint16_t g_lp_count[];
+extern const uint32_t g_lp_words[];          /* the instruction words a site may be patched with (the catalog's code mods) */
+extern const uint16_t g_lp_wfirst[];
+extern const uint8_t g_lp_wcount[];
 void interp_stub(Cpu* c, uint32_t addr);
 
 #define LP_MAX_SITES 4096
@@ -49,6 +52,9 @@ void lp_clear(void) {
 int lp_set(uint32_t addr, uint32_t word) {
     uint32_t n = (addr - LP_BASE) >> 2;
     if (n >= g_lp_nsite || n >= LP_MAX_SITES) return 1;                /* a number this game doesn't have: ignore */
+    int allowed = 0;                                                  /* a peer in a session sends this too: only the words the mods use */
+    for (unsigned k = 0; k < g_lp_wcount[n]; k++) if (g_lp_words[g_lp_wfirst[n] + k] == word) allowed = 1;
+    if (!allowed) return 1;
     g_act[n] = 1; g_word[n] = word;
     if (g_lp_site_fn[n] < LP_MAX_FN) g_fn_on[g_lp_site_fn[n]] = 1;
     return 1;
