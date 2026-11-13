@@ -2,6 +2,12 @@
 
 Newest first. One block per working session: what changed, why, how it was checked.
 
+## 2026-11-14 (29)  Duplicates out, game icon on the Cheats window
+- Removed **Walk through monsters** (`cheats/no-touch-battles.txt`): Vanish does the same, switchable while playing. It was one of the two code mods that needed a rebuild; *Always strike first* is now the only one. `Install cheats.bat` deletes the file in the game folder (copying never deletes).
+- The R4 code **Hold [A] Enemy Wil Never Chase After You** (EU) and its USA twin **Enemies Will Not Chase You** are left out: `monsters-dont-chase.txt` covers both routines and now says `# replaces:` for them.
+- **Cheats window icon**: the game's icon (resource 1 of dqix.exe) as the class icon plus WM_SETICON big/small; a build without it keeps the default. Seen in the title bar of `test_cheatwin`'s picture.
+- Docs updated (one code mod needs a rebuild; 234 live cheats). Checked: installer run end to end (catalog: 234 live, 1 code, 292 launch), `dev test fast cheatwin` 6/6 PASS.
+
 ## 2026-11-14 (28)  Batch files renamed, docs fit the in-game Cheats window
 - **Renamed**: `Install mods.bat` -> `Install cheats.bat`, `mods\Play with mods.bat` -> `mods\Apply cheats.bat`. The patcher is still needed: the installer, the game's updater (update.c block) and the Cheats window's "rebuild and restart" call it. The installer deletes an old `mods\Play with mods.bat` in the game folder. The `>>> mods` marker lines keep naming "Play with mods.bat" on purpose: they are matched by exact text in games that already have them (a comment in `apply_runtime_mod.py` / `apply_code_mods.py` says so).
 - **Docs rewritten for the in-game window** (no external cheat menu any more): `mods/README.txt` (fully), `README.md`, `docs/WORKFLOW.md`, `settings.txt`, `verified.txt`, and the R4 list headers. Fixed claims that were no longer true: a Keybinds page (keys are shown inline now), labels TRIED OUT/BUILT IN/NEXT START (the window shows `untested`, `needs a rebuild`, `next start` in the grey line), "faster text / experience x2 are built in" (they switch live; only Always strike first and Walk through monsters need a rebuild), "Not available" list (blocked codes are left out), menu tests and fonts in WORKFLOW. Code comments that said "cheat menu" now say Cheats window.

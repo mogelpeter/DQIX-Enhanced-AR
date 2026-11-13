@@ -23,6 +23,8 @@ if errorlevel 8 ( echo Copy failed. Close the game, then try again. & pause & ex
 if not exist "%TARGET%\mods\settings.txt" copy "%~dp0mods\settings.txt" "%TARGET%\mods\settings.txt" >nul
 rem the patcher's old name: an outdated copy must not stay next to the new one
 if exist "%TARGET%\mods\Play with mods.bat" del /q "%TARGET%\mods\Play with mods.bat"
+rem cheats this download no longer has (copying never deletes)
+for %%F in (no-touch-battles.txt) do if exist "%TARGET%\mods\system\cheats\%%F" del /q "%TARGET%\mods\system\cheats\%%F"
 rem ---- the Cheats tab into the game itself (menu bar: Cheats), then built. Needs the built game.
 if not exist "%TARGET%\game\dqix.exe" (
   echo.

@@ -71,8 +71,9 @@ The labels in the grey line:
 
   untested         from the R4 list, checked as far as a program can (below), but not
                    tried here. Save first.
-  needs a rebuild  one of the two code mods that can't switch while the game runs. The
-                   window offers to rebuild the game (a few minutes) and start it again.
+  needs a rebuild  the one code mod that can't switch while the game runs (Always
+                   strike first). The window offers to rebuild the game (a few minutes)
+                   and start it again.
   next start       takes effect the next time the game starts ("Battle any monster
                    you want", "Metal slimes only", "Instant loading"...). The window
                    offers to restart the game.
@@ -127,9 +128,9 @@ the PC side of the game.
   small, marked changes in the game's source that Apply cheats.bat makes before the game
   is built. An update replaces those files; the game's updater runs Apply cheats.bat
   before it rebuilds, so they are back at once.
-- The two code mods that need a rebuild go into the game's patches.txt between two marker
+- The code mod that needs a rebuild goes into the game's patches.txt between two marker
   lines. An update replaces patches.txt; Apply cheats.bat notices
-  (mods\system\bin\built.txt remembers what the built game has in it), puts them back and
+  (mods\system\bin\built.txt remembers what the built game has in it), puts it back and
   rebuilds.
 - The update never deletes the mods folder (it only copies new files over the project),
   so what you switched on stays (mods\system\menu-state.txt).
@@ -176,9 +177,9 @@ If one player's game doesn't have the cheats in it (or an older version of them:
 is version 2), the first cheat puts the session out of sync (the title bar says so).
 Without cheats such a session plays normally.
 
-The two code mods that need a rebuild change how the game computes: every player needs
-the same ones built in, or the session goes OUT OF SYNC. The simple way: switch them off
-before playing with friends.
+The code mod that needs a rebuild (Always strike first) changes how the game computes:
+every player needs it the same (on or off), or the session goes OUT OF SYNC. The simple
+way: switch it off before playing with friends.
 
 "Instant loading" only works while you play alone. In a session the game keeps the
 cartridge's real timing by itself, so it can't put a session out of sync.

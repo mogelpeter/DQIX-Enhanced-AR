@@ -319,7 +319,7 @@ static wchar_t* wide(const char* s) {
 static const Grp* grp_of(const char* id) { for (int i = 0; i < g_ng; i++) if (!strcmp(g_g[i].id, id)) return &g_g[i]; return NULL; }
 static const char* label(const Ent* e) { return e->option[0] ? e->option : e->name; }
 
-/* the small grey line under a cheat: who needs it, status, note (the keys are on their own page) */
+/* the small grey line under a cheat: who needs it, the keys to hold, status, note */
 static const char* who_short(const Ent* e) {
     if (!strcmp(e->kind, "live")) return "Only one player needs it enabled";
     if (!strcmp(e->kind, "launch")) return !strncmp(e->env, "DQIX_MOD_", 9) ? "All players need it enabled \xC2\xB7 next start" : "Your PC only \xC2\xB7 next start";
@@ -809,9 +809,16 @@ static DWORD WINAPI ui_thread(LPVOID unused) {
     WNDCLASSW wc; memset(&wc, 0, sizeof wc);
     wc.lpfnWndProc = wndproc; wc.hInstance = hi; wc.lpszClassName = L"DqixCheatWindow";
     wc.hCursor = LoadCursorW(NULL, (LPCWSTR)IDC_ARROW); wc.hbrBackground = g_white;
+    /* the game's own icon (resource 1 of dqix.exe, build/icon/dqix.rc); a build without it keeps the default */
+    HICON ico_big = (HICON)LoadImageW(hi, MAKEINTRESOURCEW(1), IMAGE_ICON, GetSystemMetrics(SM_CXICON), GetSystemMetrics(SM_CYICON), 0);
+    HICON ico_small = (HICON)LoadImageW(hi, MAKEINTRESOURCEW(1), IMAGE_ICON, GetSystemMetrics(SM_CXSMICON), GetSystemMetrics(SM_CYSMICON), 0);
+    wc.hIcon = ico_big;
     RegisterClassW(&wc);
+    wc.hIcon = NULL;
     wc.lpfnWndProc = hostproc; wc.lpszClassName = L"DqixCheatPage"; RegisterClassW(&wc);
     g_win = CreateWindowExW(0, L"DqixCheatWindow", L"Cheats", WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN, CW_USEDEFAULT, CW_USEDEFAULT, 800, 560, NULL, NULL, hi, NULL);
+    if (ico_big) SendMessageW(g_win, WM_SETICON, ICON_BIG, (LPARAM)ico_big);
+    if (ico_small) SendMessageW(g_win, WM_SETICON, ICON_SMALL, (LPARAM)ico_small);
     g_side = CreateWindowExW(0, L"LISTBOX", L"", WS_CHILD | WS_VISIBLE | WS_TABSTOP | LBS_NOTIFY | LBS_OWNERDRAWFIXED | LBS_HASSTRINGS | LBS_NOINTEGRALHEIGHT, 0, 0, 10, 10, g_win, (HMENU)(UINT_PTR)IDC_SIDE, hi, NULL);
     g_search = CreateWindowExW(0, L"EDIT", L"", WS_CHILD | WS_VISIBLE | WS_TABSTOP | ES_AUTOHSCROLL, 0, 0, 10, 10, g_win, (HMENU)(UINT_PTR)IDC_SEARCH, hi, NULL);
     SendMessageW(g_search, WM_SETFONT, (WPARAM)g_font, TRUE); SendMessageW(g_search, 0x1501 /*EM_SETCUEBANNER*/, TRUE, (LPARAM)L"Search cheats"); SendMessageW(g_search, EM_LIMITTEXT, 100, 0);

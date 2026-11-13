@@ -1,6 +1,0 @@
-# name: Walk through monsters (no battles from touching them)
-# enabled: no
-# about: Monsters on the field no longer start battles when they touch you. Story battles still happen.
-# category: Battle
-check 02196AD8 E3560000
-patch 02196ADC 0A000040 EA000040
