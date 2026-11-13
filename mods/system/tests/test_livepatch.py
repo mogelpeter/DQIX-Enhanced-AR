@@ -111,8 +111,11 @@ ok &= B is not None and rb[0] == 0 and not rb[1]
 C, rc = run("C", (), {"DQIX_LP_CHECK": "150"})
 compared = re.findall(r"LPCHECK function ([0-9a-f]{8}): (\d+) calls compared, (\d+) mismatches", LASTLOG)
 mism = re.findall(r"LPCHECK MISMATCH.*", LASTLOG)
+unsteady = re.findall(r"LPCHECK function ([0-9a-f]{8}): a call differs from itself", LASTLOG)
+detail = re.findall(r"LPCHECK   at .*", LASTLOG)
 print("C  interpreted == compiled on identical states: %d functions fully compared, %d mismatch lines" % (len(compared), len(mism)), rc, flush=True)
-for m in mism[:6]:
+print("   (%d functions had calls that differ from themselves: timers/hardware state, skipped)" % len(unsteady), flush=True)
+for m in mism[:6] + detail[:8]:
     print("     ", m[:220])
 ok &= C is not None and rc[0] == 0 and not rc[1] and len(compared) >= 1 and not mism
 # E: every live code mod that clashes with none of the others (one of each address), with the log on

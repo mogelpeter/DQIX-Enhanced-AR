@@ -76,9 +76,16 @@ static void check_call(unsigned i, Cpu* c, void (*orig)(Cpu*)) {
     orig(c);
     Cpu c1 = *c;
     memcpy(res, g_main_ram, MAIN_RAM_SIZE);
+    /* the compiled function again from the same state: if it differs from itself (timers, random numbers, hardware state that is not RAM)
+     * the call says nothing about the interpreter and is not counted */
+    memcpy(g_main_ram, snap, MAIN_RAM_SIZE);
+    *c = c0;
+    orig(c);
+    int steady = memcmp(g_main_ram, res, MAIN_RAM_SIZE) == 0;
     memcpy(g_main_ram, snap, MAIN_RAM_SIZE);
     *c = c0;
     interp_stub(c, g_lp_entry[i]);
+    if (!steady) { static unsigned unsteady[LP_MAX_FN]; if (++unsteady[i] <= 1) fprintf(stderr, "mod: LPCHECK function %08x: a call differs from itself (not deterministic): skipped\n", g_lp_entry[i] & ~1u); calls[i]++; return; }
     int regs = 0;
     for (int r = 4; r <= 11; r++) if (c->r[r] != c1.r[r]) regs |= 1 << r;
     if (c->r[13] != c1.r[13]) regs |= 1 << 13;
@@ -88,8 +95,13 @@ static void check_call(unsigned i, Cpu* c, void (*orig)(Cpu*)) {
     calls[i]++;
     if (nd || (regs & ~(1 << 16))) {
         bad[i]++;
-        if (bad[i] <= 3) fprintf(stderr, "mod: LPCHECK MISMATCH function %08x call %u: %u RAM bytes differ (first %08x), registers %#x differ (r0 compiled %08x interpreted %08x)\n",
-                                 g_lp_entry[i] & ~1u, calls[i], nd, first < 0 ? 0u : 0x02000000u + (uint32_t)first, regs, c1.r[0], c->r[0]);
+        if (bad[i] <= 3) {
+            fprintf(stderr, "mod: LPCHECK MISMATCH function %08x call %u: %u RAM bytes differ (first %08x), registers %#x differ (r0 compiled %08x interpreted %08x)\n",
+                    g_lp_entry[i] & ~1u, calls[i], nd, first < 0 ? 0u : 0x02000000u + (uint32_t)first, regs, c1.r[0], c->r[0]);
+            int shown = 0;
+            for (uint32_t k = 0; k < MAIN_RAM_SIZE && shown < 4; k++)
+                if (g_main_ram[k] != res[k]) { fprintf(stderr, "mod: LPCHECK   at %08x compiled %02x interpreted %02x\n", 0x02000000u + k, res[k], g_main_ram[k]); shown++; }
+        }
     }
     if ((int)calls[i] == g_check) fprintf(stderr, "mod: LPCHECK function %08x: %u calls compared, %u mismatches\n", g_lp_entry[i] & ~1u, calls[i], bad[i]);
 }
