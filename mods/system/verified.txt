@@ -1,5 +1,5 @@
 # Cheats whose effect was confirmed by tests/test_effects.py: fired alone into a headless game, every byte the code writes
-# was in RAM afterwards (an independent Python copy of the AR engine predicted it). The menu shows them as tried out.
+# was in RAM afterwards (an independent Python copy of the AR engine predicted it). The Cheats window shows them without the "untested" label.
 # Rerun: test_effects.py <root> <work> untested <first> <count>; lines are `id  # name`. Not proof for the game's later states.
 
 db:0228d3f9  # Defeated Monster List

@@ -338,7 +338,7 @@ static void hover_text(const Ent* e, wchar_t* out, size_t n) {
     if (!strcmp(e->kind, "live")) who = "Works with friends: only ONE player needs it enabled. It is sent to every PC in the session.";
     else if (!strcmp(e->kind, "launch")) who = !strncmp(e->env, "DQIX_MOD_", 9) ? "ALL players need it enabled (it changes the game's rules, same on every PC). Takes effect the next time the game starts."
                                                                                   : "Only your own PC. Takes effect the next time the game starts.";
-    else who = "ALL players need it enabled (built into the game). Needs a rebuild: run Play with mods.bat.";
+    else who = "ALL players need it enabled (built into the game). Needs a rebuild: run mods\\Apply cheats.bat.";
     char b[2000];
     snprintf(b, sizeof b, "%s\r\n\r\n%s%s%s%s%s%s", e->name, e->note, e->note[0] ? "\r\n\r\n" : "", who,
              e->keys[0] ? "\r\nHold: " : "", e->keys, !strcmp(e->status, "untested") ? "\r\nUntested: save your game first." : "");
@@ -522,7 +522,7 @@ static void restart_game(int rebuild) {
     wchar_t exe[MAX_PATH * 2], *rootw = wide(g_root), cmd[MAX_PATH * 6], script[MAX_PATH * 5];
     (void)exe;
     const wchar_t* cl = GetCommandLineW();
-    if (rebuild) swprintf(script, MAX_PATH * 5, L"ping -n 4 127.0.0.1 >nul & call \"%ls\\mods\\Play with mods.bat\" apply & start \"\" %ls", rootw, cl);
+    if (rebuild) swprintf(script, MAX_PATH * 5, L"ping -n 4 127.0.0.1 >nul & call \"%ls\\mods\\Apply cheats.bat\" apply & start \"\" %ls", rootw, cl);
     else swprintf(script, MAX_PATH * 5, L"ping -n 3 127.0.0.1 >nul & start \"\" %ls", cl);
     swprintf(cmd, MAX_PATH * 6, L"cmd.exe /s /c \"%ls\"", script);
     free(rootw);
@@ -858,7 +858,7 @@ void mod_cheatwin_show(void) {
     if (!g_cs_init) { InitializeCriticalSection(&g_cs); g_cs_init = 1; }
     if (!g_loaded) { load_catalog(); if (g_loaded) { load_state(); migrate_state(); seed_defaults(); } }
     if (!g_loaded) {
-        MessageBoxW(NULL, L"There is no cheat list yet. Run \"mods\\Play with mods.bat\" once (it makes the list), then try again.", L"Cheats", MB_OK | MB_ICONINFORMATION);
+        MessageBoxW(NULL, L"There is no cheat list yet. Run \"mods\\Apply cheats.bat\" once (it makes the list), then try again.", L"Cheats", MB_OK | MB_ICONINFORMATION);
         return;
     }
     static HANDLE th;

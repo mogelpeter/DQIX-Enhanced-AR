@@ -8,7 +8,7 @@
  *   /data/prm/fld_mondata.bin one tag 0x65 record per monster; value 1 is its level, -99 on the metal family
  *
  * The game reads the first two tables once, while it starts (found out by logging the cartridge reads of a headless run:
- * one pass each, at about frame 19), so these are launch options of the cheat menu, set when the game is started:
+ * one pass each, at about frame 19), so these are launch options of the Cheats window, set when the game is started:
  *   DQIX_MOD_METAL=1   in every zone that has a metal monster among its roamers, every other roamer and companion becomes
  *                      that metal monster (the table keeps its size and layout; only the monster numbers change, the weights
  *                      stay). Zones without a metal monster are untouched.

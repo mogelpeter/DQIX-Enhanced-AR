@@ -45,7 +45,7 @@ try:
         errors.append("mod_menu.c not put in")
     if b"&Cheats..." not in on1["menu_win32.c"] or b"&Save editor..." not in on1["menu_win32.c"] or b"&Treasure maps..." not in on1["menu_win32.c"]:
         errors.append("the Cheats tab is missing an item in the menu bar (Cheats..., Save editor..., Treasure maps...)")
-    if b"Play with mods.bat" not in on1["update.c"]:
+    if b"Apply cheats.bat" not in on1["update.c"]:
         errors.append("the updater does not put the mods back")
     if on1["noflee.c"] is None:
         errors.append("noflee.c not put in")

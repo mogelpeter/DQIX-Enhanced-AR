@@ -1,4 +1,4 @@
-# Working faster on the mods
+# Working faster on the cheats
 
 One rule: **do the cheapest check that can catch the mistake, and never repeat a check whose inputs did not change.**
 `mods\system\dev.bat` (or `python mods\system\tools\dev.py`) does all of it.
@@ -15,26 +15,27 @@ One rule: **do the cheapest check that can catch the mistake, and never repeat a
 
 | You changed | Run | Why this and not more |
 |---|---|---|
-| `mod_cheatwin.c` (the cheat window) | `dev test cheatwin` after `Play with mods.bat apply` (the test uses the built game) | opens the window, switches a cheat on like a click, checks RAM + state file |
+| `mod_cheatwin.c` (the Cheats window) | `dev test cheatwin` after `mods\Apply cheats.bat apply` (the test uses the built game) | opens the window, switches a cheat on like a click, checks RAM + state file |
 | `EditorHost.cs` (save editor helper) | `dev test editor` | starts the helper on a scratch save: token checks, export + backup, language box |
-| `catalog.py`, `cheats\`, `code\`, `database\` | `dev test static` then `dev test all-quick` | static reads every catalog line in 0.1 s; all-quick sends 12 cheats to a headless game |
+| `catalog.py`, `cheats\` | `dev test static` then `dev test all-quick` | static reads every catalog line in 0.1 s; all-quick sends 12 cheats to a headless game |
 | `mod_cheats.c`, `ar_engine.h` | `dev test live session all-single all-session` after a build | the only code that runs inside the game and inside friends' sessions |
+| `livepatch.c`, a live code mod | `dev test livepatch` (needs `TEST_SAVE` = a save in a dungeon) | runs patched functions in the interpreter, compares with the compiled code |
 | a code mod (patch) | `dev scratch` (add `--rounds` for the x4/x8/Always Fail alternatives) | builds in a scratch copy in about a minute, your `game\` is not touched |
 | only tests / docs | `dev test static` | nothing in the game changed |
 
 ## Why it is fast
 
-- **Tiers**: `fast` = static + short live + short session + 12-cheat run + menu smoke. `full` adds the long runs and the two menu tests.
+- **Tiers**: `fast` = static + short live + short session + 12-cheat run + editor. `full` = static + the long live, session and all-cheat runs + the Cheats window test + editor. `livepatch` runs only by name.
 - **Cache**: `mods\system\bin\test-cache.json` keeps a hash of every input (sources, catalog, cheats, `dqix.exe`, `dqixcore.dll`). A test that passed with the same hash is skipped; failures always rerun. `--force` ignores it.
 - **Parallel**: tests that only need a headless game run together on their own ports and work folders (`--jobs`, default 3).
-- **Alone at the end**: the menu tests. The menu attaches to *any* running `dqix.exe`, so it must never overlap a game test (or your own game: `dev` refuses to run while `dqix.exe` runs).
+- **Alone at the end**: the editor test. `dev` refuses to run while any `dqix.exe` runs (your own game would collide with the test games).
 - **Sized by message length**: cheat messages travel 16 bits per frame, so `test_all.py` computes its frame budget from the data instead of a fixed guess.
-- **Scratch builds** instead of touching `game\`: all 50 code mods build in about a minute.
+- **Scratch builds** instead of touching `game\`: all code mods build in about a minute.
 - **Static guards** catch what the compiler would catch later: C# 5 only (`$"..."`, `?.`, `nameof`), unreadable catalog lines, a blocked cheat switched on.
 
 ## Habits that save time
 
-- Never start the menu while a test game runs (extra messages, false failures).
+- Never play the game while tests run; every test except `cheatwin` sets `DQIX_CHEATWIN_OFF=1` so the Cheats window sends nothing by itself.
 - Test addresses must be unused RAM (`0x02340000` region is zero); text areas change under you.
 - In a session only `sync ... same` lines count; each PC dumps its own DS.
 - PowerShell `>` writes UTF-16: set `PYTHONIOENCODING=utf-8` and use `Out-File -Encoding utf8` (dev.py already does).
@@ -45,12 +46,12 @@ One rule: **do the cheapest check that can catch the mistake, and never repeat a
 
 1. Install Python 3.8+ (or just build the game once: the MSYS2 tools bring their own).
 2. Build the game once with the project's `BUILD.bat` (needs your own ROM in `rom\`).
-3. Run `Install mods.bat` from this repo (it asks for the folder, or takes it as an argument).
+3. Run `Install cheats.bat` from this repo (it asks for the folder, or takes it as an argument).
 4. `mods\system\dev.bat doctor` lists anything still missing and how to fix it.
 5. Working from the repo on that PC: `mods\system\dev-root.txt` (one line, the game folder) or `set DQIX_ROOT=...`.
 
 Nothing in the tools is tied to one PC: the game folder is found, the temp folder is the system's, MSYS2 is looked up
-from `mods\system\msys2-root.txt`, the fonts travel in `mods\system\fonts`.
+from `mods\system\msys2-root.txt`.
 
 ## Reverse engineering playbook (finding what the game does)
 

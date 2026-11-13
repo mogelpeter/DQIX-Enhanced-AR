@@ -1,8 +1,8 @@
 @echo off
 rem One-click patcher for DQIX Enhanced: adds the Cheats tab (cheat list, save editor, treasure maps) to the game's menu bar.
 rem Just double-click it. It finds your DQIX Enhanced folder by itself (asks only if it can't), copies the mods
-rem and builds them into the game. Nothing else is started or put on your desktop.
-rem Advanced: Install mods.bat "D:\Games\DQIX Enhanced"
+rem and builds them into the game (through mods\Apply cheats.bat). Nothing else is started or put on your desktop.
+rem Advanced: Install cheats.bat "D:\Games\DQIX Enhanced"
 setlocal
 title DQIX Enhanced - cheats patcher
 set "TARGET=%~1"
@@ -21,6 +21,8 @@ echo Installing into "%TARGET%\mods" ...
 robocopy "%~dp0mods" "%TARGET%\mods" /E /R:1 /W:1 /NFL /NDL /NJH /NJS /NP /XF menu-state.txt editor-lang.txt msys2-root.txt settings.txt dev-root.txt AR-codes-EU.txt AR-codes-USA.txt /XD bin save-backups __pycache__ >nul
 if errorlevel 8 ( echo Copy failed. Close the game, then try again. & pause & exit /b 1 )
 if not exist "%TARGET%\mods\settings.txt" copy "%~dp0mods\settings.txt" "%TARGET%\mods\settings.txt" >nul
+rem the patcher's old name: an outdated copy must not stay next to the new one
+if exist "%TARGET%\mods\Play with mods.bat" del /q "%TARGET%\mods\Play with mods.bat"
 rem ---- the Cheats tab into the game itself (menu bar: Cheats), then built. Needs the built game.
 if not exist "%TARGET%\game\dqix.exe" (
   echo.
@@ -30,7 +32,7 @@ if not exist "%TARGET%\game\dqix.exe" (
 )
 echo.
 echo Putting the Cheats tab into the game ^(the first time this builds it again: a few minutes^)...
-call "%TARGET%\mods\Play with mods.bat" apply
+call "%TARGET%\mods\Apply cheats.bat" apply
 if errorlevel 3 ( echo The game is still running: close it, then run this again. & goto end ) else if errorlevel 1 ( echo The Cheats tab could not be put in ^(see above^). & goto end )
 echo.
 echo Done. Start the game as always ^(game\dqix.exe^). In its menu bar, under Cheats, you can open the cheat list,

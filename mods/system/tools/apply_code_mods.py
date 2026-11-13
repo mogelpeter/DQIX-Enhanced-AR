@@ -7,11 +7,11 @@ The recompiler already has a way to change single ARM instructions while
 translating the game: patches.txt (the project removes an anti-piracy trap
 with it). This adds the code mods there, between two marker lines, and takes
 out the ones that are off. An update of the game brings a fresh patches.txt
-without them; running this again (Play with mods.bat does, every time) puts
+without them; running this again (Apply cheats.bat does, every time) puts
 them back.
 
 Which mods: the files in mods/system/cheats that say "enabled: yes", and the codes from
-the cheat database that are switched on in the cheat menu (mods/system/menu-state.txt).
+the cheat database that are switched on in the Cheats window (mods/system/menu-state.txt).
 catalog.py works every one of them out against your ROM's code (build/extract,
 written by the last build), so a mod that doesn't fit your ROM, or that can't be
 checked, is left out rather than breaking the game.
@@ -25,6 +25,7 @@ import re
 import struct
 import sys
 
+# the marker is found by its exact text in games that have it: never reword it (it names the patcher's old name)
 BEGIN = "# >>> mods (added by mods/tools/apply_code_mods.py; an update removes this, Play with mods.bat puts it back)"
 END = "# <<< mods"
 
@@ -144,8 +145,8 @@ def main():
     if not os.path.isfile(os.path.join(root, "build", "recomp", "dispatch_table.c")):
         print("   The game hasn't been built yet (no build\\recomp): build it once, then run this again.")
         return 1
-    # Which mods are on: a file in mods\system\code says so itself ("enabled: yes"); a code from the
-    # database is on when the cheat menu's list (mods\system\menu-state.txt) names it. catalog.py has
+    # Which mods are on: a file in mods\system\cheats says so itself ("enabled: yes"); a code from the
+    # database is on when the Cheats window's state file (mods\system\menu-state.txt) names it. catalog.py has
     # worked each one out against this ROM: only instructions it found there get this far.
     import catalog
     rom = catalog.Rom(root)

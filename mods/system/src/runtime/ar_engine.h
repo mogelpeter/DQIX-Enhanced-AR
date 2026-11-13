@@ -7,7 +7,7 @@
  * `keys`, given by the caller: the buttons held now, a bit each in the DS's
  * order (A B SELECT START RIGHT LEFT UP DOWN R L X Y, bit set = held), or
  * AR_KEYS_ALL for "every key the code asks for is held" (used when a code is
- * fired once from the cheat menu).
+ * fired once from the Cheats window).
  *
  * A code can't hold the game up: a pass stops after AR_BUDGET steps (a loop
  * count gone wrong would otherwise freeze the frame it runs in). Nothing but

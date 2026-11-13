@@ -2,6 +2,12 @@
 
 Newest first. One block per working session: what changed, why, how it was checked.
 
+## 2026-11-14 (28)  Batch files renamed, docs fit the in-game Cheats window
+- **Renamed**: `Install mods.bat` -> `Install cheats.bat`, `mods\Play with mods.bat` -> `mods\Apply cheats.bat`. The patcher is still needed: the installer, the game's updater (update.c block) and the Cheats window's "rebuild and restart" call it. The installer deletes an old `mods\Play with mods.bat` in the game folder. The `>>> mods` marker lines keep naming "Play with mods.bat" on purpose: they are matched by exact text in games that already have them (a comment in `apply_runtime_mod.py` / `apply_code_mods.py` says so).
+- **Docs rewritten for the in-game window** (no external cheat menu any more): `mods/README.txt` (fully), `README.md`, `docs/WORKFLOW.md`, `settings.txt`, `verified.txt`, and the R4 list headers. Fixed claims that were no longer true: a Keybinds page (keys are shown inline now), labels TRIED OUT/BUILT IN/NEXT START (the window shows `untested`, `needs a rebuild`, `next start` in the grey line), "faster text / experience x2 are built in" (they switch live; only Always strike first and Walk through monsters need a rebuild), "Not available" list (blocked codes are left out), menu tests and fonts in WORKFLOW. Code comments that said "cheat menu" now say Cheats window.
+- Game folder: a stray `mods\mods\system\bin\editor-cache` (from Nov 13, an older cache path) was deleted.
+- Checked: `Install cheats.bat "<game>"` ran end to end (old bat removed, rebuild, update.c now calls `mods\Apply cheats.bat`). `dev test fast cheatwin` passed 6/6 (static includes test_runtime_patch, which now looks for "Apply cheats.bat"). pyflakes is clean.
+
 ## 2026-11-13 (27)  Cleanup and new layout
 - **Layout**: `NOTES.md` and `WORKFLOW.md` moved to `docs/`. `mods/system/src/` split into `src/runtime/` (the C files built into the game) and `src/editor/` (`EditorHost.cs`). Updated: `apply_runtime_mod.py`, `dev.py` (editor path, test-cache glob `src/*/*`), `Play with mods.bat`, `test_force_data.c`, the Claude hook, and the docs. `test_runtime_patch.py` copies the whole `src/` tree, so it needed no change. The game folder's old flat `src/*` copies were deleted by hand (`dev deploy` never deletes files).
 - **Removed migrations** for older install layouts: `Install mods.bat` (moves from `mods\cheats`, `system\code`, `system\database`, the desktop shortcut, deletes of CheatMenu.cs/fonts/ui.tsv/...) and `dev.py migrate_layout`. `menu-lang.txt` dropped from the robocopy exclude list.

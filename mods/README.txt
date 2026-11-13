@@ -1,210 +1,195 @@
-DQIX ENHANCED - MODS
-====================
+DQIX ENHANCED - CHEATS
+======================
 
-Cheats and gameplay mods for DQIX Enhanced (github.com/sackchief/dqix-enhanced)
-in a menu like the cheat menu of an R4 card, that keep working when the game
-updates itself.
+Cheats and code mods for DQIX Enhanced (github.com/sackchief/dqix-enhanced),
+in a cheat list like the one of an R4 / Action Replay card, built right into
+the game: a "Cheats" tab in the game's own menu bar. They keep working when
+the game updates itself.
 
 
 INSIDE THE GAME
 ---------------
-The installer is a patcher: it puts a "Cheats" tab into the game's own menu bar (next to Mods and Help)
-and builds the game with it. Nothing else is started or put on your desktop; you start the game as always
-(game\dqix.exe) and choose what you want:
+Start the game as always (game\dqix.exe). In its menu bar (next to Mods and Help):
 
-- Cheats > Cheats...  opens the cheat list in a window of the game itself. Tick a cheat and it is on at
-  once (no restart, no rebuild, code mods included). What you tick is saved in mods\system\menu-state.txt
-  and sent again by itself when the game starts. Nothing is on until you switch it on.
-- Cheats > Save editor...  opens your save in the editor website (the language box is in the page, at
-  the bottom right). Close the game before you export.
+- Cheats > Cheats...  opens the cheat list in a window of the game itself. The game keeps
+  running. Tick a cheat and it is on at once: no restart, and no rebuild for almost all code
+  mods too. What you tick is saved in mods\system\menu-state.txt and sent again by itself
+  when the game starts. Nothing is on until you switch it on.
+- Cheats > Save editor...  opens your save in the editor website (the language box is in the
+  page, at the bottom right). Close the game before you export.
 - Cheats > Treasure maps...  opens the treasure map search website.
 
-When the game updates itself (Help > Check for updates) the tab is put back automatically; if you
-ever update by hand (new download), run Install mods.bat once more.
+When the game updates itself (Help > Check for updates) the tab is put back automatically.
+If you update by hand (a new download), run Install cheats.bat once more.
 
 
 INSTALL
 -------
-Double-click "Install mods.bat" in the folder you downloaded (it finds your DQIX Enhanced folder, copies
-this "mods" folder next to BUILD.bat, and builds the Cheats tab into the game):
+Build the game once the normal way first (if you haven't already). Then double-click
+"Install cheats.bat" in the folder you downloaded. It finds your DQIX Enhanced folder,
+copies this "mods" folder next to BUILD.bat and builds the Cheats tab into the game
+(a few minutes the first time):
 
     DQIX Enhanced\
         BUILD.bat
         game\
         mods\          <- here
 
-Build the game once the normal way first (if you haven't already).
-"mods\Play with mods.bat" is the same patcher without the copying: run it again after an update by hand.
+What is in the mods folder:
 
-What is in the mods folder (only these things are for you):
-
-    Play with mods.bat    the patcher (apply the mods to the game)
+    Apply cheats.bat      puts the cheats into the game and rebuilds what changed. The
+                          installer, the game's updater and the Cheats window run it
+                          for you; run it yourself after an update by hand or after you
+                          changed a cheat file.
     README.txt            this file
-    settings.txt          a switch (yes / no), explained inside
-    system\               everything the mods run on: the cheat
-                          lists (system\cheats, with yours too),
-                          translations of the save editor, your saved
-                          switches and the save backups (system\save-backups).
+    settings.txt          one switch (yes / no), explained inside
+    system\               everything the cheats run on: the cheat lists (system\cheats,
+                          yours go there too), the save editor's translations, your
+                          saved switches and the save backups (system\save-backups).
 
 
-THE CHEAT LIST
---------------
-Cheats > Cheats... in the game. On the left the pages (Speed & comfort, Experience & gold, Party,
-Battle, Items...), and first "Enabled": everything that is on now. Keys to hold are in the grey line; hover a row for the full info.
-Under each cheat a grey line says who needs it (one player, all players...), and its note.
-You can keep the window open while you play.
+THE CHEATS WINDOW
+-----------------
+On the left the pages (Speed & comfort, Experience & gold, Party, Battle, Items, ...),
+first "Enabled": everything that is on now, from every page. The search box above them
+finds a cheat by any word of its name, option, note or keys. Under each cheat a grey line
+says who needs it in a session, the buttons to hold and its labels; hover a row for the
+full text. You can keep the window open while you play.
 
 Each cheat is one of these:
 
-- A switch (check box). On = it works from now on, every frame, like a code that is ticked
-  on an R4. Switch what you like before you start the game, or while you play.
-- "Do it now": carries the code out one time, now (99 of every shield,
-  all Zoom places...). Many cheats have both.
+- A switch (check box). On = it works from now on, every frame, like a code that is
+  ticked on an R4.
+- "Do it now": carries the code out one time, now (99 of every shield, all Zoom
+  places...). Many cheats have both.
 - A choice (Experience x2 / x4 / ... / x128, movement speed, a vocation...): a drop-down
   with "Off" and the options; only one of them can be on.
-- A cheat with buttons next to its name (SELECT, L+R...) works as on a DS:
-  switch it on, then hold those buttons in the game (see the Keybinds page).
-  "Do it now" does it right away without the buttons.
+- A cheat with buttons ("hold SELECT", "hold L+R"...) works as on a DS: switch it on,
+  then hold those buttons in the game. "Do it now" does it right away without them.
 
-The labels:
+The labels in the grey line:
 
-  TRIED OUT    tried in this version of the game.
-  UNTESTED     from the R4 list, checked as far as a program can (below), but
-               not tried here. Save first.
-  BUILT IN     the few code mods that can't switch while the game runs: after you
-               switch one, the window offers to rebuild the parts of the game that
-               changed (a few minutes) and start it again. Most code mods switch
-               live and don't carry this label.
-  NEXT START   takes effect the next time the game starts from the menu
-               ("Always fast forward", "Instant loading").
+  untested         from the R4 list, checked as far as a program can (below), but not
+                   tried here. Save first.
+  needs a rebuild  one of the two code mods that can't switch while the game runs. The
+                   window offers to rebuild the game (a few minutes) and start it again.
+  next start       takes effect the next time the game starts ("Battle any monster
+                   you want", "Metal slimes only", "Instant loading"...). The window
+                   offers to restart the game.
 
-"Everything off" switches all of it off. Before the save editor writes your
-save, a copy goes to mods\system\save-backups (the last 30).
+"Everything off" switches all of it off. Before the save editor writes your save, a copy
+goes to mods\system\save-backups (the last 30).
 
 
 WHERE THE CHEATS COME FROM, AND WHY THEY CAN'T BREAK THE GAME
 -------------------------------------------------------------
 mods\system\cheats\r4-YDQP.txt (Europe) and r4-YDQE.txt (USA) hold the whole list for the
-game from the community's R4 cheat database (DeadSkullzJr's NDS(i) Cheat
-Databases): 216 codes for the European version, 271 for the USA one. To them
-come the other files in mods\system\cheats (made and tried by hand; yours go
-there too).
+game from the community's R4 cheat database (DeadSkullzJr's NDS(i) Cheat Databases):
+216 codes for the European version, 271 for the USA one. To them come the other files in
+mods\system\cheats (made and tried by hand; yours go there too).
 
-An Action Replay code is written for a DS, where it may change anything at any
-moment. Here the game's program is compiled PC code. So before the cheat window shows
-a code, mods\system\tools\catalog.py runs it against a copy of your own ROM's program
-and sorts it:
+An Action Replay code is written for a DS, where it may change anything at any moment.
+Here the game's program is compiled PC code. So before the window shows a code,
+mods\system\tools\catalog.py runs it against a copy of your own ROM's program and sorts it:
 
-- It only changes the game's data: a live cheat. The game carries it out
-  itself, at one fixed point of each frame. A code can only write the DS's
-  main memory, and a code that would loop forever is cut off, so it can't
-  freeze a frame.
-- It changes instructions: a "built in" mod. Every instruction it changes was
-  found in your ROM where the code says it is; what Play with mods.bat writes into the
-  build is exactly those words and nothing else. Two mods that change the same
-  instruction differently can't both be on (the window makes them one choice).
-- It can't work here, or can't be checked: it is listed under "Not available"
-  with the reason, and can't be switched on. That is: codes that add a routine
-  of their own to the program or send it somewhere outside its own code,
-  codes whose new instructions write into the program, codes that change the
-  program and data together, codes for DS hardware (backlight), codes that
-  don't fit your ROM, and the anti-piracy and Wi-Fi codes (not needed here).
+- It only changes the game's data: a live cheat. The window puts it into the game's
+  mailbox, and the game carries it out itself at one fixed point of each frame. A code
+  can only write the DS's main memory, and a code that would loop forever is cut off,
+  so it can't freeze a frame.
+- It changes instructions: a code mod. Every instruction it changes was found in your
+  ROM where the code says it is, and only those words are ever used. The game is built
+  once with a wrapper around every function a code mod touches; while a mod is on, that
+  function runs in the game's own ARM interpreter with the mod's instruction in it. Two
+  mods that change the same instruction differently can't both be on (the window makes
+  them one choice).
+- It can't work here, or can't be checked: it is left out of the window. That is: codes
+  that add a routine of their own to the program or jump somewhere outside its own code,
+  codes whose new instructions write into the program, codes that change program and
+  data together, codes for DS hardware (backlight), codes that don't fit your ROM, and
+  the anti-piracy and Wi-Fi codes (not needed here).
 
-The cheat window only puts cheats into the game's mailbox; the game carries
-them out itself, at one fixed point of each frame.
-
-What a program can't check is what a data cheat does to your save: "Max
-everything" codes can make a save odd. That is what UNTESTED warns about, and
-what the save copies are for.
+What a program can't check is what a data cheat does to your save: "Max everything"
+codes can make a save odd. That is what "untested" warns about, and what the save copies
+are for.
 
 A newer usrcheat.dat? "mods\system\tools\r4_to_text.py usrcheat.dat YDQP
-mods\system\cheats\r4-YDQP.txt" brings the list up to date; "Play with mods.bat catalog"
-reads it (then reopen the game).
+mods\system\cheats\r4-YDQP.txt" brings the list up to date; "Apply cheats.bat catalog"
+reads it (then restart the game).
 
 
 WHY THEY SURVIVE UPDATES
 ------------------------
-The game's own program comes from your ROM, and your ROM never changes. So the
-addresses and instructions these mods use never change either, whatever the
-developer changes in the PC side of the game.
+The game's own program comes from your ROM, and your ROM never changes. So the addresses
+and instructions these cheats use never change either, whatever the developer changes in
+the PC side of the game.
 
-- Live cheats and the Cheats tab are carried out by the game itself, through
-  a small part of the mods that Play with mods.bat builds into it (see
-  "Playing with friends"). An update takes that part out; the game's updater
-  runs Play with mods.bat, which puts it back.
-
-- Built-in mods go into the game's patches.txt (the project's own way to
-  change instructions when it rebuilds the game) between two marker lines. An
-  update replaces patches.txt and rebuilds without them. The next Play
-  notices (mods\system\bin\built.txt remembers what the built game has in it), puts
-  them back and rebuilds.
-
-- The update never deletes the mods folder (it only copies new files over the
-  project), so what you switched on stays (mods\system\menu-state.txt).
+- The Cheats tab, its window and the part that carries the cheats out are a handful of
+  small, marked changes in the game's source that Apply cheats.bat makes before the game
+  is built. An update replaces those files; the game's updater runs Apply cheats.bat
+  before it rebuilds, so they are back at once.
+- The two code mods that need a rebuild go into the game's patches.txt between two marker
+  lines. An update replaces patches.txt; Apply cheats.bat notices
+  (mods\system\bin\built.txt remembers what the built game has in it), puts them back and
+  rebuilds.
+- The update never deletes the mods folder (it only copies new files over the project),
+  so what you switched on stays (mods\system\menu-state.txt).
 
 
 USA AND EUROPEAN ROMS
 ---------------------
-Both work. The cheat list is the one for your ROM (its game code, YDQP or YDQE).
-The files in mods\system\cheats serve both: the European ROM is the
-same program with the main code moved by 16 bytes (8 for a little near the
-start); the data, where the cheats write, and the overlays, where most code
-mods are, are in the same place.
+Both work. The cheat list is the one for your ROM (its game code, YDQP or YDQE). The
+files in mods\system\cheats serve both: the European ROM is the same program with the
+main code moved by 16 bytes (8 for a little near the start); the data, where the cheats
+write, and the overlays, where most code mods are, are in the same place.
 
-- A code mod file may give its address as in the USA code or as in the
-  European code, either is found. It is checked against your ROM either way.
-- The database lists a few USA codes under the European game. When such a
-  code's instructions are in your ROM 16 bytes further on, it is moved there
-  (the cheat window says so in its note); otherwise it is "Not available".
-- "AR-codes-EU.txt" (or -USA) in this folder lists your own files as Action
-  Replay codes for your ROM. Play writes it again each time.
+- A code mod file may give its address as in the USA code or as in the European code;
+  either is found. It is checked against your ROM either way.
+- The database lists a few USA codes under the European game. When such a code's
+  instructions are in your ROM 16 bytes further on, it is moved there (its note says
+  so); otherwise it is left out.
+- "system\AR-codes-EU.txt" (or -USA) lists your own files as Action Replay codes for
+  your ROM. Apply cheats.bat writes it again each time.
 
 
 PLAYING WITH FRIENDS (WIRELESS)
 -------------------------------
-Live cheats work while playing with friends, when every player's game has
-these mods in it.
+The cheats work while playing with friends, when every player's game has them built in.
 
-Why that is needed: in a session every PC runs every player's DS, and they
-must all compute exactly the same. So a cheat can't just be written into your
-PC's memory. It travels with your button presses instead: the window hands it
-to your game, your game sends it to the others like a button, and every PC
-carries it out for your DS in the same frame. For that, a small part of the
-mods is built into the game (mods\system\src\runtime\mod_cheats.c).
+Why that is needed: in a session every PC runs every player's DS, and they must all
+compute exactly the same. So a cheat can't just be written into your PC's memory. It
+travels with your button presses instead: the window hands it to your game, your game
+sends it to the others like a button, and every PC carries it out for your DS in the same
+frame. Code mods switched in the window travel the same way.
 
 What to do:
-1. Give every player this mods folder. Each runs Install mods.bat once.
+1. Give every player this download. Each runs Install cheats.bat once.
 2. Host and join as usual.
-3. Use the cheats as when alone. They only change your own DS (your hero,
-   your gold, your bag), on every PC at once. Your friends don't need the same
-   cheats on, and can use their own the same way.
+3. Use the cheats as when alone. They only change your own DS (your hero, your gold,
+   your bag), on every PC at once. Your friends don't need the same cheats on, and can
+   use their own the same way. The grey line says which cheats one player is enough
+   for and which every player needs ("next start", "needs a rebuild").
 
-Sending takes a moment (a fifth of a second for a short code, a few seconds
-for the "99 of every..." ones); the stylus is lifted while it lasts.
+Sending takes a moment (a fifth of a second for a short code, a few seconds for the
+"99 of every..." ones); the stylus is lifted while it lasts.
 
-If one player's game doesn't have the mods in it (or has an older version of
-them: this one is version 2), the first cheat puts the session out of sync
-(the title bar says so). Without cheats such a session plays normally.
-"sync_cheats = no" in settings.txt leaves that part out for good (and with
-it the Cheats tab: see UNDO EVERYTHING).
+If one player's game doesn't have the cheats in it (or an older version of them: this one
+is version 2), the first cheat puts the session out of sync (the title bar says so).
+Without cheats such a session plays normally.
 
-Built-in mods (BUILT IN: faster text, experience x2...) are part of how the
-game computes: every player needs exactly the same ones built into their game,
-or the session goes OUT OF SYNC. The simple way: switch the built-in ones off
+The two code mods that need a rebuild change how the game computes: every player needs
+the same ones built in, or the session goes OUT OF SYNC. The simple way: switch them off
 before playing with friends.
 
-"Instant loading" only works while you play alone. In a session the game
-keeps the cartridge's real timing by itself (a second small change of the
-mods, in runtime\card.c), so it can't put a session out of sync.
+"Instant loading" only works while you play alone. In a session the game keeps the
+cartridge's real timing by itself, so it can't put a session out of sync.
 
 
 MAKE YOUR OWN
 -------------
-Live cheat (mods\system\cheats\anything.txt): any Action Replay DS code that writes
-data.
+Live cheat (mods\system\cheats\anything.txt): any Action Replay DS code that writes data.
 
-    # name: What the cheat window shows
-    # mode: always          (a switch; or: once = a "Do it" button)
+    # name: What the window shows
+    # mode: always          (a switch; or: once = a "Do it now" button)
     # about: optional note
     # category: Party       (the page; without it: "Custom")
     020F6D48 0098967F
@@ -212,28 +197,32 @@ data.
 Code mod (mods\system\cheats\anything.txt, with "patch" lines):
 
     # name: What it's called
-    # enabled: no           (the window's switch changes this line)
+    # enabled: no
     patch 0215525C E0832002 E0832082     address, the instruction there now, the new one
     check 021864A4 E3550000              must be there for the mod to apply
     patch 021864A8 E1A00000              (address, new) only together with a check
 
-An Action Replay "5XXXXXXX YYYYYYYY" line is a check; the "0XXXXXXX YYYYYYYY"
-lines after it that write instructions are patches. USA or European addresses.
-Swapping an instruction for another (nop, mov, a branch to a place inside the
-game's code) is safe; a jump to code of your own is not, and isn't possible.
+Most code mods become a switch in the window that works while you play. The few the game
+can't switch live say so in the window; for those, set "# enabled: yes" in the file and
+run Apply cheats.bat.
 
-Run "Play with mods.bat catalog" after you add or change a file, then reopen the game.
+An Action Replay "5XXXXXXX YYYYYYYY" line is a check; the "0XXXXXXX YYYYYYYY" lines after
+it that write instructions are patches. USA or European addresses. Swapping an
+instruction for another (nop, mov, a branch to a place inside the game's code) is safe;
+a jump to code of your own is not, and isn't possible.
+
+Run "Apply cheats.bat catalog" after you add or change a file, then restart the game.
 
 
 UNDO EVERYTHING
 ---------------
-Press "Everything off" in the cheat window, set "sync_cheats = no" in settings.txt,
-and run "Play with mods.bat" once (it takes the mods out and rebuilds). Then delete the mods
-folder.
+Press "Everything off" in the Cheats window and close the game. Set "sync_cheats = no" in
+settings.txt and run "Apply cheats.bat" once: it takes the Cheats tab and everything else
+out of the game's source and rebuilds it. Then delete the mods folder. Your save
+(game\dqix.sav) is never touched.
 
 
-Codes: the community's Action Replay codes for DQIX (USA and Europe), from
-DeadSkullzJr's NDS(i) Cheat Databases (gbatemp.net) and as collected at
-almarsguides.com. The "99 of every..." bag cheats, the whole party's HP / MP
-and the battle HP / MP and walk-through-walls mods are from the latter's
-European list.
+Codes: the community's Action Replay codes for DQIX (USA and Europe), from DeadSkullzJr's
+NDS(i) Cheat Databases (gbatemp.net) and as collected at almarsguides.com. The
+"99 of every..." bag cheats, the whole party's HP / MP and the battle HP / MP and
+walk-through-walls mods are from the latter's European list.

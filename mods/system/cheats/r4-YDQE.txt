@@ -1,5 +1,5 @@
 # Action Replay codes for YDQE, from an R4 cheat database (mods/tools/r4_to_text.py).
-# The cheat menu sorts them: which work live, which have to be built into the game,
+# The Cheats window sorts them: which work live, which have to be built into the game,
 # and which can't work in this version. Your own codes go in mods/system/cheats.
 
 @game YDQE 23A95403 Dragon Quest IX - Sentinels of the Starry Skies (USA)

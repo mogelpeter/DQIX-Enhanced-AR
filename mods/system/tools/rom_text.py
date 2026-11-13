@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Reads the game's own texts out of your ROM: the five languages (en de fr es it) of the item names and
-the other name tables, so the cheat menu and the save editor can use the game's exact words.
+the other name tables, so the Cheats window and the save editor can use the game's exact words.
 
   rom_text.py <rom.nds> [--out DIR]     writes DIR\\rom-<table>-<lang>.tsv  (default: mods\\system\\lang)
   rom_text.py <rom.nds> --find WORD     which tables/languages contain WORD (for translating by the game's terms)

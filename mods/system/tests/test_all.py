@@ -1,7 +1,7 @@
 """Every live cheat of the catalog against a headless game, alone or with a friend.
    test_all.py <project root> <work dir> single|session [frames] [port]
 
-   single : all live cheats are sent through the mailbox exactly like the menu does (switch on, "Once"),
+   single : all live cheats are sent through the mailbox exactly like the Cheats window does (switch on, "Once"),
             in two batches (the game holds 128 at a time). Checks: the game runs to its end, every message
             was carried out, no suspicious log line, and that plain "write this value" cheats are in RAM.
    session: the same on the host of a two-player session on this PC; the friend's console only gets them

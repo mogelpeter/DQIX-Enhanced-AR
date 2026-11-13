@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Everything the cheat menu offers, sorted and checked against your ROM.
+"""Everything the Cheats window offers, sorted and checked against your ROM.
 
-  catalog.py [project folder]            writes mods/system/bin/catalog.txt (the menu reads it)
+  catalog.py [project folder]            writes mods/system/bin/catalog.txt (the Cheats window reads it)
   catalog.py [project folder] --report   also says why each code ended up where it did
 
 Where the codes come from:
@@ -35,7 +35,7 @@ import apply_code_mods as acm
 KEY_NAMES = ["A", "B", "SELECT", "START", "RIGHT", "LEFT", "UP", "DOWN", "R", "L", "X", "Y"]
 BUDGET = 400000
 
-# The database's folders, put into the menu's pages: (folder name matches, page, put before each code's name)
+# The database's folders, put into the window's pages: (folder name matches, page, put before each code's name)
 PAGES = [
     (r"random game enhancer", "Speed & comfort", ""),
     (r"movement speed", "Speed & comfort", ""),
@@ -536,7 +536,7 @@ def clean(s):
 
 
 def strip_keys(name):
-    """"[SEL]All shield" -> "All shield": the menu shows the keys by itself."""
+    """"[SEL]All shield" -> "All shield": the window shows the keys by itself."""
     rest = re.sub(r"^\s*\[(?:[A-Za-z/]+)(?:\s*\+\s*[A-Za-z/]+)*(?:\s+On/Off)?\]\s*", "", name).strip()
     return rest if rest and (rest[0].isupper() or rest[0].isdigit()) else name
 
@@ -658,7 +658,7 @@ def read_livepatch(root):
 
 
 def build(root):
-    """-> (info, entries, groups). An entry is a dict; see write() for what the menu gets."""
+    """-> (info, entries, groups). An entry is a dict; see write() for what the window gets."""
     rom = Rom(root)
     entries, groups = [], []
 
@@ -882,7 +882,7 @@ def build(root):
 
 
 def read_state(root):
-    """What is switched on in the cheat menu: mods/system/menu-state.txt, lines of "<live|code|launch> <id>"."""
+    """What is switched on in the Cheats window: mods/system/menu-state.txt, lines of "<live|code|launch> <id>"."""
     state = {"live": set(), "code": set(), "launch": set()}
     try:
         for line in open(os.path.join(root, "mods", "system", "menu-state.txt"), encoding="utf-8-sig"):

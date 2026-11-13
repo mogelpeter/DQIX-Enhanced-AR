@@ -7,14 +7,14 @@
    mod_cheats.c and ar_engine.h into runtime/ (the build compiles every .c file
    there) and changes one place in runtime/input.c so each frame's input goes
    through them.
-2. "Instant loading" (the cheat menu) only when you play alone: one place in
+2. "Instant loading" (a launch option) only when you play alone: one place in
    runtime/card.c. In a session every PC has to take the same time for the
    cartridge, or the PCs stop agreeing within two seconds ("OUT OF SYNC at
    frame 120"). With this the game keeps the cartridge's real timing whenever
-   a session runs, whatever the menu says.
+   a session runs, whatever the window says.
 
 Each change sits between two marker lines. An update of the game brings fresh
-files without them; running this again (Play with mods.bat does, every time)
+files without them; running this again (Apply cheats.bat does, every time)
 puts them back. If a file ever looks different from what this expects, that
 change is left out and said so: nothing is half-changed.
 
@@ -101,7 +101,7 @@ ACT_PATCHED = ACT_BEGIN + r"""
                 "Your save is not touched by the cheats (copies go to mods\system\save-backups). Updating the game from the Help menu keeps this tab.", g_win);
             break;
         }
-        if (id == 362) { if (!mod_editor_launch("party")) info_box(SDL_MESSAGEBOX_ERROR, "Save editor", "The editor couldn't be started: the editor helper is missing. Run Install mods.bat again.", g_win); break; }
+        if (id == 362) { if (!mod_editor_launch("party")) info_box(SDL_MESSAGEBOX_ERROR, "Save editor", "The editor couldn't be started: the editor helper is missing. Run Install cheats.bat again.", g_win); break; }
         if (id == 363) { if (!mod_open_url("https://dqix.github.io/Grotto-Searcher/")) info_box(SDL_MESSAGEBOX_ERROR, "Treasure maps", "The browser couldn't be opened. The page is https://dqix.github.io/Grotto-Searcher/", g_win); break; }
         mod_cheatwin_show();
         break;
@@ -112,10 +112,12 @@ ACT_PATCHED = ACT_PATCHED.replace(ACT_BEGIN + "\n", ACT_BEGIN, 1)
 UPD_BEGIN = "    /* >>> mods: put the mods back after an update (mods/tools/apply_runtime_mod.py; an update removes this, Play with mods.bat puts it back) */\n"
 UPD_ORIGINAL = r"""    "echo == Building the game again from your ROM (this can take a while)\r\n"
 """
-UPD_PATCHED = UPD_BEGIN + UPD_ORIGINAL + r"""    "if exist \"mods\\Play with mods.bat\" call \"mods\\Play with mods.bat\" apply\r\n"
+UPD_PATCHED = UPD_BEGIN + UPD_ORIGINAL + r"""    "if exist \"mods\\Apply cheats.bat\" call \"mods\\Apply cheats.bat\" apply\r\n"
 """ + END
 
 # (file in runtime/, the lines as the game has them, with the mods, first marker line, what it is)
+# The marker lines (*_BEGIN, WRAP_BEGIN) are found by their exact text in games that already have them: never reword
+# them (they still name "Play with mods.bat", the patcher's old name), or those games keep an orphaned block.
 SITES = [
     ("input.c", INPUT_ORIGINAL, INPUT_PATCHED, INPUT_BEGIN, "Cheats with friends"),
     ("card.c", CARD_ORIGINAL, CARD_PATCHED, CARD_BEGIN, "Instant loading only alone"),
@@ -331,7 +333,7 @@ def main():
     if on and nfn:
         print(f"   [on] Code mods switch while the game runs: {nsite} instruction sites in {nfn} functions")
     if on:
-        print("   [on] Lower-level characters get more experience (when switched on in the menu)")
+        print("   [on] Lower-level characters get more experience (when switched on in the Cheats window)")
     if not on:
         print("   The mods' part of the game: off (sync_cheats = no).")
     if changed:

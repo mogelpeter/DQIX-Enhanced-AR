@@ -178,7 +178,7 @@ def t_static(root, work):
             problems.append("EditorHost.cs uses " + why + " (Windows' csc is C# 5)")
     cat = os.path.join(live, "bin", "catalog.txt")
     if not os.path.isfile(cat):
-        problems.append("no mods\\system\\bin\\catalog.txt: run Play with mods.bat catalog")
+        problems.append("no mods\\system\\bin\\catalog.txt: run Apply cheats.bat catalog")
         entries = {}
     else:
         entries = {}
@@ -357,8 +357,8 @@ def cmd_doctor(a):
         line(os.path.isfile(os.path.join(root, "game", "dqix.exe")), "game built (game\\dqix.exe)", "run BUILD.bat once (needs internet the first time for MSYS2)")
         line(os.path.isfile(os.path.join(root, "build", "recomp", "dispatch_table.c")), "build\\recomp (the mods are checked against it)", "run BUILD.bat")
         msys = read(os.path.join(mods, "msys2-root.txt")) or r"C:\msys64"
-        line(os.path.isfile(os.path.join(msys, "usr", "bin", "bash.exe")), "MSYS2 build tools: " + msys, "BUILD.bat installs them; Play with mods.bat finds them")
-        line(os.path.isfile(os.path.join(mods, "bin", "catalog.txt")), "cheat list (mods\\system\\bin\\catalog.txt)", "run  Play with mods.bat catalog")
+        line(os.path.isfile(os.path.join(msys, "usr", "bin", "bash.exe")), "MSYS2 build tools: " + msys, "BUILD.bat installs them; Apply cheats.bat finds them")
+        line(os.path.isfile(os.path.join(mods, "bin", "catalog.txt")), "cheat list (mods\\system\\bin\\catalog.txt)", "run  Apply cheats.bat catalog")
         line(not game_running(), "no game running right now", "close dqix.exe before tests")
     print("\nAll good." if not bad else f"\n{bad} thing(s) to fix.")
     return 1 if bad else 0
