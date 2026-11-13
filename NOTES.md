@@ -2,6 +2,9 @@
 
 Newest first. One block per working session: what changed, why, how it was checked.
 
+## 2026-11-13 (5)  Cleanup
+- Removed the unused standalone `test_engine.c` and `__pycache__` folders.
+
 ## 2026-11-13 (4)  Status line removed, one-click installer
 - Header status line (counts, built-in set) hidden. `Install mods.bat` now finds the DQIX Enhanced folder itself (folder picker only as fallback), copies the mods, makes the desktop shortcut and offers to start the menu. Checked: auto-find, explicit path, menu-smoke PASS.
 
