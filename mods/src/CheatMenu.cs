@@ -455,14 +455,14 @@ namespace DqixMenu
       <Setter Property='Template'>
         <Setter.Value>
           <ControlTemplate TargetType='CheckBox'>
-            <Border x:Name='track' Width='38' Height='20' CornerRadius='4' Background='#121214' BorderBrush='#2E2E33' BorderThickness='1.5'>
-              <Ellipse x:Name='knob' Width='12' Height='12' Margin='3,0,3,0' Fill='#6E6E75' HorizontalAlignment='Left'/>
+            <Border x:Name='track' Width='32' Height='16' CornerRadius='2' Background='#121214' BorderBrush='#34343A' BorderThickness='1'>
+              <Border x:Name='knob' CornerRadius='1' Width='10' Height='10' Margin='3,0,3,0' Background='#6E6E75' HorizontalAlignment='Left'/>
             </Border>
             <ControlTemplate.Triggers>
               <Trigger Property='IsChecked' Value='True'>
                 <Setter TargetName='track' Property='Background' Value='#C8413B'/>
                 <Setter TargetName='track' Property='BorderBrush' Value='#C8413B'/>
-                <Setter TargetName='knob' Property='Fill' Value='#FFFFFF'/>
+                <Setter TargetName='knob' Property='Background' Value='#FFFFFF'/>
                 <Setter TargetName='knob' Property='HorizontalAlignment' Value='Right'/>
               </Trigger>
               <Trigger Property='IsMouseOver' Value='True'>
@@ -484,7 +484,7 @@ namespace DqixMenu
       <Setter Property='Template'>
         <Setter.Value>
           <ControlTemplate TargetType='Button'>
-            <Border x:Name='b' Background='#202024' BorderBrush='#2E2E33' BorderThickness='1' CornerRadius='3' Padding='{TemplateBinding Padding}'>
+            <Border x:Name='b' Background='#202024' BorderBrush='#2E2E33' BorderThickness='1' CornerRadius='2' Padding='{TemplateBinding Padding}'>
               <ContentPresenter HorizontalAlignment='Center' VerticalAlignment='Center'/>
             </Border>
             <ControlTemplate.Triggers>
@@ -504,8 +504,8 @@ namespace DqixMenu
       <Setter Property='Template'>
         <Setter.Value>
           <ControlTemplate TargetType='Button'>
-            <Border x:Name='b' CornerRadius='3' Padding='{TemplateBinding Padding}' BorderBrush='#C8413B' BorderThickness='1'>
-              <Border.Background><LinearGradientBrush StartPoint='0,0' EndPoint='0,1'><GradientStop Color='#D9483F' Offset='0'/><GradientStop Color='#A5322D' Offset='1'/></LinearGradientBrush></Border.Background>
+            <Border x:Name='b' CornerRadius='2' Padding='{TemplateBinding Padding}' BorderBrush='#C8413B' BorderThickness='1'>
+              <Border.Background><SolidColorBrush Color='#B63A34'/></Border.Background>
               <ContentPresenter HorizontalAlignment='Center' VerticalAlignment='Center'/>
             </Border>
             <ControlTemplate.Triggers>
@@ -523,7 +523,7 @@ namespace DqixMenu
       <Setter Property='Template'>
         <Setter.Value>
           <ControlTemplate TargetType='ComboBoxItem'>
-            <Border x:Name='b' Padding='10,7' CornerRadius='3' Background='Transparent'>
+            <Border x:Name='b' Padding='10,7' CornerRadius='2' Background='Transparent'>
               <ContentPresenter/>
             </Border>
             <ControlTemplate.Triggers>
@@ -548,7 +548,7 @@ namespace DqixMenu
               <ToggleButton Focusable='False' ClickMode='Press' IsChecked='{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}'>
                 <ToggleButton.Template>
                   <ControlTemplate TargetType='ToggleButton'>
-                    <Border x:Name='b' Background='#121214' BorderBrush='#2E2E33' BorderThickness='1.5' CornerRadius='3'>
+                    <Border x:Name='b' Background='#121214' BorderBrush='#2E2E33' BorderThickness='1.5' CornerRadius='2'>
                       <Path HorizontalAlignment='Right' VerticalAlignment='Center' Margin='0,0,12,0' Data='M0,0 L5,5 L10,0' Stroke='#C8413B' StrokeThickness='2'/>
                     </Border>
                     <ControlTemplate.Triggers>
@@ -559,7 +559,7 @@ namespace DqixMenu
               </ToggleButton>
               <ContentPresenter IsHitTestVisible='False' Margin='12,0,30,0' VerticalAlignment='Center' Content='{TemplateBinding SelectionBoxItem}'/>
               <Popup x:Name='PART_Popup' IsOpen='{Binding IsDropDownOpen, RelativeSource={RelativeSource TemplatedParent}}' Placement='Bottom' AllowsTransparency='True' Focusable='False' PopupAnimation='Fade'>
-                <Border MinWidth='{TemplateBinding ActualWidth}' MaxHeight='330' Background='#17171A' BorderBrush='#C8413B' BorderThickness='1' CornerRadius='3' Margin='0,4,0,8' Padding='4'>
+                <Border MinWidth='{TemplateBinding ActualWidth}' MaxHeight='330' Background='#17171A' BorderBrush='#C8413B' BorderThickness='1' CornerRadius='2' Margin='0,4,0,8' Padding='4'>
                   <ScrollViewer VerticalScrollBarVisibility='Auto'><ItemsPresenter/></ScrollViewer>
                 </Border>
               </Popup>
@@ -593,12 +593,12 @@ namespace DqixMenu
       <Setter Property='Template'>
         <Setter.Value>
           <ControlTemplate TargetType='ListBoxItem'>
-            <Border x:Name='b' CornerRadius='3' Padding='9,4' Margin='0,0' Background='Transparent' BorderThickness='1' BorderBrush='Transparent'>
+            <Border x:Name='b' CornerRadius='0' Padding='10,5' Margin='0,0' Background='Transparent' BorderThickness='2,0,0,0' BorderBrush='Transparent'>
               <ContentPresenter/>
             </Border>
             <ControlTemplate.Triggers>
               <Trigger Property='IsMouseOver' Value='True'><Setter TargetName='b' Property='Background' Value='#1D1D21'/></Trigger>
-              <Trigger Property='IsSelected' Value='True'><Setter TargetName='b' Property='Background' Value='#26262B'/><Setter TargetName='b' Property='BorderBrush' Value='#C8413B'/></Trigger>
+              <Trigger Property='IsSelected' Value='True'><Setter TargetName='b' Property='Background' Value='#1D1D21'/><Setter TargetName='b' Property='BorderBrush' Value='#C8413B'/></Trigger>
             </ControlTemplate.Triggers>
           </ControlTemplate>
         </Setter.Value>
@@ -613,10 +613,10 @@ namespace DqixMenu
   <Border Grid.Row='0' Padding='16,9,16,8' BorderBrush='#26262B' BorderThickness='0,0,0,1'>
     <Grid>
       <StackPanel Margin='0,0,190,0'>
-        <TextBlock FontSize='15' FontWeight='SemiBold'><Run Foreground='#C8413B' Text='&#x2726; '/><Run Text='Dragon Quest IX'/><Run Foreground='#8C8C92' FontWeight='Normal' Text='  cheat menu'/></TextBlock>
+        <TextBlock FontSize='14' FontWeight='SemiBold'><Run Text='Dragon Quest IX'/><Run Foreground='#8C8C92' FontWeight='Normal' Text='  /  cheats'/></TextBlock>
         <TextBlock x:Name='Sub' Visibility='Collapsed' Margin='0,3,0,0' FontSize='10' Foreground='{StaticResource Dim}' TextTrimming='CharacterEllipsis'/>
       </StackPanel>
-      <Border x:Name='Pill' HorizontalAlignment='Right' VerticalAlignment='Center' CornerRadius='3' Padding='8,3' Background='#17171A' BorderBrush='#2E2E33' BorderThickness='1'>
+      <Border x:Name='Pill' HorizontalAlignment='Right' VerticalAlignment='Center' CornerRadius='0' Padding='0'>
         <StackPanel Orientation='Horizontal'>
           <Ellipse x:Name='Dot' Width='9' Height='9' Fill='#6E6E75' VerticalAlignment='Center' Margin='0,0,8,0'/>
           <TextBlock x:Name='PillText' FontSize='10.5' Text='The game is not running'/>
@@ -629,7 +629,7 @@ namespace DqixMenu
     <Grid.ColumnDefinitions><ColumnDefinition Width='200'/><ColumnDefinition Width='*'/></Grid.ColumnDefinitions>
     <Border Grid.Column='0' BorderBrush='#26262B' BorderThickness='0,0,1,0' Padding='10,10,6,6'>
       <DockPanel>
-        <Border DockPanel.Dock='Top' Background='#121214' BorderBrush='#2E2E33' BorderThickness='1.5' CornerRadius='3' Margin='0,0,4,10'>
+        <Border DockPanel.Dock='Top' Background='#121214' BorderBrush='#2E2E33' BorderThickness='1.5' CornerRadius='2' Margin='0,0,4,10'>
           <Grid>
             <TextBlock x:Name='SearchHint' Text='Search all cheats' Foreground='#6E6E75' Margin='11,0,0,0' VerticalAlignment='Center' IsHitTestVisible='False' FontSize='11'/>
             <TextBox x:Name='Search' Background='Transparent' BorderThickness='0' Foreground='#D2D2D6' CaretBrush='#C8413B' Padding='8,7' FontSize='11'/>
@@ -657,20 +657,20 @@ namespace DqixMenu
       <StackPanel DockPanel.Dock='Right' Orientation='Horizontal'>
         <Button x:Name='OffBtn' Style='{StaticResource Btn}' Content='Everything off' Margin='0,0,8,0'/>
         <Button x:Name='ReloadBtn' Style='{StaticResource Btn}' Content='Reload list' Margin='0,0,14,0'/>
-        <Button x:Name='PlayBtn' Style='{StaticResource Primary}' Content='&#x25B6;  Play'/>
+        <Button x:Name='PlayBtn' Style='{StaticResource Primary}' Content='Play'/>
       </StackPanel>
       <TextBlock x:Name='Status' VerticalAlignment='Center' TextWrapping='Wrap' FontSize='11' Foreground='{StaticResource Dim}' Margin='0,0,16,0'/>
     </DockPanel>
   </Border>
 
   <Grid x:Name='Overlay' Grid.RowSpan='3' Background='#E6000000' Visibility='Collapsed'>
-    <Border Width='620' MaxHeight='460' Padding='16' CornerRadius='3' Background='#1B1B1F' BorderBrush='#C8413B' BorderThickness='1.5' VerticalAlignment='Center'>
+    <Border Width='620' MaxHeight='460' Padding='16' CornerRadius='2' Background='#1B1B1F' BorderBrush='#C8413B' BorderThickness='1.5' VerticalAlignment='Center'>
       <DockPanel>
         <TextBlock x:Name='OverTitle' DockPanel.Dock='Top' FontSize='15.5' FontWeight='SemiBold' Text='Getting the game ready'/>
         <TextBlock x:Name='OverSub' DockPanel.Dock='Top' Margin='0,4,0,12' FontSize='11' Foreground='{StaticResource Dim}' TextWrapping='Wrap'/>
         <ProgressBar x:Name='OverBar' DockPanel.Dock='Top' Height='6' IsIndeterminate='True' Foreground='#C8413B' Background='#121214' BorderThickness='0' Margin='0,0,0,12'/>
         <Button x:Name='OverClose' DockPanel.Dock='Bottom' Style='{StaticResource Btn}' Content='Close' HorizontalAlignment='Right' Margin='0,12,0,0' Visibility='Collapsed'/>
-        <Border Background='#0E0E10' CornerRadius='3' Padding='10' BorderBrush='#26262B' BorderThickness='1'>
+        <Border Background='#0E0E10' CornerRadius='2' Padding='10' BorderBrush='#26262B' BorderThickness='1'>
           <ScrollViewer x:Name='OverScroll' VerticalScrollBarVisibility='Auto' Height='220'>
             <TextBlock x:Name='OverLog' FontFamily='@FONT@' FontSize='10.5' Foreground='#A9A9B0' TextWrapping='Wrap'/>
           </ScrollViewer>
@@ -867,7 +867,7 @@ namespace DqixMenu
             building = true;
             string was = Nav.SelectedItem is ListBoxItem ? (string)((ListBoxItem)Nav.SelectedItem).Tag : "page:" + (pages.Count > 0 ? pages[0] : "");
             Nav.Items.Clear();
-            AddNav("on", "★  Switched on", 0);
+            AddNav("on", "Switched on", 0);
             foreach (string p in pages) AddNav("page:" + p, p, RowCount(e => e.Cat == p && e.Kind != "blocked"));
             AddNav("all", "All cheats", RowCount(e => e.Kind != "blocked"));
             AddNav("blocked", "Not available", nNo);
@@ -1119,9 +1119,8 @@ namespace DqixMenu
         {
             Border b = new Border
             {
-                CornerRadius = new CornerRadius(5), BorderBrush = color, BorderThickness = new Thickness(1), Padding = new Thickness(6, 1, 6, 2),
-                Margin = new Thickness(0, 0, 6, 0), VerticalAlignment = VerticalAlignment.Center,
-                Child = new TextBlock { Text = text, Foreground = color, FontSize = 9, FontWeight = FontWeights.SemiBold }
+                Margin = new Thickness(0, 0, 8, 0), VerticalAlignment = VerticalAlignment.Center, Background = Brushes.Transparent,
+                Child = new TextBlock { Text = text, Foreground = color, FontSize = 9.5, Opacity = 0.85 }
             };
             if (tip != null) { b.ToolTip = tip; ToolTipService.SetShowDuration(b, 30000); }
             return b;
@@ -1147,7 +1146,7 @@ namespace DqixMenu
             foreach (string l in lines)
                 if (l != null && l.Length > 0) p.Children.Add(new TextBlock { Text = l, Foreground = Text, FontSize = 10.5, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 4, 0, 0) });
             if (warn != null)
-                p.Children.Add(new TextBlock { Text = "⚠ " + warn, Foreground = Amber, FontSize = 10.5, FontWeight = FontWeights.SemiBold, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 6, 0, 0) });
+                p.Children.Add(new TextBlock { Text = "! " + warn, Foreground = Amber, FontSize = 10.5, FontWeight = FontWeights.Normal, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 6, 0, 0) });
             return new ToolTip { Content = p, Background = B("#0E0E10"), BorderBrush = B("#3A3A40"), BorderThickness = new Thickness(1), Padding = new Thickness(9, 7, 9, 8), FontFamily = Mono, HasDropShadow = false };
         }
 
@@ -1190,7 +1189,7 @@ namespace DqixMenu
         static void AddWarn(StackPanel left, string text) { AddWarn(left, text, true); }
         static void AddWarn(StackPanel left, string text, bool warning)
         {
-            left.Children.Add(new TextBlock { Text = (warning ? "⚠ " : "✔ ") + text, Foreground = warning ? Amber : Green, FontSize = 10, FontWeight = FontWeights.SemiBold, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 3, 0, 0) });
+            left.Children.Add(new TextBlock { Text = (warning ? "! " : "") + text, Foreground = warning ? Amber : Green, FontSize = 10, FontWeight = FontWeights.SemiBold, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 3, 0, 0) });
         }
 
         Border CardOf(UIElement left, UIElement right, bool dimmed)
@@ -1200,8 +1199,8 @@ namespace DqixMenu
             d.Children.Add(left);
             Border card = new Border
             {
-                Background = Card, BorderBrush = CardLine, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(4),
-                Padding = new Thickness(11, 7, 10, 7), Margin = new Thickness(0, 0, 6, 4), Child = d, Opacity = dimmed ? 0.62 : 1
+                Background = Card, BorderBrush = CardLine, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(2),
+                Padding = new Thickness(11, 7, 10, 7), Margin = new Thickness(0, 0, 6, 2), Child = d, Opacity = dimmed ? 0.62 : 1
             };
             if (!dimmed)
             {
@@ -1226,7 +1225,7 @@ namespace DqixMenu
         {
             if (e.Kind == "blocked")
             {
-                Border blocked = CardOf(TextOf(e.Name, e.Reason, null), new TextBlock { Text = "🔒", FontSize = 13, Foreground = Grey, VerticalAlignment = VerticalAlignment.Center, FontFamily = new FontFamily("Segoe UI Emoji, Segoe UI Symbol") }, true);
+                Border blocked = CardOf(TextOf(e.Name, e.Reason, null), new TextBlock { Text = "locked", FontSize = 10, Foreground = Grey, VerticalAlignment = VerticalAlignment.Center }, true);
                 Hover(blocked, MakeTip(e.Name, new[] { "Not available here: " + e.Reason, "It is kept out on purpose so it can never crash the game." }, null));
                 return blocked;
             }
@@ -1338,7 +1337,7 @@ namespace DqixMenu
             lastPill = t;
             PillText.Text = t; Dot.Fill = dot;
             PlayBtn.IsEnabled = !link.Running && !busy;
-            PlayBtn.Content = link.Running ? "Game is running" : "▶  Play";
+            PlayBtn.Content = link.Running ? "Game is running" : "Play";
             UpdateBanner();
             if (link.Inside && link.Session && built.Count > 0)
                 Say("With friends: every player needs exactly these built into their game too, or the session goes OUT OF SYNC: "

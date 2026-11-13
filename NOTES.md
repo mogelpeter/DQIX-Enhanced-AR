@@ -2,6 +2,9 @@
 
 Newest first. One block per working session: what changed, why, how it was checked.
 
+## 2026-11-13 (6)  Plainer menu
+- Dropped the decorative bits: sparkle/star/play/warning/lock glyphs, outlined pill chips (now plain small tags), gradient button, round switch knob, boxed nav selection (now a red edge bar), status pill box. Corners 2 px, switch smaller. `CheatMenu.cs` only; menu-smoke PASS.
+
 ## 2026-11-13 (5)  Cleanup
 - Removed the unused standalone `test_engine.c` and `__pycache__` folders.
 
