@@ -2,6 +2,9 @@
 
 Newest first. One block per working session: what changed, why, how it was checked.
 
+## 2026-11-13 (8)  System page removed
+- `catalog.py` skips the System folder (anti-piracy, WFC, backlight: all blocked anyway) and the page is gone; "not available" went from 8 to 4. static + menu-smoke PASS.
+
 ## 2026-11-13 (7)  Multiplayer tags, hover without repeats
 - Every card carries ONE PLAYER (live: one player is enough, sent to all PCs), ALL PLAYERS (built in: same set on every PC) or OWN PC (launch options). Hover now only says how to use it + the multiplayer rule; note, status, rebuild warning and code-line count are on the card, not repeated. menu-smoke PASS.
 

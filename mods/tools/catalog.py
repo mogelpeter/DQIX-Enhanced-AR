@@ -63,7 +63,7 @@ PAGES = [
     (r"backlight|wfc|wi-?fi", "System", ""),
 ]
 PAGE_ORDER = ["Speed & comfort", "Experience & gold", "Party", "Battle", "Items", "Alchemy", "World",
-              "Unlocks", "Records & quests", "Fun", "Miscellaneous", "My cheats", "System"]
+              "Unlocks", "Records & quests", "Fun", "Miscellaneous", "My cheats"]
 
 REASONS = {
     "hook": "It adds a routine of its own to the game's program. This compiled version can't check such a routine, so it stays off.",
@@ -692,6 +692,8 @@ def build(root):
         info.update(title=title, database=os.path.basename(db), exact="1" if crc == rom.crc else "0")
     for folder in folders:
         page, prefix = page_of(folder["name"]) if folder["name"] else ("System", "")
+        if page == "System":
+            continue                                        # backlight / Wi-Fi / anti-piracy codes: not needed on a PC
         made = []
         for c in folder["codes"]:
             if not c["ops"]:
