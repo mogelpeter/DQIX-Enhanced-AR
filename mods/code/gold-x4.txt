@@ -1,0 +1,3 @@
+# name: Gold from battles x4
+# enabled: no
+patch 02155270 E0832002 E0832102

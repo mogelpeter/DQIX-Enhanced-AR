@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+mods/bin/
+mods/save-backups/
+mods/menu-state.txt
+mods/msys2-root.txt
+mods/dev-root.txt
+mods/AR-codes-*.txt

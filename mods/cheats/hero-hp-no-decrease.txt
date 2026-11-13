@@ -1,0 +1,7 @@
+# name: Hero's HP never goes down
+# mode: always
+# about: Keeps the hero's HP at their maximum HP.
+A20F5510 00000000
+DA000000 020F5510
+D7000000 020F550C
+D2000000 00000000

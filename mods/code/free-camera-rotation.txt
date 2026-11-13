@@ -1,0 +1,9 @@
+# name: Turn the camera all the way round (field and towns)
+# enabled: no
+# category: Speed & comfort
+check 020A21E8 11A08007
+check 020A23C8 B1A06000
+patch 020A21E0 E1A00000
+patch 020A21E8 E1A00000
+patch 020A2358 EA000002
+patch 020A23C8 E1A00000

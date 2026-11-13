@@ -1,0 +1,5 @@
+# name: Skill points never run out
+# enabled: no
+# about: Spending skill points doesn't use them up.
+check 021864A4 E3550000
+patch 021864A8 E1A00000

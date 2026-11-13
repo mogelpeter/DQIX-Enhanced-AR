@@ -1,0 +1,3 @@
+# name: Gold from battles x8
+# enabled: no
+patch 02155270 E0832002 E0832182

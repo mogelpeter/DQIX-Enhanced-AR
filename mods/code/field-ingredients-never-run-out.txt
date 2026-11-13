@@ -1,0 +1,4 @@
+# name: Alchemy ingredients on the field never run out
+# enabled: no
+# about: The sparkly spots on the field can be picked again and again.
+patch 021987A0 0A000022 E1A00000

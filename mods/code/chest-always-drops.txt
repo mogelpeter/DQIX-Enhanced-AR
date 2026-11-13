@@ -1,0 +1,7 @@
+# name: Monsters always drop a treasure chest
+# enabled: no
+check 021F49FC DA00001A
+check 021F4AD8 E1DB10B4
+patch 021F4A0C E1A00000
+patch 021F4A68 E1A00000
+patch 021F4AD4 E1A00000

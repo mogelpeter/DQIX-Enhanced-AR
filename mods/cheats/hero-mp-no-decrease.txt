@@ -1,0 +1,6 @@
+# name: Hero's MP never goes down
+# mode: always
+A20F5512 00000000
+DA000000 020F5512
+D7000000 020F550E
+D2000000 00000000

@@ -1,0 +1,8 @@
+# name: Whole party: 500 skill points to spend
+# mode: once
+# about: Sets the unallocated skill points of all four party members to 500.
+# category: Party
+C0000000 00000003
+120F3DB0 000001F4
+DC000000 00000964
+D2000000 00000000

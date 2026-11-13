@@ -1,0 +1,4 @@
+# name: Every party trick
+# mode: once
+12108A50 0000FFFF
+22108A52 000000FF

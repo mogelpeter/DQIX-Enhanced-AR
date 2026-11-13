@@ -1,0 +1,178 @@
+#!/usr/bin/env python3
+"""Put the code mods that are on (mods/code/*.txt) into the game's build.
+
+  apply_code_mods.py [project folder]
+
+The recompiler already has a way to change single ARM instructions while
+translating the game: patches.txt (the project removes an anti-piracy trap
+with it). This adds the code mods there, between two marker lines, and takes
+out the ones that are off. An update of the game brings a fresh patches.txt
+without them; running this again (Play with mods.bat does, every time) puts
+them back.
+
+Which mods: the files in mods/code that say "enabled: yes", and the codes from
+the cheat database that are switched on in the cheat menu (mods/menu-state.txt).
+catalog.py works every one of them out against your ROM's code (build/extract,
+written by the last build), so a mod that doesn't fit your ROM, or that can't be
+checked, is left out rather than breaking the game.
+
+Exit code: 0 = nothing changed, 10 = patches.txt changed (rebuild the game),
+1 = something is wrong.
+"""
+import glob
+import os
+import re
+import struct
+import sys
+
+BEGIN = "# >>> mods (added by mods/tools/apply_code_mods.py; an update removes this, Play with mods.bat puts it back)"
+END = "# <<< mods"
+
+# USA main-module address -> European (tools/region.py's table, if it's not there)
+EUR_SHIFTS_FALLBACK = [(0x0200F3B8, 0x0200FB20, 0x08), (0x0200FB20, 0x020EEBD0, 0x10)]
+
+
+def eur_shifts(root):
+    sys.path.insert(0, os.path.join(root, "tools"))
+    try:
+        import region
+        return region.EUR_SHIFTS
+    except Exception:
+        return EUR_SHIFTS_FALLBACK
+    finally:
+        sys.path.pop(0)
+
+
+def simple_yaml_overlays(path):
+    """overlays.yaml as written by tools/extract_rom.py: id, base_address, file_name."""
+    out, cur = [], None
+    for line in open(path):
+        m = re.match(r"\s*-?\s*(\w+):\s*(\S+)", line)
+        if not m:
+            continue
+        k, v = m.groups()
+        if line.lstrip().startswith("- "):
+            cur = {}
+            out.append(cur)
+        if cur is not None:
+            cur[k] = v
+    return out
+
+
+def yaml_value(path, key):
+    for line in open(path):
+        m = re.match(rf"\s*{key}:\s*(\S+)", line)
+        if m:
+            return int(m.group(1), 0)
+    raise KeyError(key)
+
+
+class Module:
+    def __init__(self, name, base, data):
+        self.name, self.base, self.data = name, base, data
+
+    def word(self, addr):
+        o = addr - self.base
+        if o < 0 or o + 4 > len(self.data) or o % 4:
+            return None
+        return struct.unpack_from("<I", self.data, o)[0]
+
+
+def load_modules(extract):
+    mods = [Module("main", yaml_value(os.path.join(extract, "arm9/arm9.yaml"), "base_address"),
+                   open(os.path.join(extract, "arm9/arm9.bin"), "rb").read())]
+    for ov in simple_yaml_overlays(os.path.join(extract, "arm9_overlays/overlays.yaml")):
+        if "id" not in ov:
+            continue
+        mods.append(Module(f"ov{int(ov['id']):03d}", int(ov["base_address"], 0),
+                           open(os.path.join(extract, "arm9_overlays", ov["file_name"]), "rb").read()))
+    return mods
+
+
+def parse_mod(path):
+    name, on, checks, patches, errors = os.path.basename(path)[:-4], False, [], [], []
+    for n, line in enumerate(open(path, encoding="utf-8-sig"), 1):
+        s = line.strip()
+        if s.startswith("#"):
+            m = re.match(r"#\s*(\w+)\s*:\s*(.*)", s)
+            if m and m.group(1).lower() == "name":
+                name = m.group(2).strip()
+            if m and m.group(1).lower() == "enabled":
+                on = m.group(2).strip().lower() in ("yes", "y", "on", "true", "1")
+            continue
+        p = s.split("#")[0].split()
+        if not p:
+            continue
+        try:
+            if p[0].lower() == "check" and len(p) == 3:
+                checks.append((int(p[1], 16), int(p[2], 16)))
+            elif p[0].lower() == "patch" and len(p) == 4:      # patch <addr> <old> <new>
+                a = int(p[1], 16)
+                checks.append((a, int(p[2], 16)))
+                patches.append((a, int(p[3], 16)))
+            elif p[0].lower() == "patch" and len(p) == 3:      # patch <addr> <new> (needs a check)
+                patches.append((int(p[1], 16), int(p[2], 16)))
+            else:
+                errors.append(f"line {n}: not understood: {s}")
+        except ValueError:
+            errors.append(f"line {n}: not a hex number: {s}")
+    if patches and not checks:
+        errors.append("no 'check' line: a mod has to say what it expects to find")
+    return name, on, checks, patches, errors
+
+
+def main():
+    root = os.path.abspath(sys.argv[1] if len(sys.argv) > 1 else os.path.join(os.path.dirname(__file__), "..", ".."))
+    patches_txt = os.path.join(root, "patches.txt")
+    if not os.path.isfile(patches_txt):
+        print("   No patches.txt here: is this the DQIX Enhanced folder?", root)
+        return 1
+    if not os.path.isfile(os.path.join(root, "build", "recomp", "dispatch_table.c")):
+        print("   The game hasn't been built yet (no build\\recomp): build it once, then run this again.")
+        return 1
+    # Which mods are on: a file in mods\code says so itself ("enabled: yes"); a code from the
+    # database is on when the cheat menu's list (mods\menu-state.txt) names it. catalog.py has
+    # worked each one out against this ROM: only instructions it found there get this far.
+    import catalog
+    rom = catalog.Rom(root)
+    _, entries, _ = catalog.build(root)
+    chosen = catalog.read_state(root)["code"]
+    lines, used = [], {}
+    for e in entries:
+        on = e["on"] if e["file"] else e["id"] in chosen
+        if not on or e["kind"] not in ("code", "blocked") or e["id"].startswith("launch:"):
+            continue
+        if e["kind"] == "blocked":
+            if e["file"]:
+                print(f"   [skipped] {e['name']}: {e['reason']}")
+            continue
+        clash = [k for k in ((n, a) for n, a, w in e["patch"]) if k in used and used[k][0] != dict(((n, a), w) for n, a, w in e["patch"])[k]]
+        if clash:
+            print(f"   [skipped] {e['name']}: changes the same instruction as \"{used[clash[0]][1]}\" (turn one of them off)")
+            continue
+        lines.append(f"# {e['id']} | {e['name']}")
+        for n, a, w in e["patch"]:
+            if (n, a) not in used:
+                # patches.txt takes the USA version's addresses (region.py moves the main program's)
+                lines.append(f"{n} {rom.from_rom(a) if n == 'main' else a:08x} {w:08x}")
+            used[(n, a)] = (w, e["name"])
+        print(f"   [on] {e['name']}")
+    if not lines:
+        print("   No code mods are on.")
+
+    text = open(patches_txt, encoding="utf-8").read()
+    if not lines and BEGIN not in text:
+        return 0
+    stripped = re.sub(r"\n?" + re.escape(BEGIN) + r".*?" + re.escape(END) + r"\n?", "\n", text, flags=re.S)
+    stripped = stripped.rstrip("\n") + "\n"
+    new = stripped + ("\n" + BEGIN + "\n" + "\n".join(lines) + "\n" + END + "\n" if lines else "")
+    if new != text:
+        with open(patches_txt, "w", encoding="utf-8", newline="\n") as fh:
+            fh.write(new)
+        print("   The code mods changed: the game will be rebuilt (only what changed).")
+        return 10
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

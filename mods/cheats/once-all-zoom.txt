@@ -1,0 +1,4 @@
+# name: Every Zoom destination
+# mode: once
+12108910 0000FFFF
+22108912 00000003

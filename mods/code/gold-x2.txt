@@ -1,0 +1,4 @@
+# name: Gold from battles x2
+# enabled: no
+# about: Turn on only one gold mod.
+patch 02155270 E0832002 E0832082

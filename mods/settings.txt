@@ -1,0 +1,10 @@
+# Settings for "Play with mods.bat"
+
+# Open the cheat menu (every cheat as a switch, and a Play button): yes / no
+# (no: the game starts at once, with the code mods that are switched on built in)
+cheat_window = yes
+
+# Live cheats that also work while playing with friends: yes / no
+# (yes: a small part of the mods is built into the game; every player of a
+# session needs it. no: the game is built without it and cheats only work alone.)
+sync_cheats = yes

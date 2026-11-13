@@ -1,0 +1,1573 @@
+/* DQIX Enhanced: the cheat menu.
+ *
+ *   dqix-cheat-menu.exe [DQIX Enhanced folder]
+ *
+ * A window with every code of the cheat list (mods\bin\catalog.txt, made by
+ * mods\tools\catalog.py from the R4 database for your ROM and your own files):
+ * switches for the ones that are on or off, a choice for the ones of which
+ * only one can be on (experience x2 / x4 / ...), "Once" for one-shot ones.
+ *
+ * It never touches the game's program. Live cheats go into the game's own
+ * mailbox (mods\src\mod_cheats.c) and the game carries them out itself, at a
+ * safe point of each frame, the same on every PC of a session. Code mods are
+ * only written down here (mods\menu-state.txt, the "enabled" line of a file
+ * in mods\code); "Play with mods.bat apply" builds them in, after catalog.py
+ * found each instruction in your ROM. A game without the mailbox (built with
+ * "sync_cheats = no") gets live cheats written into its DS memory from outside,
+ * as the old cheat window did.
+ *
+ * Built by "Play with mods.bat" with the C# compiler that comes with Windows
+ * (.NET Framework 4), so it stays C# 5: no newer syntax.
+ */
+using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.IO;
+using System.IO.MemoryMappedFiles;
+using System.Linq;
+using System.Runtime.InteropServices;
+using System.Text;
+using System.Text.RegularExpressions;
+using System.Threading;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
+using System.Windows.Documents;
+using System.Windows.Input;
+using System.Windows.Markup;
+using System.Windows.Media;
+using System.Windows.Threading;
+
+namespace DqixMenu
+{
+    class Entry
+    {
+        public string Id = "", Cat = "", Group = "", Kind = "", Status = "", Name = "", Option = "", Note = "", Reason = "";
+        public string Mode = "", Keys = "", File = "", Env = "";
+        public int Combos, Index;
+        public bool FileOn;
+        public uint[] Ops = new uint[0];                    /* address, value, address, value... */
+        public List<KeyValuePair<string, uint>> Patch = new List<KeyValuePair<string, uint>>();   /* "module:address" -> word */
+    }
+
+    class Group
+    {
+        public string Id = "", Cat = "", Title = "", Note = "", Kind = "";
+        public List<Entry> Items = new List<Entry>();
+    }
+
+    /* ---- Action Replay, as in ar_engine.h (only used when the game has no mailbox) ---- */
+    static class Ar
+    {
+        public const int KeysAll = -1;
+        const uint Budget = 400000;
+        public delegate bool Io(uint addr, byte[] buf, int n);
+
+        static bool IsRam(uint a) { return (a >> 24) == 0x02; }
+        static bool IsKeyReg(uint a) { return a == 0x04000130 || a == 0x04000136 || (a & 0x0FFFFFFF) == 0x027FFFA8; }
+        static uint KeyReg(uint a, int keys)
+        {
+            if (a == 0x04000130) return ~(uint)keys & 0x3FF;
+            if (a == 0x04000136) return 0x7F & ~((uint)keys >> 10 & 3);
+            return 0x2C00 & ~((((uint)keys >> 10) & 3) << 10);
+        }
+        static uint R(Io rd, uint a, int n)
+        {
+            if (!IsRam(a)) return 0;
+            byte[] b = new byte[4];
+            if (!rd(a, b, n)) return 0;
+            return BitConverter.ToUInt32(b, 0);
+        }
+        static void W(Io wr, uint a, uint v, int n)
+        {
+            if (!IsRam(a)) return;
+            wr(a, BitConverter.GetBytes(v), n);
+        }
+
+        public static void Run(Io rd, Io wr, uint[] ops, int keys)
+        {
+            uint offset = 0, data = 0, budget = Budget;
+            int skip = 0, loopStart = -1, n = ops.Length / 2;
+            uint loopLeft = 0;
+            for (int pc = 0; pc < n; pc++)
+            {
+                uint a = ops[pc * 2], b = ops[pc * 2 + 1];
+                uint t = a >> 28, top = a >> 24, addr = a & 0x0FFFFFFF;
+                if (budget-- == 0) return;
+                if (skip > 0)
+                {
+                    if (t >= 3 && t <= 0xA) skip++;
+                    else if (top == 0xD0) skip--;
+                    else if (top == 0xD1 || top == 0xD2)
+                    {
+                        skip = 0;
+                        if (top == 0xD2 && loopStart < 0) { offset = 0; data = 0; }
+                        if (loopStart >= 0)
+                        {
+                            if (loopLeft > 0) { loopLeft--; pc = loopStart; continue; }
+                            loopStart = -1;
+                            if (top == 0xD2) { offset = 0; data = 0; }
+                        }
+                    }
+                    else if (t == 0xE) pc += (int)((b + 7) / 8);
+                    continue;
+                }
+                if (t <= 2) addr += offset;
+                else if (t <= 0xB && addr == 0) addr = offset;
+                switch (t)
+                {
+                    case 0: W(wr, addr, b, 4); break;
+                    case 1: W(wr, addr, b, 2); break;
+                    case 2: W(wr, addr, b, 1); break;
+                    case 3: case 4: case 5: case 6:
+                        {
+                            if (IsKeyReg(addr) && keys == KeysAll) break;
+                            uint v = IsKeyReg(addr) ? KeyReg(addr, keys) : R(rd, addr, 4);
+                            bool ok = t == 3 ? b > v : t == 4 ? b < v : t == 5 ? b == v : b != v;
+                            if (!ok) skip = 1;
+                            break;
+                        }
+                    case 7: case 8: case 9: case 0xA:
+                        {
+                            if (IsKeyReg(addr) && keys == KeysAll) break;
+                            uint v = (IsKeyReg(addr) ? KeyReg(addr, keys) : R(rd, addr, 2)) & ~(b >> 16) & 0xFFFF, y = b & 0xFFFF;
+                            bool ok = t == 7 ? y > v : t == 8 ? y < v : t == 9 ? y == v : y != v;
+                            if (!ok) skip = 1;
+                            break;
+                        }
+                    case 0xB: offset = R(rd, addr, 4); break;
+                    case 0xC:
+                        if (top == 0xC0) { loopStart = pc; loopLeft = b; }
+                        break;
+                    case 0xD:
+                        switch (top)
+                        {
+                            case 0xD1:
+                            case 0xD2:
+                                if (loopStart >= 0)
+                                {
+                                    if (loopLeft > 0) { loopLeft--; pc = loopStart; break; }
+                                    loopStart = -1;
+                                }
+                                if (top == 0xD2) { offset = 0; data = 0; }
+                                break;
+                            case 0xD3: offset = b; break;
+                            case 0xD4: data += b; break;
+                            case 0xD5: data = b; break;
+                            case 0xD6: W(wr, b + offset, data, 4); offset += 4; break;
+                            case 0xD7: W(wr, b + offset, data, 2); offset += 2; break;
+                            case 0xD8: W(wr, b + offset, data, 1); offset += 1; break;
+                            case 0xD9: data = R(rd, b + offset, 4); break;
+                            case 0xDA: data = R(rd, b + offset, 2); break;
+                            case 0xDB: data = R(rd, b + offset, 1); break;
+                            case 0xDC: offset += b; break;
+                        }
+                        break;
+                    case 0xE:
+                        {
+                            uint dst = addr + offset, i = 0;
+                            for (int l = pc + 1; l < n && i < b; l++)
+                            {
+                                if (budget < 8) return;
+                                budget -= 8;
+                                for (int k = 0; k < 2 && i < b; k++)
+                                    for (int s = 0; s < 4 && i < b; s++, i++) W(wr, dst + i, (ops[l * 2 + k] >> (8 * s)) & 0xFF, 1);
+                            }
+                            pc += (int)((b + 7) / 8);
+                            break;
+                        }
+                    case 0xF:
+                        if (b > budget) return;
+                        budget -= b;
+                        for (uint i = 0; i < b; i++) W(wr, addr + i, R(rd, offset + i, 1), 1);
+                        break;
+                }
+            }
+        }
+    }
+
+    /* ---- the running game ---- */
+    class GameLink : IDisposable
+    {
+        const uint Magic = 0x43584451;                      /* "DQXC", as in mod_cheats.c */
+        const int Ring = 8192, RingAt = 32;
+        const uint RamSize = 0x400000, HeaderAt = 0x3FFE00;
+        const int HeaderMatch = 0x40;
+
+        [DllImport("kernel32.dll", SetLastError = true)] static extern IntPtr OpenProcess(uint access, bool inherit, int pid);
+        [DllImport("kernel32.dll")] static extern bool CloseHandle(IntPtr h);
+        [DllImport("kernel32.dll", SetLastError = true)] static extern bool ReadProcessMemory(IntPtr p, IntPtr addr, byte[] buf, IntPtr n, out IntPtr got);
+        [DllImport("kernel32.dll", SetLastError = true)] static extern bool WriteProcessMemory(IntPtr p, IntPtr addr, byte[] buf, IntPtr n, out IntPtr put);
+        [StructLayout(LayoutKind.Sequential)]
+        struct MBI { public IntPtr BaseAddress, AllocationBase; public uint AllocationProtect; public IntPtr RegionSize; public uint State, Protect, Type; }
+        [DllImport("kernel32.dll")] static extern IntPtr VirtualQueryEx(IntPtr p, IntPtr addr, out MBI mbi, IntPtr len);
+
+        public string GameDir;
+        public Process Proc;
+        MemoryMappedFile mmf;
+        MemoryMappedViewAccessor box;
+        IntPtr hproc = IntPtr.Zero;
+        long ram;
+        readonly Queue<ushort[]> queue = new Queue<ushort[]>();
+        uint gen;
+        bool needSync;
+        DateTime nextTry = DateTime.MinValue;
+        public Func<IEnumerable<Entry>> LiveOn;             /* the cheats that are switched on */
+
+        public bool Running { get { return Proc != null; } }
+        public bool Inside { get { return box != null; } }
+        public bool Outside { get { return hproc != IntPtr.Zero && ram != 0; } }
+        public bool Connected { get { return Inside || Outside; } }
+        public uint Version { get { return box != null ? box.ReadUInt32(4) : 0; } }
+        public bool Session { get { try { return box != null && box.ReadUInt32(20) != 0; } catch { return false; } } }
+        public bool Busy { get { try { return box != null && (queue.Count > 0 || box.ReadUInt32(8) != box.ReadUInt32(12)); } catch { return false; } } }
+
+        public void Dispose() { Detach(); }
+
+        void Detach()
+        {
+            try { if (box != null) box.Dispose(); } catch { }
+            try { if (mmf != null) mmf.Dispose(); } catch { }
+            if (hproc != IntPtr.Zero) CloseHandle(hproc);
+            try { if (Proc != null) Proc.Dispose(); } catch { }
+            box = null; mmf = null; hproc = IntPtr.Zero; ram = 0; Proc = null;
+            queue.Clear();
+        }
+
+        /* once a frame or so */
+        public void Tick()
+        {
+            try
+            {
+                if (Proc != null)
+                {
+                    bool gone;
+                    try { gone = Proc.HasExited; } catch { gone = true; }
+                    if (gone) Detach();
+                }
+                if (Proc == null || !Connected)
+                {
+                    if (DateTime.UtcNow < nextTry) return;
+                    nextTry = DateTime.UtcNow.AddSeconds(1);
+                    Attach();
+                    if (!Connected) return;
+                }
+                if (box != null)
+                {
+                    if (needSync || box.ReadUInt32(16) != gen) Resync();
+                    Pump();
+                }
+                else if (LiveOn != null)
+                {
+                    foreach (Entry e in LiveOn()) Ar.Run(MemRead, MemWrite, e.Ops, 0);
+                }
+            }
+            catch (Exception) { Detach(); }                 /* the game went away in the middle: look again */
+        }
+
+        void Attach()
+        {
+            if (Proc == null)
+            {
+                Process[] all = Process.GetProcessesByName("dqix");
+                if (all.Length == 0) return;
+                Proc = all[0];
+                for (int i = 1; i < all.Length; i++) all[i].Dispose();
+            }
+            int pid = Proc.Id;
+            if (Environment.GetEnvironmentVariable("DQIX_CHEATS_OUTSIDE") != null) { AttachOutside(pid); return; }   /* tests: the other way */
+            try
+            {
+                mmf = MemoryMappedFile.OpenExisting("Local\\dqix-mod-cheats-" + pid, MemoryMappedFileRights.ReadWrite);
+                box = mmf.CreateViewAccessor(0, RingAt + Ring * 2, MemoryMappedFileAccess.ReadWrite);
+                if (box.ReadUInt32(0) == Magic) { needSync = true; return; }
+            }
+            catch (Exception) { }
+            try { if (box != null) box.Dispose(); } catch { }
+            try { if (mmf != null) mmf.Dispose(); } catch { }
+            box = null; mmf = null;
+            AttachOutside(pid);
+        }
+
+        /* A game without the mailbox: its DS memory is a static array in dqix.exe, found by the
+         * cartridge header the game copies to DS address 0x027FFE00 when it starts. */
+        void AttachOutside(int pid)
+        {
+            byte[] hdr = new byte[HeaderMatch];
+            try
+            {
+                using (FileStream f = File.OpenRead(Path.Combine(GameDir, "data", "dqix.nds")))
+                    if (f.Read(hdr, 0, HeaderMatch) != HeaderMatch) return;
+            }
+            catch (Exception) { return; }
+            /* the header alone can be in the program more than once (the cartridge's own copy): the
+             * DS memory is the place that also has the game's program where a DS has it */
+            const int ProbeAt = 0x4000, ProbeLen = 64;
+            byte[] probe = null;
+            try
+            {
+                using (FileStream f = File.OpenRead(Path.Combine(GameDir, "data", "code", "arm9", "arm9.bin")))
+                {
+                    byte[] b = new byte[ProbeLen];
+                    f.Seek(ProbeAt, SeekOrigin.Begin);
+                    if (f.Read(b, 0, ProbeLen) == ProbeLen) probe = b;
+                }
+            }
+            catch (Exception) { }
+            long lo, hi;
+            try { ProcessModule m = Proc.MainModule; lo = m.BaseAddress.ToInt64(); hi = lo + m.ModuleMemorySize; }
+            catch (Exception) { return; }
+            IntPtr p = OpenProcess(0x0010 | 0x0020 | 0x0008 | 0x0400, false, pid);      /* read, write, operation, query */
+            if (p == IntPtr.Zero) return;
+            long found = 0;
+            const int chunk = 1 << 20;
+            byte[] buf = new byte[chunk + HeaderMatch];
+            for (long a = lo; a < hi && found == 0;)
+            {
+                MBI mbi;
+                if (VirtualQueryEx(p, new IntPtr(a), out mbi, new IntPtr(Marshal.SizeOf(typeof(MBI)))) == IntPtr.Zero) break;
+                long rend = mbi.BaseAddress.ToInt64() + mbi.RegionSize.ToInt64();
+                if (rend > hi) rend = hi;
+                bool readable = mbi.State == 0x1000 && (mbi.Protect & (0x01 | 0x100)) == 0 && (mbi.Protect & (0x04 | 0x08 | 0x40)) != 0;
+                if (readable)
+                    for (long c = a; c < rend && found == 0; c += chunk)
+                    {
+                        long want = Math.Min(rend - c, chunk + HeaderMatch);
+                        IntPtr got;
+                        if (!ReadProcessMemory(p, new IntPtr(c), buf, new IntPtr(want), out got)) continue;
+                        int g = (int)got.ToInt64();
+                        for (int i = 0; i + HeaderMatch <= g; i += 4)
+                        {
+                            if (buf[i] != hdr[0]) continue;
+                            int k = 0;
+                            while (k < HeaderMatch && buf[i + k] == hdr[k]) k++;
+                            if (k < HeaderMatch) continue;
+                            long b = c + i - HeaderAt;
+                            if (b < lo || b + RamSize > hi) continue;
+                            if (probe != null)
+                            {
+                                byte[] there = new byte[ProbeLen];
+                                IntPtr got2;
+                                if (!ReadProcessMemory(p, new IntPtr(b + ProbeAt), there, new IntPtr(ProbeLen), out got2) || !there.SequenceEqual(probe)) continue;
+                            }
+                            found = b; break;
+                        }
+                    }
+                if (rend <= a) break;
+                a = rend;
+            }
+            if (found == 0) { CloseHandle(p); return; }
+            hproc = p; ram = found;
+        }
+
+        bool MemRead(uint a, byte[] buf, int n)
+        {
+            a &= RamSize - 1;
+            if (hproc == IntPtr.Zero || a + n > RamSize) return false;
+            IntPtr got;
+            return ReadProcessMemory(hproc, new IntPtr(ram + a), buf, new IntPtr(n), out got) && got.ToInt64() == n;
+        }
+        bool MemWrite(uint a, byte[] buf, int n)
+        {
+            a &= RamSize - 1;
+            if (hproc == IntPtr.Zero || a + n > RamSize) return false;
+            IntPtr put;
+            return WriteProcessMemory(hproc, new IntPtr(ram + a), buf, new IntPtr(n), out put) && put.ToInt64() == n;
+        }
+
+        /* ---- messages to the game: header (type << 12 | words that follow), then as in mod_cheats.c ---- */
+        static ushort[] Message(int type, int id, uint[] ops)
+        {
+            int len = (id >= 0 ? 1 : 0) + (ops != null ? ops.Length * 2 : 0);
+            if (len > 0xFFF) return null;
+            ushort[] m = new ushort[len + 1];
+            int k = 0;
+            m[k++] = (ushort)(type << 12 | len);
+            if (id >= 0) m[k++] = (ushort)id;
+            if (ops != null) foreach (uint v in ops) { m[k++] = (ushort)v; m[k++] = (ushort)(v >> 16); }
+            return m;
+        }
+
+        void Pump()
+        {
+            while (queue.Count > 0)
+            {
+                ushort[] m = queue.Peek();
+                uint w = box.ReadUInt32(8), r = box.ReadUInt32(12);
+                if (w - r + (uint)m.Length + 1 > Ring) return;                /* the game is still sending the last ones */
+                foreach (ushort v in m) { box.Write(RingAt + (long)(w % Ring) * 2, v); w++; }
+                box.Write(8, w);                                              /* the game sees a message only when it is whole */
+                queue.Dequeue();
+            }
+        }
+
+        /* the game has no cheats (it just started, a session began...): all that are on, from scratch */
+        void Resync()
+        {
+            gen = box.ReadUInt32(16);
+            needSync = false;
+            queue.Clear();
+            queue.Enqueue(Message(4, -1, null));
+            if (LiveOn != null)
+                foreach (Entry e in LiveOn())
+                {
+                    ushort[] m = Message(2, e.Index, e.Ops);
+                    if (m != null) queue.Enqueue(m);
+                }
+        }
+
+        public void Set(Entry e, bool on)
+        {
+            if (box == null) return;                         /* outside: Tick runs whatever is on */
+            ushort[] m = on ? Message(2, e.Index, e.Ops) : Message(3, e.Index, null);
+            if (m != null) queue.Enqueue(m);
+        }
+
+        public bool Once(Entry e)
+        {
+            if (box != null)
+            {
+                ushort[] m = Message(1, -1, e.Ops);
+                if (m == null) return false;
+                queue.Enqueue(m);
+                return true;
+            }
+            if (!Outside) return false;
+            Ar.Run(MemRead, MemWrite, e.Ops, Ar.KeysAll);
+            return true;
+        }
+
+        public void ClearAll() { needSync = true; }
+    }
+
+    class MainWindow : Window
+    {
+        const string Xaml = @"
+<Grid xmlns='http://schemas.microsoft.com/winfx/2006/xaml/presentation' xmlns:x='http://schemas.microsoft.com/winfx/2006/xaml'
+      TextElement.FontFamily='@FONT@' TextElement.Foreground='#00FF41' TextOptions.TextFormattingMode='Display' UseLayoutRounding='True'>
+  <Grid.Resources>
+    <SolidColorBrush x:Key='Dim' Color='#4FB868'/>
+    <SolidColorBrush x:Key='Gold' Color='#B8FF4D'/>
+    <Style x:Key='Switch' TargetType='CheckBox'>
+      <Setter Property='Cursor' Value='Hand'/>
+      <Setter Property='Focusable' Value='True'/>
+      <Setter Property='FocusVisualStyle' Value='{x:Null}'/>
+      <Setter Property='Template'>
+        <Setter.Value>
+          <ControlTemplate TargetType='CheckBox'>
+            <Border x:Name='track' Width='38' Height='20' CornerRadius='4' Background='#010A03' BorderBrush='#11803A' BorderThickness='1.5'>
+              <Ellipse x:Name='knob' Width='12' Height='12' Margin='3,0,3,0' Fill='#5E9C6E' HorizontalAlignment='Left'/>
+            </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property='IsChecked' Value='True'>
+                <Setter TargetName='track' Property='Background' Value='#B8FF4D'/>
+                <Setter TargetName='track' Property='BorderBrush' Value='#B8FF4D'/>
+                <Setter TargetName='knob' Property='Fill' Value='#000000'/>
+                <Setter TargetName='knob' Property='HorizontalAlignment' Value='Right'/>
+              </Trigger>
+              <Trigger Property='IsMouseOver' Value='True'>
+                <Setter TargetName='track' Property='BorderBrush' Value='#B8FF4D'/>
+              </Trigger>
+              <Trigger Property='IsKeyboardFocused' Value='True'>
+                <Setter TargetName='track' Property='BorderBrush' Value='#FFFFFF'/>
+              </Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+    <Style x:Key='Btn' TargetType='Button'>
+      <Setter Property='Foreground' Value='#00FF41'/>
+      <Setter Property='FontSize' Value='11'/>
+      <Setter Property='Cursor' Value='Hand'/>
+      <Setter Property='Padding' Value='14,7'/>
+      <Setter Property='Template'>
+        <Setter.Value>
+          <ControlTemplate TargetType='Button'>
+            <Border x:Name='b' Background='#052B12' BorderBrush='#11803A' BorderThickness='1' CornerRadius='3' Padding='{TemplateBinding Padding}'>
+              <ContentPresenter HorizontalAlignment='Center' VerticalAlignment='Center'/>
+            </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property='IsMouseOver' Value='True'><Setter TargetName='b' Property='BorderBrush' Value='#B8FF4D'/><Setter TargetName='b' Property='Background' Value='#08431D'/></Trigger>
+              <Trigger Property='IsPressed' Value='True'><Setter TargetName='b' Property='Background' Value='#021A0A'/></Trigger>
+              <Trigger Property='IsEnabled' Value='False'><Setter TargetName='b' Property='Opacity' Value='0.45'/></Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+    <Style x:Key='Primary' TargetType='Button' BasedOn='{StaticResource Btn}'>
+      <Setter Property='Foreground' Value='#000000'/>
+      <Setter Property='FontWeight' Value='SemiBold'/>
+      <Setter Property='FontSize' Value='12'/>
+      <Setter Property='Padding' Value='22,9'/>
+      <Setter Property='Template'>
+        <Setter.Value>
+          <ControlTemplate TargetType='Button'>
+            <Border x:Name='b' CornerRadius='3' Padding='{TemplateBinding Padding}' BorderBrush='#B8FF4D' BorderThickness='1'>
+              <Border.Background><LinearGradientBrush StartPoint='0,0' EndPoint='0,1'><GradientStop Color='#00FF41' Offset='0'/><GradientStop Color='#00C832' Offset='1'/></LinearGradientBrush></Border.Background>
+              <ContentPresenter HorizontalAlignment='Center' VerticalAlignment='Center'/>
+            </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property='IsMouseOver' Value='True'><Setter TargetName='b' Property='BorderBrush' Value='#FFFFFF'/></Trigger>
+              <Trigger Property='IsPressed' Value='True'><Setter TargetName='b' Property='Opacity' Value='0.8'/></Trigger>
+              <Trigger Property='IsEnabled' Value='False'><Setter TargetName='b' Property='Opacity' Value='0.4'/></Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+    <Style TargetType='ComboBoxItem'>
+      <Setter Property='Foreground' Value='#00FF41'/>
+      <Setter Property='FontSize' Value='11'/>
+      <Setter Property='Template'>
+        <Setter.Value>
+          <ControlTemplate TargetType='ComboBoxItem'>
+            <Border x:Name='b' Padding='10,7' CornerRadius='3' Background='Transparent'>
+              <ContentPresenter/>
+            </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property='IsHighlighted' Value='True'><Setter TargetName='b' Property='Background' Value='#0B5A25'/></Trigger>
+              <Trigger Property='IsSelected' Value='True'><Setter Property='Foreground' Value='#B8FF4D'/></Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+    <Style TargetType='ComboBox'>
+      <Setter Property='Foreground' Value='#00FF41'/>
+      <Setter Property='FontSize' Value='11'/>
+      <Setter Property='Width' Value='180'/>
+      <Setter Property='Height' Value='28'/>
+      <Setter Property='Cursor' Value='Hand'/>
+      <Setter Property='FocusVisualStyle' Value='{x:Null}'/>
+      <Setter Property='Template'>
+        <Setter.Value>
+          <ControlTemplate TargetType='ComboBox'>
+            <Grid>
+              <ToggleButton Focusable='False' ClickMode='Press' IsChecked='{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}'>
+                <ToggleButton.Template>
+                  <ControlTemplate TargetType='ToggleButton'>
+                    <Border x:Name='b' Background='#010A03' BorderBrush='#11803A' BorderThickness='1.5' CornerRadius='3'>
+                      <Path HorizontalAlignment='Right' VerticalAlignment='Center' Margin='0,0,12,0' Data='M0,0 L5,5 L10,0' Stroke='#B8FF4D' StrokeThickness='2'/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                      <Trigger Property='IsMouseOver' Value='True'><Setter TargetName='b' Property='BorderBrush' Value='#B8FF4D'/></Trigger>
+                    </ControlTemplate.Triggers>
+                  </ControlTemplate>
+                </ToggleButton.Template>
+              </ToggleButton>
+              <ContentPresenter IsHitTestVisible='False' Margin='12,0,30,0' VerticalAlignment='Center' Content='{TemplateBinding SelectionBoxItem}'/>
+              <Popup x:Name='PART_Popup' IsOpen='{Binding IsDropDownOpen, RelativeSource={RelativeSource TemplatedParent}}' Placement='Bottom' AllowsTransparency='True' Focusable='False' PopupAnimation='Fade'>
+                <Border MinWidth='{TemplateBinding ActualWidth}' MaxHeight='330' Background='#020D05' BorderBrush='#B8FF4D' BorderThickness='1' CornerRadius='3' Margin='0,4,0,8' Padding='4'>
+                  <ScrollViewer VerticalScrollBarVisibility='Auto'><ItemsPresenter/></ScrollViewer>
+                </Border>
+              </Popup>
+            </Grid>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+    <Style TargetType='ScrollBar'>
+      <Setter Property='Width' Value='10'/>
+      <Setter Property='Background' Value='Transparent'/>
+      <Setter Property='Template'>
+        <Setter.Value>
+          <ControlTemplate TargetType='ScrollBar'>
+            <Track x:Name='PART_Track' IsDirectionReversed='True'>
+              <Track.Thumb>
+                <Thumb>
+                  <Thumb.Template>
+                    <ControlTemplate TargetType='Thumb'><Border Background='#11803A' CornerRadius='4' Margin='2,0,2,0'/></ControlTemplate>
+                  </Thumb.Template>
+                </Thumb>
+              </Track.Thumb>
+            </Track>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+    <Style x:Key='Nav' TargetType='ListBoxItem'>
+      <Setter Property='Cursor' Value='Hand'/>
+      <Setter Property='FocusVisualStyle' Value='{x:Null}'/>
+      <Setter Property='Template'>
+        <Setter.Value>
+          <ControlTemplate TargetType='ListBoxItem'>
+            <Border x:Name='b' CornerRadius='3' Padding='9,4' Margin='0,0' Background='Transparent' BorderThickness='1' BorderBrush='Transparent'>
+              <ContentPresenter/>
+            </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property='IsMouseOver' Value='True'><Setter TargetName='b' Property='Background' Value='#03200F'/></Trigger>
+              <Trigger Property='IsSelected' Value='True'><Setter TargetName='b' Property='Background' Value='#06311A'/><Setter TargetName='b' Property='BorderBrush' Value='#B8FF4D'/></Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+  </Grid.Resources>
+  <Grid.Background>
+    <LinearGradientBrush StartPoint='0,0' EndPoint='1,1'><GradientStop Color='#000000' Offset='0'/><GradientStop Color='#04130A' Offset='1'/></LinearGradientBrush>
+  </Grid.Background>
+  <Grid.RowDefinitions><RowDefinition Height='Auto'/><RowDefinition Height='*'/><RowDefinition Height='Auto'/></Grid.RowDefinitions>
+
+  <Border Grid.Row='0' Padding='16,9,16,8' BorderBrush='#0B5A25' BorderThickness='0,0,0,1'>
+    <Grid>
+      <StackPanel Margin='0,0,190,0'>
+        <TextBlock FontSize='15' FontWeight='SemiBold'><Run Foreground='#B8FF4D' Text='&#x2726; '/><Run Text='Dragon Quest IX'/><Run Foreground='#4FB868' FontWeight='Normal' Text='  cheat menu'/></TextBlock>
+        <TextBlock x:Name='Sub' Margin='0,3,0,0' FontSize='10' Foreground='{StaticResource Dim}' TextTrimming='CharacterEllipsis'/>
+      </StackPanel>
+      <Border x:Name='Pill' HorizontalAlignment='Right' VerticalAlignment='Center' CornerRadius='3' Padding='8,3' Background='#020D05' BorderBrush='#11803A' BorderThickness='1'>
+        <StackPanel Orientation='Horizontal'>
+          <Ellipse x:Name='Dot' Width='9' Height='9' Fill='#5E9C6E' VerticalAlignment='Center' Margin='0,0,8,0'/>
+          <TextBlock x:Name='PillText' FontSize='10.5' Text='The game is not running'/>
+        </StackPanel>
+      </Border>
+    </Grid>
+  </Border>
+
+  <Grid Grid.Row='1'>
+    <Grid.ColumnDefinitions><ColumnDefinition Width='200'/><ColumnDefinition Width='*'/></Grid.ColumnDefinitions>
+    <Border Grid.Column='0' BorderBrush='#0B5A25' BorderThickness='0,0,1,0' Padding='10,10,6,6'>
+      <DockPanel>
+        <Border DockPanel.Dock='Top' Background='#010A03' BorderBrush='#11803A' BorderThickness='1.5' CornerRadius='3' Margin='0,0,4,10'>
+          <Grid>
+            <TextBlock x:Name='SearchHint' Text='Search all cheats' Foreground='#3F8C57' Margin='11,0,0,0' VerticalAlignment='Center' IsHitTestVisible='False' FontSize='11'/>
+            <TextBox x:Name='Search' Background='Transparent' BorderThickness='0' Foreground='#00FF41' CaretBrush='#B8FF4D' Padding='8,7' FontSize='11'/>
+          </Grid>
+        </Border>
+        <ListBox x:Name='Nav' Margin='0,0,2,0' Background='Transparent' BorderThickness='0' ItemContainerStyle='{StaticResource Nav}' ScrollViewer.HorizontalScrollBarVisibility='Disabled' Foreground='#00FF41'/>
+      </DockPanel>
+    </Border>
+    <Grid Grid.Column='1'>
+      <Grid.RowDefinitions><RowDefinition Height='Auto'/><RowDefinition Height='*'/></Grid.RowDefinitions>
+      <Border x:Name='Banner' Grid.Row='0' Margin='14,10,14,0' Padding='10,7' CornerRadius='4' Background='#0A2A10' BorderBrush='#B8FF4D' BorderThickness='1' Visibility='Collapsed'>
+        <DockPanel>
+          <Button x:Name='ApplyBtn' DockPanel.Dock='Right' Style='{StaticResource Btn}' Content='Rebuild now' Margin='12,0,0,0' VerticalAlignment='Center'/>
+          <TextBlock x:Name='BannerText' TextWrapping='Wrap' VerticalAlignment='Center' FontSize='11'/>
+        </DockPanel>
+      </Border>
+      <ScrollViewer x:Name='Scroll' Grid.Row='1' VerticalScrollBarVisibility='Auto' Padding='14,8,8,8' Focusable='False'>
+        <StackPanel x:Name='Rows'/>
+      </ScrollViewer>
+    </Grid>
+  </Grid>
+
+  <Border Grid.Row='2' Padding='16,7' BorderBrush='#0B5A25' BorderThickness='0,1,0,0' Background='#000000'>
+    <DockPanel>
+      <StackPanel DockPanel.Dock='Right' Orientation='Horizontal'>
+        <Button x:Name='OffBtn' Style='{StaticResource Btn}' Content='Everything off' Margin='0,0,8,0'/>
+        <Button x:Name='ReloadBtn' Style='{StaticResource Btn}' Content='Reload list' Margin='0,0,14,0'/>
+        <Button x:Name='PlayBtn' Style='{StaticResource Primary}' Content='&#x25B6;  Play'/>
+      </StackPanel>
+      <TextBlock x:Name='Status' VerticalAlignment='Center' TextWrapping='Wrap' FontSize='11' Foreground='{StaticResource Dim}' Margin='0,0,16,0'/>
+    </DockPanel>
+  </Border>
+
+  <Grid x:Name='Overlay' Grid.RowSpan='3' Background='#E6000000' Visibility='Collapsed'>
+    <Border Width='620' MaxHeight='460' Padding='16' CornerRadius='3' Background='#04130A' BorderBrush='#B8FF4D' BorderThickness='1.5' VerticalAlignment='Center'>
+      <DockPanel>
+        <TextBlock x:Name='OverTitle' DockPanel.Dock='Top' FontSize='15.5' FontWeight='SemiBold' Text='Getting the game ready'/>
+        <TextBlock x:Name='OverSub' DockPanel.Dock='Top' Margin='0,4,0,12' FontSize='11' Foreground='{StaticResource Dim}' TextWrapping='Wrap'/>
+        <ProgressBar x:Name='OverBar' DockPanel.Dock='Top' Height='6' IsIndeterminate='True' Foreground='#B8FF4D' Background='#010A03' BorderThickness='0' Margin='0,0,0,12'/>
+        <Button x:Name='OverClose' DockPanel.Dock='Bottom' Style='{StaticResource Btn}' Content='Close' HorizontalAlignment='Right' Margin='0,12,0,0' Visibility='Collapsed'/>
+        <Border Background='#000000' CornerRadius='3' Padding='10' BorderBrush='#0B5A25' BorderThickness='1'>
+          <ScrollViewer x:Name='OverScroll' VerticalScrollBarVisibility='Auto' Height='220'>
+            <TextBlock x:Name='OverLog' FontFamily='@FONT@' FontSize='10.5' Foreground='#7FE39A' TextWrapping='Wrap'/>
+          </ScrollViewer>
+        </Border>
+      </DockPanel>
+    </Border>
+  </Grid>
+</Grid>";
+
+        readonly string root, mods, gameDir;
+        string infoTitle = "", infoGame = "", infoDatabase = "";
+        bool infoExact;
+        List<Entry> entries = new List<Entry>();
+        List<Group> groups = new List<Group>();
+        List<string> pages = new List<string>();
+        readonly HashSet<string> liveOn = new HashSet<string>(), codeOn = new HashSet<string>(), launchOn = new HashSet<string>(), flags = new HashSet<string>();
+        HashSet<string> built = new HashSet<string>();
+        bool builtKnown;
+        readonly GameLink link = new GameLink();
+        readonly DispatcherTimer timer = new DispatcherTimer();
+        bool building, busy;
+        string lastPill = "";
+        const int MaxLive = 120;
+
+        TextBlock Sub, PillText, Status, BannerText, SearchHint, OverTitle, OverSub, OverLog;
+        System.Windows.Shapes.Ellipse Dot;
+        TextBox Search;
+        ListBox Nav;
+        Border Banner;
+        StackPanel Rows;
+        ScrollViewer Scroll, OverScroll;
+        Button ApplyBtn, OffBtn, ReloadBtn, PlayBtn, OverClose;
+        Grid Overlay;
+        ProgressBar OverBar;
+        FrameworkElement ui;
+
+        static Brush B(string hex) { Brush b = (Brush)new BrushConverter().ConvertFromString(hex); b.Freeze(); return b; }
+        static readonly Brush Dim = B("#4FB868"), Gold = B("#B8FF4D"), Text = B("#00FF41"), Card = B("#04100A"), CardLine = B("#0B5A25"),
+            Green = B("#39FF6A"), Amber = B("#FFB000"), Blue = B("#00E5FF"), Grey = B("#5E9C6E"), Red = B("#FF5050");
+
+        public MainWindow(string rootDir)
+        {
+            root = rootDir;
+            mods = Path.Combine(root, "mods");
+            gameDir = Path.Combine(root, "game");
+            Title = "Dragon Quest IX - cheat menu";
+            Width = 880; Height = 600; MinWidth = 680; MinHeight = 420;
+            Background = B("#000000");
+            WindowStartupLocation = WindowStartupLocation.CenterScreen;
+            try
+            {
+                string ico = Path.Combine(root, "build", "icon", "dqix.ico");
+                if (File.Exists(ico)) Icon = System.Windows.Media.Imaging.BitmapFrame.Create(new Uri(ico));
+            }
+            catch (Exception) { }
+
+            /* JetBrains Mono from modsonts (falls back to Consolas / symbols if the files are missing) */
+            string fontDir = Path.Combine(mods, "fonts");
+            string fontName = File.Exists(Path.Combine(fontDir, "JetBrainsMono-Regular.ttf"))
+                ? new Uri(fontDir.TrimEnd('\\') + "\\").AbsoluteUri + "#JetBrains Mono, Consolas, Segoe UI Symbol"
+                : "Consolas, Segoe UI Symbol";
+            try { Mono = new FontFamily(fontName); } catch (Exception) { }
+            ui = (FrameworkElement)XamlReader.Parse(Xaml.Replace("@FONT@", fontName));
+            Content = ui;
+            Sub = F<TextBlock>("Sub"); PillText = F<TextBlock>("PillText"); Status = F<TextBlock>("Status"); BannerText = F<TextBlock>("BannerText");
+            SearchHint = F<TextBlock>("SearchHint"); OverTitle = F<TextBlock>("OverTitle"); OverSub = F<TextBlock>("OverSub"); OverLog = F<TextBlock>("OverLog");
+            Dot = F<System.Windows.Shapes.Ellipse>("Dot"); Search = F<TextBox>("Search"); Nav = F<ListBox>("Nav"); Banner = F<Border>("Banner");
+            Rows = F<StackPanel>("Rows"); Scroll = F<ScrollViewer>("Scroll"); OverScroll = F<ScrollViewer>("OverScroll");
+            ApplyBtn = F<Button>("ApplyBtn"); OffBtn = F<Button>("OffBtn"); ReloadBtn = F<Button>("ReloadBtn"); PlayBtn = F<Button>("PlayBtn"); OverClose = F<Button>("OverClose");
+            Overlay = F<Grid>("Overlay"); OverBar = F<ProgressBar>("OverBar");
+
+            Search.TextChanged += delegate { SearchHint.Visibility = Search.Text.Length > 0 ? Visibility.Collapsed : Visibility.Visible; ShowPage(); };
+            Nav.SelectionChanged += delegate { if (!building) { if (Search.Text.Length > 0 && Nav.SelectedIndex >= 0) { building = true; Search.Text = ""; building = false; SearchHint.Visibility = Visibility.Visible; } ShowPage(); } };
+            PlayBtn.Click += delegate { Play(); };
+            ApplyBtn.Click += delegate { RunApply(false); };
+            ReloadBtn.Click += delegate { RunCatalog(); };
+            OffBtn.Click += delegate { EverythingOff(); };
+            OverClose.Click += delegate { Overlay.Visibility = Visibility.Collapsed; };
+
+            link.GameDir = gameDir;
+            link.LiveOn = delegate { return entries.Where(e => e.Kind == "live" && liveOn.Contains(e.Id)); };
+            LoadAll();
+            timer.Interval = TimeSpan.FromMilliseconds(16);
+            timer.Tick += delegate { link.Tick(); UpdatePill(); };
+            timer.Start();
+            Closed += delegate { timer.Stop(); link.Dispose(); };
+        }
+
+        /* tests: DQIX_MENU_STATE points at another state file, so the user's own is never touched */
+        string StatePath() { string o = Environment.GetEnvironmentVariable("DQIX_MENU_STATE"); return !string.IsNullOrEmpty(o) ? o : Path.Combine(mods, "menu-state.txt"); }
+
+        T F<T>(string name) where T : class { return ui.FindName(name) as T; }
+
+        /* ---------------------------------------------------------------- the list and what is on */
+        static Dictionary<string, string> Fields(string line, out string kind)
+        {
+            string[] p = line.Split('\t');
+            kind = p[0];
+            Dictionary<string, string> d = new Dictionary<string, string>();
+            for (int i = 1; i < p.Length; i++)
+            {
+                int eq = p[i].IndexOf('=');
+                if (eq > 0) d[p[i].Substring(0, eq)] = p[i].Substring(eq + 1);
+            }
+            return d;
+        }
+        static string G(Dictionary<string, string> d, string k) { string v; return d.TryGetValue(k, out v) ? v : ""; }
+
+        void LoadAll()
+        {
+            entries = new List<Entry>(); groups = new List<Group>(); pages = new List<string>();
+            string path = Path.Combine(mods, "bin", "catalog.txt");
+            if (File.Exists(path))
+                foreach (string line in File.ReadAllLines(path, Encoding.UTF8))
+                {
+                    string kind;
+                    Dictionary<string, string> d = Fields(line, out kind);
+                    if (kind == "info") { infoTitle = G(d, "title"); infoGame = G(d, "game"); infoDatabase = G(d, "database"); infoExact = G(d, "exact") == "1"; }
+                    else if (kind == "page") pages.Add(G(d, "title"));
+                    else if (kind == "group") groups.Add(new Group { Id = G(d, "id"), Cat = G(d, "cat"), Title = G(d, "title"), Note = G(d, "note"), Kind = G(d, "kind") });
+                    else if (kind == "entry")
+                    {
+                        Entry e = new Entry
+                        {
+                            Id = G(d, "id"), Cat = G(d, "cat"), Group = G(d, "group"), Kind = G(d, "kind"), Status = G(d, "status"), Name = G(d, "name"),
+                            Option = G(d, "option"), Note = G(d, "note"), Reason = G(d, "reason"), Mode = G(d, "mode"), Keys = G(d, "keys"),
+                            File = G(d, "file"), Env = G(d, "env"), FileOn = G(d, "on") == "1", Index = entries.Count
+                        };
+                        int.TryParse(G(d, "combos"), out e.Combos);
+                        try
+                        {
+                            string ops = G(d, "ops");
+                            if (ops.Length > 0)
+                            {
+                                string[] parts = ops.Split(',');
+                                e.Ops = new uint[parts.Length * 2];
+                                for (int i = 0; i < parts.Length; i++)
+                                {
+                                    string[] ab = parts[i].Split(':');
+                                    e.Ops[i * 2] = Convert.ToUInt32(ab[0], 16); e.Ops[i * 2 + 1] = Convert.ToUInt32(ab[1], 16);
+                                }
+                            }
+                            foreach (string pt in G(d, "patch").Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries))
+                            {
+                                string[] f = pt.Split(':');
+                                e.Patch.Add(new KeyValuePair<string, uint>(f[0] + ":" + f[1], Convert.ToUInt32(f[2], 16)));
+                            }
+                        }
+                        catch (Exception) { e.Kind = "blocked"; e.Status = "blocked"; e.Reason = "The cheat list has a line for it that can't be read."; }
+                        if (e.Option.Length == 0) e.Option = e.Name;
+                        entries.Add(e);
+                    }
+                }
+            foreach (Group g in groups) g.Items = entries.Where(e => e.Group == g.Id).ToList();
+            groups = groups.Where(g => g.Items.Count > 0).ToList();
+
+            liveOn.Clear(); codeOn.Clear(); launchOn.Clear(); flags.Clear();
+            string st = StatePath();
+            if (File.Exists(st))
+            {
+                foreach (string line in File.ReadAllLines(st, Encoding.UTF8))
+                {
+                    string[] p = line.Split(new[] { ' ' }, 2);
+                    if (p.Length < 2) continue;
+                    string v = p[1].Trim();
+                    if (p[0] == "live") liveOn.Add(v); else if (p[0] == "code") codeOn.Add(v); else if (p[0] == "launch") launchOn.Add(v); else if (p[0] == "flag") flags.Add(v);
+                }
+            }
+            else
+            {
+                /* the old cheat window kept what was on in mods\cheats\on.txt */
+                string old = Path.Combine(mods, "cheats", "on.txt");
+                if (File.Exists(old))
+                    foreach (string line in File.ReadAllLines(old))
+                        if (line.Trim().Length > 0 && !line.StartsWith("#")) liveOn.Add("file:cheats/" + line.Trim());
+            }
+            HashSet<string> known = new HashSet<string>(entries.Select(e => e.Id));
+            liveOn.RemoveWhere(id => !entries.Any(e => e.Id == id && e.Kind == "live" && e.Mode != "once"));
+            codeOn.RemoveWhere(id => !entries.Any(e => e.Id == id && e.Kind == "code" && e.File.Length == 0));
+            launchOn.RemoveWhere(id => !known.Contains(id));
+            /* of a choice, only one */
+            foreach (Group g in groups)
+            {
+                bool one = false;
+                foreach (Entry e in g.Items)
+                    if (IsOn(e)) { if (one) Store(e, false); one = true; }
+            }
+            ReadBuilt();
+
+            int nNo = entries.Count(e => e.Kind == "blocked");
+            ShowSub();
+            if (entries.Count == 0) Say("No cheat list yet: start with \"Play with mods.bat\" (it makes the list from your ROM).");
+
+            building = true;
+            string was = Nav.SelectedItem is ListBoxItem ? (string)((ListBoxItem)Nav.SelectedItem).Tag : "page:" + (pages.Count > 0 ? pages[0] : "");
+            Nav.Items.Clear();
+            AddNav("on", "★  Switched on", 0);
+            foreach (string p in pages) AddNav("page:" + p, p, RowCount(e => e.Cat == p && e.Kind != "blocked"));
+            AddNav("all", "All cheats", RowCount(e => e.Kind != "blocked"));
+            AddNav("blocked", "Not available", nNo);
+            foreach (ListBoxItem it in Nav.Items) if ((string)it.Tag == was) Nav.SelectedItem = it;
+            if (Nav.SelectedIndex < 0 && Nav.Items.Count > 1) Nav.SelectedIndex = 1;
+            building = false;
+            ShowPage();
+            UpdateBanner();
+            link.ClearAll();
+        }
+
+        /* a choice is one row */
+        int RowCount(Func<Entry, bool> fits)
+        {
+            return entries.Where(fits).Select(e => e.Group.Length > 0 ? e.Group : e.Id).Distinct().Count();
+        }
+
+        void AddNav(string tag, string title, int count)
+        {
+            DockPanel d = new DockPanel();
+            if (count > 0)
+            {
+                TextBlock c = new TextBlock { Text = count.ToString(), Foreground = Grey, FontSize = 10, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(4, 0, 0, 0) };
+                DockPanel.SetDock(c, Dock.Right);
+                d.Children.Add(c);
+            }
+            d.Children.Add(new TextBlock { Text = title, FontSize = 11, TextTrimming = TextTrimming.CharacterEllipsis, Foreground = tag == "on" ? Gold : Text });
+            Nav.Items.Add(new ListBoxItem { Content = d, Tag = tag });
+        }
+
+        /* a short name for what is built into the game: friends compare it ("we both have set 3F2A") */
+        string SetCode()
+        {
+            uint h = 2166136261;
+            foreach (string id in built.OrderBy(x => x, StringComparer.Ordinal))
+                foreach (char c in id + "\n") { h ^= c; h *= 16777619; }
+            return ((h >> 16) ^ (h & 0xFFFF)).ToString("X4");
+        }
+
+        void ShowSub()
+        {
+            int nLive = entries.Count(e => e.Kind == "live"), nCode = entries.Count(e => e.Kind == "code"), nNo = entries.Count(e => e.Kind == "blocked");
+            Sub.Text = (infoTitle.Length > 0 ? infoTitle : "Your own cheats") + "   ·   " + nLive + " live  ·  " + nCode + " built into the game  ·  " + nNo + " not available"
+                + (infoDatabase.Length > 0 && !infoExact ? "   ·   list for " + infoGame + " (another dump of it)" : "")
+                + (built.Count > 0 ? "   ·   built-in set " + SetCode() + " (friends need the same)" : "");
+        }
+
+        bool CardGuard()
+        {
+            try { return File.ReadAllText(Path.Combine(root, "runtime", "card.c")).Contains(">>> mods: instant loading"); }
+            catch (Exception) { return false; }
+        }
+
+        void ReadBuilt()
+        {
+            built = new HashSet<string>(); builtKnown = false;
+            string p = Path.Combine(mods, "bin", "built.txt");
+            if (!File.Exists(p)) return;
+            builtKnown = true;
+            foreach (string line in File.ReadAllLines(p))
+                if (line.StartsWith("code ")) built.Add(line.Substring(5).Trim());
+        }
+
+        void SaveState()
+        {
+            try
+            {
+                StringBuilder sb = new StringBuilder("# What is switched on in the cheat menu (written by it; apply_code_mods.py reads the \"code\" lines)\n");
+                foreach (string id in liveOn.OrderBy(s => s)) sb.Append("live ").Append(id).Append('\n');
+                foreach (string id in codeOn.OrderBy(s => s)) sb.Append("code ").Append(id).Append('\n');
+                foreach (string id in launchOn.OrderBy(s => s)) sb.Append("launch ").Append(id).Append('\n');
+                foreach (string id in flags.OrderBy(s => s)) sb.Append("flag ").Append(id).Append('\n');
+                string path = StatePath(), tmp = path + ".tmp";
+                File.WriteAllText(tmp, sb.ToString(), new UTF8Encoding(false));
+                if (File.Exists(path)) File.Replace(tmp, path, null); else File.Move(tmp, path);
+            }
+            catch (Exception ex) { Say("Couldn't save what is on: " + ex.Message); }
+        }
+
+        bool IsOn(Entry e)
+        {
+            if (e.Kind == "live") return liveOn.Contains(e.Id);
+            if (e.Kind == "code") return e.File.Length > 0 ? e.FileOn : codeOn.Contains(e.Id);
+            if (e.Kind == "launch") return launchOn.Contains(e.Id);
+            return false;
+        }
+
+        /* only writes it down */
+        bool Store(Entry e, bool on)
+        {
+            if (e.Kind == "live") { if (on) liveOn.Add(e.Id); else liveOn.Remove(e.Id); }
+            else if (e.Kind == "launch") { if (on) launchOn.Add(e.Id); else launchOn.Remove(e.Id); }
+            else if (e.Kind == "code")
+            {
+                if (e.File.Length == 0) { if (on) codeOn.Add(e.Id); else codeOn.Remove(e.Id); }
+                else
+                {
+                    /* a file in mods\code says itself whether it is on */
+                    try
+                    {
+                        string path = Path.Combine(mods, e.File.Replace('/', Path.DirectorySeparatorChar));
+                        string text = File.ReadAllText(path);
+                        Regex rx = new Regex(@"^(#\s*enabled\s*:\s*)\S+", RegexOptions.IgnoreCase | RegexOptions.Multiline);
+                        string now = rx.IsMatch(text) ? rx.Replace(text, "${1}" + (on ? "yes" : "no"), 1) : "# enabled: " + (on ? "yes" : "no") + "\r\n" + text;
+                        if (now != text) File.WriteAllText(path, now, new UTF8Encoding(false));
+                        e.FileOn = on;
+                    }
+                    catch (Exception ex) { Say("Couldn't change " + e.File + ": " + ex.Message); return false; }
+                }
+            }
+            return true;
+        }
+
+        void WarnOnce(Entry e)
+        {
+            if (e.Status != "untested" || flags.Contains("warned")) return;
+            flags.Add("warned");
+            SaveState();
+            MessageBox.Show(this,
+                "\"" + e.Name + "\" comes from the R4 cheat list and hasn't been tried in this version of the game.\n\n" +
+                "Such codes were checked as far as a program can check them, but a code that changes the wrong data can still spoil a save. " +
+                "A copy of your save is kept each time you press Play here (mods\\save-backups).\n\nThis is only said once.",
+                "Untested cheats", MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+
+        /* a switch was flipped */
+        void Turn(Entry e, bool on)
+        {
+            if (IsOn(e) == on) return;
+            if (on && e.Kind == "live" && liveOn.Count >= MaxLive) { Say("That is the most live cheats that can be on at once (" + MaxLive + "). Switch one off first."); ShowPage(); return; }
+            if (on) WarnOnce(e);
+            bool redraw = false;
+            if (on && e.Kind == "code")
+            {
+                /* two mods can't change the same instruction in different ways */
+                foreach (Entry o in entries)
+                {
+                    if (o == e || o.Kind != "code" || !IsOn(o)) continue;
+                    bool clash = false;
+                    foreach (KeyValuePair<string, uint> a in e.Patch)
+                        foreach (KeyValuePair<string, uint> b in o.Patch)
+                            if (a.Key == b.Key && a.Value != b.Value) clash = true;
+                    if (clash) { Store(o, false); redraw = true; Say("\"" + o.Name + "\" was switched off: it changes the same place in the game as \"" + e.Name + "\"."); }
+                }
+            }
+            if (!Store(e, on)) { ShowPage(); return; }
+            if (e.Kind == "live") link.Set(e, on);
+            SaveState();
+            UpdateBanner();
+            if (!redraw)
+            {
+                if (e.Kind == "live") Say(e.Name + ": " + (on ? (link.Connected ? "on" : "on (starts with the game)") : "off"));
+                else if (e.Kind == "launch") Say(e.Name + ": " + (on ? "on" : "off") + " from the next time the game starts.");
+                else Say(e.Name + ": " + (on ? "on" : "off") + " once the game is rebuilt.");
+            }
+            if (redraw || CurrentTag() == "on") ShowPage();
+        }
+
+        void EverythingOff()
+        {
+            int n = entries.Count(e => IsOn(e));
+            if (n == 0) { Say("Nothing is on."); return; }
+            bool hasCode = entries.Any(e => e.Kind == "code" && IsOn(e));
+            if (MessageBox.Show(this, "Switch all " + n + " off?" + (hasCode ? "\n\nThe ones built into the game go away with the next rebuild." : ""), "Everything off",
+                    MessageBoxButton.OKCancel, MessageBoxImage.Question) != MessageBoxResult.OK) return;
+            foreach (Entry e in entries) if (IsOn(e)) Store(e, false);
+            link.ClearAll();
+            SaveState();
+            ShowPage();
+            UpdateBanner();
+            Say("Everything is off.");
+        }
+
+        HashSet<string> WantedCode() { return new HashSet<string>(entries.Where(e => e.Kind == "code" && IsOn(e)).Select(e => e.Id)); }
+        bool Pending() { return !builtKnown ? WantedCode().Count > 0 : !WantedCode().SetEquals(built); }
+
+        void UpdateBanner()
+        {
+            if (!Pending()) { Banner.Visibility = Visibility.Collapsed; return; }
+            HashSet<string> want = WantedCode();
+            int add = want.Count(id => !built.Contains(id)), del = built.Count(id => !want.Contains(id));
+            BannerText.Inlines.Clear();
+            BannerText.Inlines.Add(new Run("The game has to be rebuilt") { FontWeight = FontWeights.SemiBold, Foreground = Gold });
+            BannerText.Inlines.Add(new Run("  (a few minutes)  —  " + (add > 0 ? add + " to put in" : "") + (add > 0 && del > 0 ? ", " : "") + (del > 0 ? del + " to take out" : "")
+                + ". Play does it by itself." + (link.Running ? "  Save and close the game first." : "")));
+            Banner.Visibility = Visibility.Visible;
+        }
+
+        /* ---------------------------------------------------------------- drawing */
+        string CurrentTag() { return Nav.SelectedItem is ListBoxItem ? (string)((ListBoxItem)Nav.SelectedItem).Tag : "all"; }
+
+        void ShowPage()
+        {
+            if (building) return;
+            building = true;
+            Rows.Children.Clear();
+            string tag = CurrentTag(), q = Search.Text.Trim().ToLowerInvariant();
+            Func<Entry, bool> fits;
+            string heading, sub = "";
+            if (q.Length > 0)
+            {
+                string[] words = q.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                fits = delegate (Entry e)
+                {
+                    Group g = groups.FirstOrDefault(x => x.Id == e.Group);
+                    string hay = (e.Name + " " + e.Note + " " + e.Cat + " " + e.Keys + " " + e.Option + " " + (g != null ? g.Title : "")).ToLowerInvariant();
+                    return words.All(w => hay.Contains(w));
+                };
+                heading = "Search: " + Search.Text.Trim();
+            }
+            else if (tag == "on") { fits = e => IsOn(e); heading = "Switched on"; sub = "Everything that is on now."; }
+            else if (tag == "blocked") { fits = e => e.Kind == "blocked"; heading = "Not available"; sub = "Codes of the list that can't work in this version of the game, or can't be checked. They stay off, so they can't break anything."; }
+            else if (tag == "all") { fits = e => e.Kind != "blocked"; heading = "All cheats"; }
+            else { string p = tag.Substring(5); fits = e => e.Cat == p; heading = p; }
+
+            Rows.Children.Add(new TextBlock { Text = heading, FontSize = 16.5, FontWeight = FontWeights.SemiBold, Margin = new Thickness(2, 2, 0, sub.Length > 0 ? 2 : 10) });
+            if (sub.Length > 0) Rows.Children.Add(new TextBlock { Text = sub, Foreground = Dim, FontSize = 11, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(2, 0, 0, 10) });
+
+            HashSet<string> doneGroups = new HashSet<string>();
+            int shown = 0;
+            List<Entry> late = new List<Entry>();
+            foreach (Entry e in entries)
+            {
+                if (!fits(e)) continue;
+                if (e.Kind == "blocked" && tag != "blocked") { late.Add(e); continue; }
+                if (e.Group.Length > 0)
+                {
+                    if (!doneGroups.Add(e.Group)) continue;
+                    Group g = groups.FirstOrDefault(x => x.Id == e.Group);
+                    if (g != null) { Rows.Children.Add(GroupRow(g)); shown++; continue; }
+                }
+                Rows.Children.Add(EntryRow(e)); shown++;
+            }
+            if (late.Count > 0)
+            {
+                Rows.Children.Add(new TextBlock { Text = "Not available here", Foreground = Grey, FontSize = 10.5, FontWeight = FontWeights.SemiBold, Margin = new Thickness(2, 14, 0, 6) });
+                foreach (Entry e in late) { Rows.Children.Add(EntryRow(e)); shown++; }
+            }
+            if (shown == 0)
+                Rows.Children.Add(new TextBlock { Text = tag == "on" && q.Length == 0 ? "Nothing is on. Pick a page on the left and flip a switch." : "Nothing here.", Foreground = Dim, FontSize = 11.5, Margin = new Thickness(2, 12, 0, 0) });
+            Scroll.ScrollToTop();
+            building = false;
+        }
+
+        static Border Chip(string text, Brush color, string tip)
+        {
+            Border b = new Border
+            {
+                CornerRadius = new CornerRadius(5), BorderBrush = color, BorderThickness = new Thickness(1), Padding = new Thickness(6, 1, 6, 2),
+                Margin = new Thickness(0, 0, 6, 0), VerticalAlignment = VerticalAlignment.Center,
+                Child = new TextBlock { Text = text, Foreground = color, FontSize = 9, FontWeight = FontWeights.SemiBold }
+            };
+            if (tip != null) { b.ToolTip = tip; ToolTipService.SetShowDuration(b, 30000); }
+            return b;
+        }
+
+        static void StatusChips(Panel into, string kind, string status)
+        {
+            if (kind == "code") into.Children.Add(Chip("BUILT IN", Blue, "Changes how the game works, so it is built into the game: switching it takes a rebuild (a few minutes).\nEvery instruction it changes was found in your ROM first."));
+            if (kind == "launch") into.Children.Add(Chip("NEXT START", Blue, "Takes effect the next time the game starts from this menu."));
+            if (status == "tested") into.Children.Add(Chip("TRIED OUT", Green, "Tried in this version of the game."));
+            else if (status == "untested") into.Children.Add(Chip("UNTESTED", Amber, "From the R4 cheat list for your ROM. Checked as far as a program can, but not tried in this version: save first."));
+        }
+
+        /* ---- hover info: what it is, how to use it, and when it works ---- */
+        static FontFamily Mono = new FontFamily("Consolas");
+        const string WarnBuilt = "Works only after a full rebuild and a restart of the game.";
+        const string WarnNext = "Works after the next start of the game from this menu.";
+
+        static ToolTip MakeTip(string title, IEnumerable<string> lines, string warn)
+        {
+            StackPanel p = new StackPanel { MaxWidth = 400 };
+            p.Children.Add(new TextBlock { Text = title, FontWeight = FontWeights.Bold, Foreground = Gold, FontSize = 11.5, TextWrapping = TextWrapping.Wrap });
+            foreach (string l in lines)
+                if (l != null && l.Length > 0) p.Children.Add(new TextBlock { Text = l, Foreground = Text, FontSize = 10.5, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 4, 0, 0) });
+            if (warn != null)
+                p.Children.Add(new TextBlock { Text = "⚠ " + warn, Foreground = Amber, FontSize = 10.5, FontWeight = FontWeights.SemiBold, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 6, 0, 0) });
+            return new ToolTip { Content = p, Background = B("#000000"), BorderBrush = B("#00FF41"), BorderThickness = new Thickness(1), Padding = new Thickness(9, 7, 9, 8), FontFamily = Mono, HasDropShadow = false };
+        }
+
+        static string WarnFor(Entry e)
+        {
+            if (e.Kind == "code") return WarnBuilt;
+            if (e.Kind == "launch") return WarnNext;
+            return null;
+        }
+
+        static void Hover(FrameworkElement el, ToolTip tip)
+        {
+            el.ToolTip = tip;
+            ToolTipService.SetInitialShowDelay(el, 350);
+            ToolTipService.SetShowDuration(el, 60000);
+        }
+
+        ToolTip TipOf(Entry e)
+        {
+            List<string> l = new List<string>();
+            if (e.Note.Length > 0) l.Add(e.Note);
+            if (e.Kind == "live")
+            {
+                if (e.Mode == "once") l.Add("How: press \"Do it\" and the game carries it out one time, right now.");
+                else if (e.Mode == "both") l.Add("How: switch it on" + (e.Keys.Length > 0 ? " and hold " + e.Keys + " in the game" : "") + ", or press \"Once\" to do it right away without the buttons.");
+                else l.Add("How: switch it on. It then works every frame until you switch it off.");
+                l.Add("With friends: it travels with your buttons, so everyone sees it (every player needs the same mods folder in their game).");
+            }
+            else if (e.Kind == "code") l.Add("How: switch it on, press Rebuild, close the game and press Play. It is part of the game's program afterwards. With friends every player needs the same ones (the menu shows a set code to compare).");
+            else if (e.Kind == "launch") l.Add("How: switch it on; it is applied each time the game is started from this menu.");
+            if (e.Status == "tested") l.Add("Status: tried out in this version of the game.");
+            else if (e.Status == "untested") l.Add("Status: UNTESTED. From the R4 list for your ROM and checked as far as a program can. Save first.");
+            if (e.Kind == "live" && e.Ops.Length > 0) l.Add("Code: " + (e.Ops.Length / 2) + " line(s)" + (e.Ops.Length / 2 > 40 ? " (long: it takes a few seconds to reach the game)" : "") + ".");
+            string warn = WarnFor(e);
+            if (e.Kind == "code" && IsOn(e) && !built.Contains(e.Id)) warn = "Switched on but not built into the game yet: press Rebuild, then restart the game.";
+            return MakeTip(e.Name, l, warn);
+        }
+
+        /* the warning that stays visible on the card, not only on hover */
+        static void AddWarn(StackPanel left, string text) { AddWarn(left, text, true); }
+        static void AddWarn(StackPanel left, string text, bool warning)
+        {
+            left.Children.Add(new TextBlock { Text = (warning ? "⚠ " : "✔ ") + text, Foreground = warning ? Amber : Green, FontSize = 10, FontWeight = FontWeights.SemiBold, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 3, 0, 0) });
+        }
+
+        Border CardOf(UIElement left, UIElement right, bool dimmed)
+        {
+            DockPanel d = new DockPanel { LastChildFill = true };
+            if (right != null) { DockPanel.SetDock(right, Dock.Right); d.Children.Add(right); }
+            d.Children.Add(left);
+            Border card = new Border
+            {
+                Background = Card, BorderBrush = CardLine, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(4),
+                Padding = new Thickness(11, 7, 10, 7), Margin = new Thickness(0, 0, 6, 4), Child = d, Opacity = dimmed ? 0.62 : 1
+            };
+            if (!dimmed)
+            {
+                card.MouseEnter += delegate { card.BorderBrush = B("#1CAF52"); };
+                card.MouseLeave += delegate { card.BorderBrush = CardLine; };
+            }
+            return card;
+        }
+
+        static StackPanel TextOf(string name, string note, Action<WrapPanel> chips)
+        {
+            StackPanel s = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 14, 0) };
+            WrapPanel top = new WrapPanel();
+            top.Children.Add(new TextBlock { Text = name, FontSize = 12, FontWeight = FontWeights.SemiBold, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 10, 0), VerticalAlignment = VerticalAlignment.Center });
+            if (chips != null) chips(top);
+            s.Children.Add(top);
+            if (note != null && note.Length > 0) s.Children.Add(new TextBlock { Text = note, Foreground = Dim, FontSize = 10.5, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 3, 0, 0) });
+            return s;
+        }
+
+        UIElement EntryRow(Entry e)
+        {
+            if (e.Kind == "blocked")
+            {
+                Border blocked = CardOf(TextOf(e.Name, e.Reason, null), new TextBlock { Text = "🔒", FontSize = 13, Foreground = Grey, VerticalAlignment = VerticalAlignment.Center, FontFamily = new FontFamily("Segoe UI Emoji, Segoe UI Symbol") }, true);
+                Hover(blocked, MakeTip(e.Name, new[] { "Not available here: " + e.Reason, "It is kept out on purpose so it can never crash the game." }, null));
+                return blocked;
+            }
+
+            StackPanel left = TextOf(e.Name, e.Note, delegate (WrapPanel w)
+            {
+                if (e.Keys.Length > 0)
+                    foreach (string k in e.Keys.Split(new[] { " / " }, StringSplitOptions.RemoveEmptyEntries))
+                        w.Children.Add(Chip(k, Gold, e.Mode == "once" ? "On a DS you press this for it. Here the button does it." :
+                            "Works like on a DS: switch it on, then hold these buttons in the game." + (e.Mode == "both" ? "\n\"Once\" does it right away, without the buttons." : "")));
+                StatusChips(w, e.Kind, e.Status);
+            });
+            string warn = WarnFor(e);
+            if (e.Kind == "code" && IsOn(e) && built.Contains(e.Id)) AddWarn(left, "Built into your game: active from the next start of the game.", false);
+            else if (warn != null) AddWarn(left, warn);
+            StackPanel right = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+            if (e.Kind == "live" && (e.Mode == "once" || e.Mode == "both"))
+            {
+                Button b = new Button { Content = e.Mode == "once" ? "Do it" : "Once", Style = (Style)ui.FindResource("Btn"), Margin = new Thickness(0, 0, e.Mode == "both" ? 12 : 0, 0), MinWidth = 64 };
+                b.ToolTip = "Carries the code out one time, now.";
+                b.Click += delegate { Once(e); };
+                right.Children.Add(b);
+            }
+            if (e.Mode != "once")
+            {
+                CheckBox sw = new CheckBox { Style = (Style)ui.FindResource("Switch"), IsChecked = IsOn(e), VerticalAlignment = VerticalAlignment.Center };
+                sw.Checked += delegate { if (!building) { Turn(e, true); if (!IsOn(e)) { building = true; sw.IsChecked = false; building = false; } } };
+                sw.Unchecked += delegate { if (!building) Turn(e, false); };
+                right.Children.Add(sw);
+            }
+            Border row = CardOf(left, right, false);
+            Hover(row, TipOf(e));
+            return row;
+        }
+
+        UIElement GroupRow(Group g)
+        {
+            Entry sel = g.Items.FirstOrDefault(e => IsOn(e));
+            bool anyUntested = g.Items.Any(e => e.Status == "untested");
+            StackPanel left = TextOf(g.Title, g.Note, delegate (WrapPanel w)
+            {
+                StatusChips(w, g.Kind, sel != null ? sel.Status : (anyUntested ? "" : "tested"));
+            });
+            if (g.Kind == "code" || g.Kind == "launch") AddWarn(left, g.Kind == "code" ? WarnBuilt : WarnNext);
+            ComboBox cb = new ComboBox { VerticalAlignment = VerticalAlignment.Center };
+            cb.Items.Add(new ComboBoxItem { Content = "Off", Tag = null });
+            foreach (Entry e in g.Items)
+            {
+                ComboBoxItem it = new ComboBoxItem { Content = e.Option + (e.Status == "untested" && !anyUntestedAll(g) ? "  · untested" : ""), Tag = e };
+                Hover(it, TipOf(e));
+                cb.Items.Add(it);
+                if (e == sel) cb.SelectedItem = it;
+            }
+            if (sel == null) cb.SelectedIndex = 0;
+            cb.SelectionChanged += delegate
+            {
+                if (building) return;
+                Entry pick = cb.SelectedItem is ComboBoxItem ? ((ComboBoxItem)cb.SelectedItem).Tag as Entry : null;
+                foreach (Entry e in g.Items) if (e != pick && IsOn(e)) Turn(e, false);
+                if (pick != null) Turn(pick, true);
+                if (!building && CurrentTag() != "on") ShowKeepScroll();
+            };
+            /* the wheel scrolls the page, it doesn't change a choice by accident */
+            cb.PreviewMouseWheel += delegate (object s, MouseWheelEventArgs a)
+            {
+                if (cb.IsDropDownOpen) return;
+                a.Handled = true;
+                Scroll.ScrollToVerticalOffset(Scroll.VerticalOffset - a.Delta);
+            };
+            Border grow = CardOf(left, cb, false);
+            List<string> gl = new List<string>();
+            if (g.Note.Length > 0) gl.Add(g.Note);
+            gl.Add("A choice: only one option can be on. Pick \"Off\" to switch it off.");
+            Hover(grow, MakeTip(g.Title, gl, g.Kind == "code" ? WarnBuilt : (g.Kind == "launch" ? WarnNext : null)));
+            return grow;
+        }
+        static bool anyUntestedAll(Group g) { return g.Items.All(e => e.Status == "untested"); }
+
+        void ShowKeepScroll()
+        {
+            double at = Scroll.VerticalOffset;
+            ShowPage();
+            Scroll.ScrollToVerticalOffset(at);
+        }
+
+        void Once(Entry e)
+        {
+            if (!link.Connected) { Say("The game isn't running: \"" + e.Name + "\" wasn't done. Press Play first."); return; }
+            WarnOnce(e);
+            if (link.Once(e)) Say("Done: " + e.Name + (e.Ops.Length / 2 > 40 && link.Inside ? "  (a long code: it takes a few seconds to reach the game)" : ""));
+            else Say("\"" + e.Name + "\" couldn't be sent.");
+        }
+
+        void Say(string text) { Status.Text = text; }
+
+        void UpdatePill()
+        {
+            string t; Brush dot;
+            if (!link.Running) { t = "The game is not running"; dot = Grey; }
+            else if (link.Inside && link.Session && built.Count > 0)
+            {
+                /* built-in mods are part of how the game computes: a friend without the same ones is out of sync at once */
+                t = "Playing with friends · everyone needs the same built-in mods (set " + SetCode() + ")"; dot = Amber;
+            }
+            else if (link.Inside) { t = link.Session ? "Playing with friends · cheats travel with your buttons" : (link.Busy ? "Sending to the game…" : "Connected · cheats are live"); dot = Green; }
+            else if (link.Outside) { t = "Connected from outside · not for playing with friends"; dot = Amber; }
+            else { t = "The game is starting…"; dot = Amber; }
+            if (t == lastPill) return;
+            lastPill = t;
+            PillText.Text = t; Dot.Fill = dot;
+            PlayBtn.IsEnabled = !link.Running && !busy;
+            PlayBtn.Content = link.Running ? "Game is running" : "▶  Play";
+            UpdateBanner();
+            if (link.Inside && link.Session && built.Count > 0)
+                Say("With friends: every player needs exactly these built into their game too, or the session goes OUT OF SYNC: "
+                    + string.Join(", ", entries.Where(e => built.Contains(e.Id)).Select(e => e.Name)) + ". Their menu must show the same set (" + SetCode() + ") at the top.");
+            if (link.Inside && link.Version < 2) Say("This game was built with an older version of the mods: close it and press Play here once.");
+        }
+
+        /* ---------------------------------------------------------------- getting the game ready, and starting it */
+        void OpenOverlay(string title, string sub)
+        {
+            OverTitle.Text = title; OverSub.Text = sub; OverLog.Text = ""; OverBar.Visibility = Visibility.Visible; OverBar.IsIndeterminate = true;
+            OverClose.Visibility = Visibility.Collapsed; Overlay.Visibility = Visibility.Visible;
+        }
+        void OverlayDone(string title, string sub, bool keepOpen)
+        {
+            OverBar.Visibility = Visibility.Collapsed;
+            if (!keepOpen) { Overlay.Visibility = Visibility.Collapsed; return; }
+            OverTitle.Text = title; OverSub.Text = sub; OverClose.Visibility = Visibility.Visible;
+        }
+
+        /* "Play with mods.bat" <what>, its output into the window */
+        void RunBat(string what, Action<int> then)
+        {
+            busy = true; PlayBtn.IsEnabled = false; ApplyBtn.IsEnabled = false; ReloadBtn.IsEnabled = false;
+            Thread th = new Thread(delegate ()
+            {
+                int rc = 1;
+                try
+                {
+                    ProcessStartInfo si = new ProcessStartInfo("cmd.exe", "/d /c \"\"" + Path.Combine(mods, "Play with mods.bat") + "\" " + what + "\"")
+                    {
+                        WorkingDirectory = root, UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true, RedirectStandardError = true, RedirectStandardInput = true
+                    };
+                    si.EnvironmentVariables["DQIX_NOPAUSE"] = "1";
+                    using (Process p = new Process { StartInfo = si })
+                    {
+                        DataReceivedEventHandler h = delegate (object s, DataReceivedEventArgs a) { if (a.Data != null) Dispatcher.BeginInvoke(new Action(delegate { Log(a.Data); })); };
+                        p.OutputDataReceived += h; p.ErrorDataReceived += h;
+                        p.Start();
+                        p.StandardInput.Close();
+                        p.BeginOutputReadLine(); p.BeginErrorReadLine();
+                        p.WaitForExit();
+                        rc = p.ExitCode;
+                    }
+                }
+                catch (Exception ex) { string m = ex.Message; Dispatcher.BeginInvoke(new Action(delegate { Log("Couldn't run \"Play with mods.bat\": " + m); })); }
+                Dispatcher.BeginInvoke(new Action(delegate
+                {
+                    busy = false; ApplyBtn.IsEnabled = true; ReloadBtn.IsEnabled = true; PlayBtn.IsEnabled = !link.Running;
+                    then(rc);
+                }));
+            });
+            th.IsBackground = true;
+            th.Start();
+        }
+
+        void Log(string line)
+        {
+            string t = OverLog.Text;
+            if (t.Length > 60000) t = t.Substring(t.Length - 40000);
+            OverLog.Text = t + line + "\n";
+            OverScroll.ScrollToEnd();
+        }
+
+        void RunCatalog()
+        {
+            if (busy) return;
+            OpenOverlay("Reading the cheat list", "Working every code out against your ROM.");
+            RunBat("catalog", delegate (int rc)
+            {
+                LoadAll();
+                OverlayDone("The cheat list couldn't be made", "The text below says why.", rc != 0);
+                if (rc == 0) Say("The list was read again: " + entries.Count + " entries.");
+            });
+        }
+
+        void RunApply(bool thenPlay)
+        {
+            if (busy) return;
+            if (link.Running) { MessageBox.Show(this, "The game is still running. Save, close it, then press this again.", "Rebuild", MessageBoxButton.OK, MessageBoxImage.Information); return; }
+            SaveState();
+            bool pending = Pending();
+            OpenOverlay(pending ? "Rebuilding the game with your mods" : "Getting the game ready",
+                pending ? "Only the parts that changed are built again. This takes a few minutes; the game starts by itself after." : "Checking that the game has your mods in it.");
+            RunBat("apply", delegate (int rc)
+            {
+                ReadBuilt();
+                ShowSub();
+                UpdateBanner();
+                if (rc != 0)
+                {
+                    OverlayDone(rc == 3 ? "The game is still running" : "That didn't work",
+                        rc == 3 ? "Close the game, then try again." : "The game wasn't changed. The text below says why. To go back to a game without mods, press \"Everything off\", then Play.", true);
+                    return;
+                }
+                OverlayDone("", "", false);
+                Say("The game has your mods in it.");
+                if (thenPlay) StartGame();
+            });
+        }
+
+        void Play()
+        {
+            if (busy || link.Running) return;
+            RunApply(true);
+        }
+
+        void StartGame()
+        {
+            string exe = Path.Combine(gameDir, "dqix.exe");
+            if (!File.Exists(exe)) { Say("game\\dqix.exe isn't there: run BUILD.bat once."); return; }
+            BackupSave();
+            try
+            {
+                ProcessStartInfo si = new ProcessStartInfo(exe, "data\\dqix.nds data\\code 0 1 dqix.sav") { WorkingDirectory = gameDir, UseShellExecute = false };
+                string left = "";
+                foreach (Entry e in entries)
+                    if (e.Kind == "launch" && IsOn(e) && e.Env.Contains("="))
+                    {
+                        int eq = e.Env.IndexOf('=');
+                        /* instant loading puts a session out of sync unless the game itself keeps it out of
+                         * sessions (the mods' change in runtime\card.c): without that, not at all */
+                        if (e.Env.StartsWith("DQIX_CARD_INSTANT") && !CardGuard()) { left = e.Name; continue; }
+                        si.EnvironmentVariables[e.Env.Substring(0, eq)] = e.Env.Substring(eq + 1);
+                    }
+                using (Process.Start(si)) { }
+                Say(left.Length > 0 ? "The game is starting, without \"" + left + "\": this game can't keep it out of a session with friends (sync_cheats = no, or a newer version of the game)."
+                    : "The game is starting. Switches work while you play; keep this window open.");
+            }
+            catch (Exception ex) { Say("The game couldn't be started: " + ex.Message); }
+        }
+
+        /* tests: show a page ("Party", "on", "search:gold") and draw the window into a picture */
+        public void TestPage(string page)
+        {
+            if (page.StartsWith("search:")) { Search.Text = page.Substring(7); return; }
+            foreach (ListBoxItem it in Nav.Items) if ((string)it.Tag == page || (string)it.Tag == "page:" + page) Nav.SelectedItem = it;
+        }
+        public void Inert() { ui.IsHitTestVisible = false; KeyboardNavigation.SetTabNavigation(ui, KeyboardNavigationMode.None); PreviewKeyDown += delegate (object s, KeyEventArgs a) { a.Handled = true; }; PreviewTextInput += delegate (object s, TextCompositionEventArgs a) { a.Handled = true; }; }
+        public void Shot(string file)
+        {
+            FrameworkElement c = (FrameworkElement)Content;
+            System.Windows.Media.Imaging.RenderTargetBitmap bmp = new System.Windows.Media.Imaging.RenderTargetBitmap((int)c.ActualWidth, (int)c.ActualHeight, 96, 96, PixelFormats.Pbgra32);
+            bmp.Render(c);
+            System.Windows.Media.Imaging.PngBitmapEncoder enc = new System.Windows.Media.Imaging.PngBitmapEncoder();
+            enc.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(bmp));
+            using (FileStream f = File.Create(file)) enc.Save(f);
+        }
+
+        /* a copy of the save each time the game starts from here: cheats change saves */
+        void BackupSave()
+        {
+            try
+            {
+                string sav = Path.Combine(gameDir, "dqix.sav");
+                if (!File.Exists(sav)) return;
+                string dir = Path.Combine(mods, "save-backups");
+                Directory.CreateDirectory(dir);
+                string[] old = Directory.GetFiles(dir, "dqix-*.sav").OrderBy(f => f).ToArray();
+                if (old.Length > 0 && File.ReadAllBytes(old[old.Length - 1]).SequenceEqual(File.ReadAllBytes(sav))) return;
+                File.Copy(sav, Path.Combine(dir, "dqix-" + DateTime.Now.ToString("yyyyMMdd-HHmmss") + ".sav"), true);
+                for (int i = 0; i < old.Length - 29; i++) File.Delete(old[i]);
+            }
+            catch (Exception) { }
+        }
+    }
+
+    static class Program
+    {
+        [DllImport("user32.dll")] static extern bool SetForegroundWindow(IntPtr h);
+        [DllImport("user32.dll")] static extern bool ShowWindow(IntPtr h, int cmd);
+
+        static string logPath = "";
+        static void Fail(Exception ex)
+        {
+            try { File.AppendAllText(logPath, DateTime.Now + "\r\n" + ex + "\r\n\r\n"); } catch (Exception) { }
+        }
+
+        [STAThread]
+        static int Main(string[] args)
+        {
+            string root;
+            if (args.Length > 0 && !args[0].StartsWith("--")) root = args[0].Trim('"');
+            else root = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location), "..", ".."));
+            logPath = Path.Combine(root, "mods", "bin", "menu-error.log");
+
+            bool first;
+            using (Mutex one = new Mutex(true, "dqix-cheat-menu-" + root.ToLowerInvariant().GetHashCode().ToString("x"), out first))
+            {
+                if (!first)
+                {
+                    /* already open: show that one */
+                    Process me = Process.GetCurrentProcess();
+                    foreach (Process p in Process.GetProcessesByName(me.ProcessName))
+                        if (p.Id != me.Id && p.MainWindowHandle != IntPtr.Zero) { ShowWindow(p.MainWindowHandle, 9); SetForegroundWindow(p.MainWindowHandle); }
+                    return 0;
+                }
+                Application app = new Application();
+                /* whatever goes wrong in this window stays in this window: the game is another program */
+                app.DispatcherUnhandledException += delegate (object s, DispatcherUnhandledExceptionEventArgs e) { Fail(e.Exception); e.Handled = true; };
+                AppDomain.CurrentDomain.UnhandledException += delegate (object s, UnhandledExceptionEventArgs e) { Fail(e.ExceptionObject as Exception); };
+                try
+                {
+                    MainWindow w = new MainWindow(root);
+                    if (args.Contains("--shot"))
+                    {
+                        /* tests: "--shot file page [seconds]" draws the window into a picture (after that long) and leaves */
+                        int at = Array.IndexOf(args, "--shot");
+                        string file = args[at + 1], page = args.Length > at + 2 ? args[at + 2] : "";
+                        double wait = 0.3;
+                        if (args.Length > at + 3) double.TryParse(args[at + 3], out wait);
+                        /* a picture only: it takes no clicks or keys, and doesn't come to the front */
+                        w.ShowActivated = false; w.ShowInTaskbar = false; w.Focusable = false;
+                        w.Inert();
+                        w.Loaded += delegate
+                        {
+                            w.TestPage(page);
+                            DispatcherTimer t = new DispatcherTimer { Interval = TimeSpan.FromSeconds(wait) };
+                            t.Tick += delegate { t.Stop(); w.Shot(file); w.Close(); };
+                            t.Start();
+                        };
+                    }
+                    app.Run(w);
+                }
+                catch (Exception ex)
+                {
+                    Fail(ex);
+                    MessageBox.Show("The cheat menu couldn't open: " + ex.Message + "\n\nThe game itself is fine: start it with game\\play.bat.\n(Details: mods\\bin\\menu-error.log)", "Dragon Quest IX - cheat menu");
+                    return 1;
+                }
+            }
+            return 0;
+        }
+    }
+}

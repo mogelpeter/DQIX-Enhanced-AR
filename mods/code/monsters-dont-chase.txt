@@ -1,0 +1,8 @@
+# name: Monsters don't chase you
+# enabled: yes
+# about: Monsters never notice you. The game has two look-for-the-player routines (one for monsters that
+# about: wander and chase at short range, one for the long-range ones); both are switched off.
+check 02079478 E3500000
+patch 0207947C 1A000017 EA000017
+check 020792EC E3500000
+patch 020792F0 1A00002C EA00002C

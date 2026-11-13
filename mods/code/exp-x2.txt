@@ -1,0 +1,4 @@
+# name: Experience x2
+# enabled: no
+# about: Battles give twice the experience. Turn on only one experience mod.
+patch 0215525C E0832002 E0832082

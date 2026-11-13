@@ -1,0 +1,3 @@
+# name: Every vocation can use all equipment
+# enabled: no
+patch 020DD708 E1840000 E3A00000

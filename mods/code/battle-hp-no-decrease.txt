@@ -1,0 +1,8 @@
+# name: HP never goes down in battle
+# enabled: no
+# about: From the European code list ("Unlimited Health During Battle"). Save before trying it.
+# category: Battle
+check 02162608 E1A00007
+patch 0216260C E1D1A0B0 E1D1A0B4
+patch 02162610 E1A0100A E1C1A0B0
+patch 02162614 E1C1A0B0

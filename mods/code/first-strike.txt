@@ -1,0 +1,4 @@
+# name: Always strike first
+# enabled: no
+# about: Your party always gets the first move when a battle starts.
+patch 02196B40 EB000156 E3A00001

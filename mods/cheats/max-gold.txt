@@ -1,0 +1,4 @@
+# name: Gold always 9,999,999
+# mode: always
+# about: Keeps the gold you carry at the maximum.
+020F6D48 0098967F

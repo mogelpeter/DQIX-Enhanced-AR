@@ -1,0 +1,457 @@
+#!/usr/bin/env python3
+"""dev.py - one entry point to work on the mods fast and to test them cheaply.
+
+  dev.py doctor                 what is missing on this PC (and how to fix it)
+  dev.py deploy [--pull]        repo mods\\ -> the game folder's mods\\ (only changed files); --pull = the other way
+  dev.py menu [--out EXE]       compile the cheat menu (only when the source is newer)
+  dev.py shot [PAGE ...]        pictures of the menu pages (default: a few) in <temp>\\dqix-mods-tests\\shots
+  dev.py test [fast|full|NAME ...] [--force] [--jobs N]
+  dev.py scratch [--rounds]     build ALL code mods in a scratch copy of the project (the game folder stays as it is)
+
+Where things are (nothing is hard-coded to one PC):
+  the game folder = the one with BUILD.bat. Found from, in this order: --root, the DQIX_ROOT environment variable,
+  mods\\dev-root.txt (one line: the path), or the parent of the mods\\ folder this file is in.
+  Work on the repo copy of mods\\ and deploy: every command deploys first when this file is not in the game folder.
+
+Why it is fast (see WORKFLOW.md): tests are tiered (fast ~2 min, full ~8 min), results are cached by a hash of every
+input so unchanged work is skipped, independent game tests run in parallel on their own ports, and the menu tests
+(which attach to ANY running dqix.exe) run alone at the end.
+"""
+import argparse, concurrent.futures as cf, glob, hashlib, json, os, py_compile, re, shutil, subprocess, sys, tempfile, time
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+SRC_MODS = os.path.dirname(HERE)                         # the mods\ this file lives in (repo or game folder)
+USER_FILES = {"menu-state.txt", "msys2-root.txt", "settings.txt", "dev-root.txt", "built.txt"}
+SKIP_DIRS = {"bin", "save-backups", "__pycache__", ".cache"}
+TMP = os.path.join(tempfile.gettempdir(), "dqix-mods-tests")
+
+
+def read(path):
+    try:
+        return open(path, encoding="utf-8-sig").read().strip()
+    except OSError:
+        return ""
+
+
+def is_root(p):
+    return bool(p) and os.path.isfile(os.path.join(p, "BUILD.bat")) and os.path.isfile(os.path.join(p, "patches.txt"))
+
+
+def find_root(arg=None):
+    for c in (arg, os.environ.get("DQIX_ROOT"), read(os.path.join(SRC_MODS, "dev-root.txt")), os.path.dirname(SRC_MODS)):
+        if is_root(c):
+            return os.path.abspath(c)
+    return None
+
+
+def need_root(arg):
+    r = find_root(arg)
+    if not r:
+        sys.exit("Can't find the DQIX Enhanced folder (the one with BUILD.bat).\n"
+                 "Give it once:  dev.py --root \"C:\\path\\to\\DQIX Enhanced\" doctor   or write the path into mods\\dev-root.txt")
+    return r
+
+
+# ------------------------------------------------------------------ files: deploy
+def tree(base):
+    out = {}
+    for d, dirs, files in os.walk(base):
+        dirs[:] = [x for x in dirs if x not in SKIP_DIRS]
+        for f in files:
+            if f in USER_FILES or f.endswith(".pyc"):
+                continue
+            p = os.path.join(d, f)
+            out[os.path.relpath(p, base)] = p
+    return out
+
+
+def digest(p):
+    h = hashlib.sha1()
+    with open(p, "rb") as f:
+        h.update(f.read())
+    return h.hexdigest()
+
+
+def sync(src, dst, quiet=False):
+    """copy changed files src -> dst (never the user's own state files); returns the list that changed"""
+    changed = []
+    for rel, p in tree(src).items():
+        q = os.path.join(dst, rel)
+        if os.path.isfile(q) and digest(p) == digest(q):
+            continue
+        os.makedirs(os.path.dirname(q), exist_ok=True)
+        shutil.copy2(p, q)
+        changed.append(rel)
+    if changed and not quiet:
+        print("  deployed:", ", ".join(changed[:8]) + (f" (+{len(changed) - 8} more)" if len(changed) > 8 else ""))
+    return changed
+
+
+def ensure_deployed(root):
+    live = os.path.join(root, "mods")
+    if os.path.abspath(live) != os.path.abspath(SRC_MODS):
+        sync(SRC_MODS, live)
+    return live
+
+
+def cmd_deploy(a):
+    root = need_root(a.root)
+    live = os.path.join(root, "mods")
+    src, dst = (live, SRC_MODS) if a.pull else (SRC_MODS, live)
+    if os.path.abspath(src) == os.path.abspath(dst):
+        print("repo and game folder are the same place: nothing to do"); return 0
+    ch = sync(src, dst, quiet=True)
+    print(("pulled" if a.pull else "deployed"), len(ch), "file(s)" + (": " + ", ".join(ch[:10]) if ch else " (already identical)"))
+    return 0
+
+
+# ------------------------------------------------------------------ the menu
+def csc_path():
+    for fw in ("Framework64", "Framework"):
+        p = os.path.join(os.environ.get("WINDIR", r"C:\Windows"), "Microsoft.NET", fw, "v4.0.30319", "csc.exe")
+        if os.path.isfile(p):
+            return p
+    return None
+
+
+def build_menu(root, out=None):
+    live = os.path.join(root, "mods")
+    src = os.path.join(live, "src", "CheatMenu.cs")
+    exe = out or os.path.join(live, "bin", "dqix-cheat-menu.exe")
+    if os.path.isfile(exe) and os.path.getmtime(exe) >= os.path.getmtime(src):
+        return exe, False
+    csc = csc_path()
+    if not csc:
+        sys.exit("The C# compiler (csc.exe of .NET Framework 4) isn't on this PC: it comes with Windows 10/11.")
+    net = os.path.dirname(csc)
+    os.makedirs(os.path.dirname(exe), exist_ok=True)
+    cmd = [csc, "-nologo", "-target:winexe", "-platform:x64", "-optimize+", "-out:" + exe]
+    ico = os.path.join(root, "build", "icon", "dqix.ico")
+    if os.path.isfile(ico):
+        cmd.append("-win32icon:" + ico)
+    cmd += ["-r:" + os.path.join(net, "WPF", d + ".dll") for d in ("PresentationFramework", "PresentationCore", "WindowsBase")]
+    cmd += ["-r:System.Xaml.dll", "-r:System.Core.dll", src]
+    r = subprocess.run(cmd, capture_output=True, text=True, errors="replace")
+    if r.returncode:
+        print(r.stdout + r.stderr); sys.exit("menu: compile failed")
+    return exe, True
+
+
+def run_shot(root, exe, page, png, wait="2"):
+    """a picture of one menu page (the menu takes no clicks for this and doesn't come to the front)"""
+    p = subprocess.run([exe, root, "--shot", png, page, wait], capture_output=True, timeout=90)
+    return p.returncode == 0 and os.path.isfile(png)
+
+
+def cmd_menu(a):
+    root = need_root(a.root); ensure_deployed(root)
+    exe, built = build_menu(root, a.out)
+    print(("compiled " if built else "up to date: ") + exe)
+    return 0
+
+
+def cmd_shot(a):
+    root = need_root(a.root); ensure_deployed(root)
+    if game_running():
+        sys.exit("A dqix.exe is running: the menu would connect to it. Close it first (or run this later).")
+    exe, _ = build_menu(root)
+    out = os.path.join(TMP, "shots"); os.makedirs(out, exist_ok=True)
+    for page in (a.pages or ["Party", "Switched on", "Items"]):
+        png = os.path.join(out, re.sub(r"\W", "", page) + ".png")
+        print(("ok   " if run_shot(root, exe, "on" if page == "Switched on" else page, png) else "FAIL ") + page, "->", png)
+    return 0
+
+
+def game_running():
+    r = subprocess.run(["tasklist", "/fi", "imagename eq dqix.exe"], capture_output=True)      # bytes: the console code page differs per PC
+    return b"dqix.exe" in (r.stdout or b"").lower()
+
+
+# ------------------------------------------------------------------ the tests
+def input_key(root):
+    """a hash of everything a test result depends on: the mods' sources, the catalog, the built game"""
+    h = hashlib.sha1()
+    live = os.path.join(root, "mods")
+    for pat in ("src/*", "tools/*.py", "tools/*.sh", "tests/*.py", "cheats/*", "code/*", "bin/catalog.txt", "database/*"):
+        for f in sorted(glob.glob(os.path.join(live, pat))):
+            h.update(f.encode() + digest(f).encode())
+    for f in ("dqix.exe", "dqixcore.dll"):
+        p = os.path.join(root, "game", f)
+        if os.path.isfile(p):
+            st = os.stat(p); h.update(f"{f}{st.st_size}{int(st.st_mtime)}".encode())
+    return h.hexdigest()
+
+
+def t_static(root, work):
+    """in seconds, no game: python compiles, the C# 5 rule, the catalog is readable, nothing blocked can be switched on"""
+    live = os.path.join(root, "mods"); problems = []
+    for f in glob.glob(os.path.join(live, "tools", "*.py")) + glob.glob(os.path.join(live, "tests", "*.py")):
+        try:
+            py_compile.compile(f, cfile=os.path.join(work, "x.pyc"), doraise=True)
+        except py_compile.PyCompileError as e:
+            problems.append(str(e)[:200])
+    cs = open(os.path.join(live, "src", "CheatMenu.cs"), encoding="utf-8").read()
+    for pat, why in ((r'\$"', 'string interpolation'), (r'\w\?\.\w', '?. operator'), (r'nameof\(', 'nameof'), (r'\bout var\b', 'out var')):
+        if re.search(pat, cs):
+            problems.append("CheatMenu.cs uses " + why + " (Windows' csc is C# 5)")
+    cat = os.path.join(live, "bin", "catalog.txt")
+    if not os.path.isfile(cat):
+        problems.append("no mods\\bin\\catalog.txt: run Play with mods.bat catalog")
+        entries = {}
+    else:
+        entries = {}
+        for n, line in enumerate(open(cat, encoding="utf-8"), 1):
+            if not line.startswith("entry\t"):
+                continue
+            d = dict(p.split("=", 1) for p in line.rstrip("\n").split("\t")[1:] if "=" in p)
+            entries[d["id"]] = d
+            if d.get("kind") == "live":
+                if not d.get("ops"):
+                    problems.append(f"catalog line {n}: live cheat without code: {d.get('name')}")
+                elif not all(re.fullmatch(r"[0-9A-Fa-f]{8}:[0-9A-Fa-f]{8}", o) for o in d["ops"].split(",")):
+                    problems.append(f"catalog line {n}: unreadable code in {d.get('name')}")
+            if d.get("kind") == "code" and not d.get("patch"):
+                problems.append(f"catalog line {n}: built-in mod without patch: {d.get('name')}")
+    state = os.path.join(live, "menu-state.txt")
+    for line in read(state).splitlines():
+        p = line.split(None, 1)
+        if len(p) == 2 and p[0] in ("live", "code", "launch") and entries and p[1].strip() not in entries:
+            problems.append(f"menu-state.txt names a cheat that is not in the list: {p[1].strip()}")
+        if len(p) == 2 and p[0] in ("live", "code") and entries.get(p[1].strip(), {}).get("kind") == "blocked":
+            problems.append(f"a blocked cheat is switched on: {p[1].strip()}")
+    for p in problems:
+        print("  PROBLEM:", p)
+    print(f"static: {len(entries)} catalog entries, {len(problems)} problem(s)")
+    print("RESULT:", "FAIL" if problems else "PASS")
+    return 0 if not problems else 1
+
+
+def py_test(root, script, args, env=None):
+    live = os.path.join(root, "mods")
+    e = dict(os.environ); e.pop("NoDefaultCurrentDirectoryInExePath", None)
+    e["PYTHONIOENCODING"] = "utf-8"; e.update(env or {})
+    return subprocess.run([sys.executable, "-u", os.path.join(live, "tests", script), root] + args, cwd=root, env=e, capture_output=True, text=True, errors="replace")
+
+
+def judge(name, r):
+    out = r.stdout + r.stderr
+    if "RESULT: PASS" in out:
+        return True, out
+    if "RESULT:" in out:
+        return False, out
+    return r.returncode == 0, out
+
+
+def t_menu_smoke(root, work):
+    live = os.path.join(root, "mods")
+    exe, _ = build_menu(root)
+    log = os.path.join(live, "bin", "menu-error.log")
+    before = os.path.getmtime(log) if os.path.isfile(log) else 0
+    bad = []
+    for page in ("Party", "on", "Not available", "All cheats"):
+        if not run_shot(root, exe, page, os.path.join(work, re.sub(r"\W", "", page) + ".png"), "1"):
+            bad.append(page)
+    if os.path.isfile(log) and os.path.getmtime(log) > before:
+        bad.append("menu-error.log was written")
+    print("menu smoke: pages that failed:", bad or "none")
+    print("RESULT:", "FAIL" if bad else "PASS")
+    return 0 if not bad else 1
+
+
+# name -> (runner, parallel?, expected seconds). Runner(root, work, port) -> (ok, text)
+def runners(root, work):
+    w = lambda n: os.path.join(work, n)
+    def fn(script, args, env=None):
+        return lambda port: judge(script, py_test(root, script, [w(script + str(port))] + [x.replace("{port}", str(port)) for x in args], env))
+    def inproc(f, name):
+        def run(port):
+            import io, contextlib
+            os.makedirs(w(name), exist_ok=True)
+            buf = io.StringIO()
+            with contextlib.redirect_stdout(buf):
+                rc = f(root, w(name))
+            return rc == 0, buf.getvalue()
+        return run
+    return {
+        "static":         (inproc(t_static, "static"), True, 3),
+        "live-fast":      (fn("test_live.py", ["1500"]), True, 30),
+        "session-fast":   (fn("test_session.py", ["{port}"]), True, 40),
+        "all-quick":      (fn("test_all.py", ["single"], {"TEST_LIMIT": "12"}), True, 60),
+        "live":           (fn("test_live.py", ["6000"]), True, 110),
+        "session":        (fn("test_session.py", ["{port}"]), True, 40),
+        "all-single":     (fn("test_all.py", ["single"]), True, 150),
+        "all-session":    (fn("test_all.py", ["session", "", "{port}"]), True, 160),
+        "menu-smoke":     (inproc(t_menu_smoke, "menu-smoke"), False, 10),
+        "menu-inside":    (fn("test_menu.py", ["inside"]), False, 150),
+        "menu-outside":   (fn("test_menu.py", ["outside"]), False, 150),
+    }
+
+
+TIERS = {
+    "fast": ["static", "live-fast", "session-fast", "all-quick", "menu-smoke"],
+    "full": ["static", "live", "session", "all-single", "all-session", "menu-smoke", "menu-inside", "menu-outside"],
+}
+
+
+def cmd_test(a):
+    root = need_root(a.root); ensure_deployed(root)
+    if game_running():
+        sys.exit("A dqix.exe is running (your game?): tests and the menu would collide with it. Close it first.")
+    names = []
+    for n in (a.what or ["fast"]):
+        names += TIERS.get(n, [n])
+    names = list(dict.fromkeys(names))
+    os.makedirs(TMP, exist_ok=True)
+    work = os.path.join(TMP, "run"); shutil.rmtree(work, ignore_errors=True); os.makedirs(work)
+    table = runners(root, work)
+    for n in names:
+        if n not in table:
+            sys.exit(f"no test called {n}. Tests: {', '.join(table)}; tiers: {', '.join(TIERS)}")
+    if not os.path.isfile(os.path.join(root, "game", "dqix.exe")) and any(n != "static" for n in names):
+        sys.exit("The game isn't built yet (game\\dqix.exe is missing): run BUILD.bat first.")
+    exe, built = build_menu(root)
+    if built:
+        print("menu compiled")
+    key = input_key(root)
+    cache_file = os.path.join(root, "mods", "bin", "test-cache.json")
+    try:
+        cache = json.load(open(cache_file))
+    except (OSError, ValueError):
+        cache = {}
+    if cache.get("key") != key:
+        cache = {"key": key, "passed": {}}
+    results, t0 = {}, time.time()
+
+    def go(n, port):
+        t = time.time()
+        if n in cache["passed"] and not a.force:
+            return n, True, "cached PASS", 0.0
+        ok, out = table[n][0](port)
+        open(os.path.join(work, n + ".log"), "w", encoding="utf-8").write(out)
+        return n, ok, out, time.time() - t
+
+    par = [n for n in names if table[n][1]]
+    seq = [n for n in names if not table[n][1]]
+    port = 47200
+    with cf.ThreadPoolExecutor(max_workers=max(1, a.jobs)) as ex:
+        futs = []
+        for i, n in enumerate(par):
+            futs.append(ex.submit(go, n, port + i * 3))
+        for f in futs:
+            r = f.result(); results[r[0]] = r
+            print(f"{'PASS' if r[1] else 'FAIL'}  {r[0]:<13} {r[3]:6.1f}s" + ("  (unchanged since the last pass: skipped)" if r[2] == "cached PASS" else ""), flush=True)
+    for i, n in enumerate(seq):                           # the menu attaches to any running game: alone, after the rest
+        r = go(n, port + 60 + i); results[n] = r
+        print(f"{'PASS' if r[1] else 'FAIL'}  {n:<13} {r[3]:6.1f}s" + ("  (unchanged since the last pass: skipped)" if r[2] == "cached PASS" else ""), flush=True)
+    for n, r in results.items():
+        if r[1] and r[2] != "cached PASS":
+            cache["passed"][n] = True
+    os.makedirs(os.path.dirname(cache_file), exist_ok=True)
+    json.dump(cache, open(cache_file, "w"))
+    bad = [n for n, r in results.items() if not r[1]]
+    for n in bad:
+        print(f"\n--- {n} (log: {os.path.join(work, n + '.log')}) ---\n" + "\n".join(results[n][2].splitlines()[-25:]))
+    print(f"\n{len(results) - len(bad)}/{len(results)} passed in {time.time() - t0:.0f}s" + ("" if not bad else "  FAILED: " + ", ".join(bad)))
+    return 1 if bad else 0
+
+
+# ------------------------------------------------------------------ doctor
+def cmd_doctor(a):
+    root = find_root(a.root); bad = 0
+
+    def line(ok, what, fix=""):
+        nonlocal bad
+        print(("  ok    " if ok else "  MISSING ") + what + ("" if ok else "\n          -> " + fix)); bad += (not ok)
+    print("DQIX Enhanced mods: checking this PC")
+    line(sys.platform == "win32", "Windows", "the menu is a Windows (WPF) program")
+    line(bool(csc_path()), "C# compiler (csc.exe, .NET Framework 4)", "it is part of Windows 10/11: enable .NET Framework 4.x in Windows features")
+    line(sys.version_info >= (3, 8), f"Python {sys.version.split()[0]}", "install Python 3.8+ (python.org), or run through MSYS2's python3")
+    line(bool(root), "DQIX Enhanced folder (with BUILD.bat)" + (": " + root if root else ""), "run:  dev.py --root \"<folder>\" doctor   (or put the path in mods\\dev-root.txt)")
+    if root:
+        mods = os.path.join(root, "mods")
+        line(os.path.isdir(mods), "mods\\ folder in it", "run:  dev.py deploy")
+        line(any(f.lower().endswith(".nds") for f in os.listdir(os.path.join(root, "rom"))) if os.path.isdir(os.path.join(root, "rom")) else False, "ROM in rom\\", "put your own Dragon Quest IX .nds in the rom folder")
+        line(os.path.isfile(os.path.join(root, "game", "dqix.exe")), "game built (game\\dqix.exe)", "run BUILD.bat once (needs internet the first time for MSYS2)")
+        line(os.path.isfile(os.path.join(root, "build", "recomp", "dispatch_table.c")), "build\\recomp (the mods are checked against it)", "run BUILD.bat")
+        msys = read(os.path.join(mods, "msys2-root.txt")) or r"C:\msys64"
+        line(os.path.isfile(os.path.join(msys, "usr", "bin", "bash.exe")), "MSYS2 build tools: " + msys, "BUILD.bat installs them; Play with mods.bat finds them")
+        line(os.path.isfile(os.path.join(mods, "fonts", "JetBrainsMono-Regular.ttf")), "JetBrains Mono in mods\\fonts", "copy mods\\fonts from the repo (the menu falls back to Consolas without it)")
+        line(os.path.isfile(os.path.join(mods, "bin", "catalog.txt")), "cheat list (mods\\bin\\catalog.txt)", "run  Play with mods.bat catalog")
+        line(not game_running(), "no game running right now", "close dqix.exe before tests")
+    print("\nAll good." if not bad else f"\n{bad} thing(s) to fix.")
+    return 1 if bad else 0
+
+
+# ------------------------------------------------------------------ scratch build of every code mod
+def cmd_scratch(a):
+    root = need_root(a.root); ensure_deployed(root)
+    msys = read(os.path.join(root, "mods", "msys2-root.txt")) or r"C:\msys64"
+    bash = os.path.join(msys, "usr", "bin", "bash.exe")
+    if not os.path.isfile(bash):
+        sys.exit("MSYS2 not found: " + msys)
+    proj = os.path.join(TMP, "proj")
+    os.makedirs(proj, exist_ok=True)
+    print("copying the project (not game\\, not rom\\) to", proj)
+    for d in ("build", "runtime", "recomp", "tools", "third_party", "config", "extras", "skins", "fonts", "mods", "wfc", "packaging", "docs"):
+        if os.path.isdir(os.path.join(root, d)):
+            subprocess.run(["robocopy", os.path.join(root, d), os.path.join(proj, d), "/E", "/COPY:DAT", "/R:1", "/W:1", "/NFL", "/NDL", "/NJH", "/NJS", "/NP", "/XD", "save-backups"], capture_output=True)
+    for f in ("build.mk", "patches.txt", "hle.txt", "hle7.txt", "interpret.txt", "tags.txt", "wrap.txt", "BUILD.bat"):
+        shutil.copy2(os.path.join(root, f), os.path.join(proj, f))
+    os.makedirs(os.path.join(proj, "game"), exist_ok=True)
+    subprocess.run(["robocopy", os.path.join(root, "game", "data"), os.path.join(proj, "game", "data"), "/E", "/R:1", "/W:1", "/NFL", "/NDL", "/NJH", "/NJS", "/NP"], capture_output=True)
+    shutil.copy2(os.path.join(root, "game", "dqix.sav"), os.path.join(proj, "game", "dqix.sav"))
+    sys.path.insert(0, os.path.join(proj, "mods", "tools"))
+    import catalog
+    _, entries, _ = catalog.build(proj)
+    rounds = []
+    for e in entries:                                      # entries that patch the same instruction differently go in later rounds
+        if e["kind"] != "code" or e["id"].startswith("launch:"):
+            continue
+        pm = {(n, ad): wd for n, ad, wd in e["patch"]}
+        for r in rounds:
+            if not any(k in r["used"] and r["used"][k] != wd for k, wd in pm.items()):
+                break
+        else:
+            r = {"used": {}, "e": []}; rounds.append(r)
+        r["used"].update(pm); r["e"].append(e)
+    todo = rounds if a.rounds else rounds[:1]
+    env = dict(os.environ, MSYSTEM="UCRT64", CHERE_INVOKING="1"); env.pop("NoDefaultCurrentDirectoryInExePath", None)
+    rom = [f for f in glob.glob(os.path.join(root, "rom", "*.nds"))][0].replace("\\", "/")
+    for i, r in enumerate(todo):
+        ids = [e["id"] for e in r["e"] if not e["file"]]
+        files = {e["file"] for e in r["e"] if e["file"]}
+        open(os.path.join(proj, "mods", "menu-state.txt"), "w").write("\n".join(["code " + x for x in ids]) + "\nflag warned\n")
+        for f in glob.glob(os.path.join(proj, "mods", "code", "*.txt")):
+            s = open(f, encoding="utf-8-sig").read()
+            on = any(n.replace("\\", "/").endswith("/" + os.path.basename(f)) or n == os.path.basename(f) for n in files)
+            open(f, "w", encoding="utf-8").write(re.sub(r"(?m)^#\s*enabled\s*:.*$", "# enabled: " + ("yes" if on else "no"), s))
+        print(f"round {i}: {len(r['e'])} code mods: " + ", ".join(e["name"] for e in r["e"][:6]) + (" ..." if len(r["e"]) > 6 else ""), flush=True)
+        sh = f"cd '{proj.replace(chr(92), '/')}' && python3 mods/tools/catalog.py . >/dev/null; sh mods/tools/put_in.sh >/dev/null; ./tools/build-game.sh '{rom}' >/dev/null 2>&1; echo build=$?"
+        out = subprocess.run([bash, "-lc", sh], env=env, capture_output=True, text=True, errors="replace").stdout.strip()
+        print("  ", out)
+        if "build=0" not in out:
+            print("  BUILD FAILED"); return 1
+        e2 = dict(env, TEST_EXE=os.path.join(proj, "game", "dqix.exe"))
+        for script, args in (("test_session.py", [os.path.join(TMP, f"s{i}"), str(47300 + i)]), ("test_live.py", [os.path.join(TMP, f"l{i}"), "3000"])):
+            o = subprocess.run([sys.executable, "-u", os.path.join(proj, "mods", "tests", script), proj] + args, cwd=proj, env=e2, capture_output=True, text=True, errors="replace").stdout
+            keep = [l.strip() for l in o.splitlines() if "RESULT" in l or "different" in l or "FAIL" in l]
+            print("  ", script, "|", " ; ".join(keep))
+    return 0
+
+
+def main():
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--root", help="the DQIX Enhanced folder (with BUILD.bat)")
+    sub = ap.add_subparsers(dest="cmd", required=True)
+    sub.add_parser("doctor").set_defaults(f=cmd_doctor)
+    p = sub.add_parser("deploy"); p.add_argument("--pull", action="store_true"); p.set_defaults(f=cmd_deploy)
+    p = sub.add_parser("menu"); p.add_argument("--out"); p.set_defaults(f=cmd_menu)
+    p = sub.add_parser("shot"); p.add_argument("pages", nargs="*"); p.set_defaults(f=cmd_shot)
+    p = sub.add_parser("test"); p.add_argument("what", nargs="*"); p.add_argument("--force", action="store_true"); p.add_argument("--jobs", type=int, default=3); p.set_defaults(f=cmd_test)
+    p = sub.add_parser("scratch"); p.add_argument("--rounds", action="store_true", help="also the alternatives that clash (x4, x8 ... Always Fail)"); p.set_defaults(f=cmd_scratch)
+    a = ap.parse_args()
+    return a.f(a)
+
+
+if __name__ == "__main__":
+    sys.exit(main() or 0)

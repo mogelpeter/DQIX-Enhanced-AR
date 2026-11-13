@@ -1,0 +1,6 @@
+# name: Quester's Rest at its biggest
+# mode: once
+# about: The inn's top level and every upgrade.
+# category: Unlocks
+120FD764 000003E8
+220FD76C 00000006

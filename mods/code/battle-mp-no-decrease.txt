@@ -1,0 +1,8 @@
+# name: MP never goes down in battle
+# enabled: no
+# about: From the European code list ("Unlimited MP During Battle"). Save before trying it.
+# category: Battle
+check 02162608 E1A00007
+patch 02162624 E1D1A0B2 E1D1A0B6
+patch 02162628 E1A0100A E1C1A0B2
+patch 0216262C E1C1A0B2

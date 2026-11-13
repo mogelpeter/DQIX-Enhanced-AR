@@ -1,0 +1,8 @@
+# name: Every alchemy recipe in the Alchemenu (not yet made)
+# mode: once
+# category: Alchemy
+D5000000 00000005
+C0000000 000001D6
+D7000000 020FAE9C
+D4000000 00000004
+D2000000 00000000
