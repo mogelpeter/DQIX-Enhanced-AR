@@ -2,6 +2,10 @@
 
 Newest first. One block per working session: what changed, why, how it was checked.
 
+## 2026-11-13 (3)  Menu restyle: dark glass + red accent
+- Menu colours moved from black/neon green to neutral dark grey with a red accent (switches, primary button, selection, heading underline); UI font is Segoe UI (JetBrains Mono stays for the log). `CheatMenu.cs` only.
+- Checked: `dev test fast` 5/5 (33 s), `dev shot`; no compile errors found (menu compiles, static guards pass).
+
 ## 2026-11-13 (2)  Hover info, rebuild warnings, dev tooling, repo
 - **Hover info** on every cheat card (switches, "Once" buttons, choices and each option of a choice, locked cheats):
   what it does, how to use it (switch / hold keys / Once), whether it works with friends, tried-out or untested, how many
