@@ -50,3 +50,27 @@ One rule: **do the cheapest check that can catch the mistake, and never repeat a
 
 Nothing in the tools is tied to one PC: the game folder is found, the temp folder is the system's, MSYS2 is looked up
 from `mods\system\msys2-root.txt`, the fonts travel in `mods\system\fonts`.
+
+## Reverse engineering playbook (finding what the game does)
+
+Research result (2026-11): public DQIX material is only AR address lists (almarsguides, R4 database) - no RAM map or symbols exist. The DS-wide
+tools (Ghidra + NTRGhidra loader, DeSmuME debugger) are not needed here: the game is already recompiled to C with the ROM's own function
+names, and the runtime has the hooks a debugger would give. So the way to "extend RE" is to use these, and write every finding down.
+
+`python mods\system\tools\dqre.py [--root GAME] <cmd>`:
+
+| Question | Command / switch |
+|---|---|
+| Which function holds this address? | `dqre.py func 02096e20` |
+| Which functions have a name like ...? | `dqre.py names flee` |
+| What does this AR code touch (data or code, which function)? | `dqre.py ar "02345678 0000FFFF"` |
+| What changed in RAM between two moments? | `DQIX_RAMDUMP=dir,300,900` then `dqre.py diff dir\ram000300.bin dir\ram000900.bin --names` |
+| Value at an address in a dump | `dqre.py ram dir\ram000300.bin 02345678 8` |
+| Who writes this word? | `DQIX_WATCH=02345678 DQIX_WATCHREGS=1` (log has the writer's registers; map with `func`) |
+| Where does the game screen show it? | `DQIX_DUMP=dir,30` frames -> contact sheet |
+| Change the AI / a decision | wrap the function in `wrap.txt` (see `noflee.c`), never patch instructions |
+
+Method: (1) hypothesis from the R4 name/`ar` output, (2) two RAM dumps around the action (before/after), `diff` narrows to a few ranges,
+(3) `DQIX_WATCH` on one of them names the writer, (4) `func` names it, (5) write the result (address, meaning, how found) in `NOTES.md`
+and, if it is a lesson, in the memory `dqix-lessons.md`. Headless runs are deterministic for the same exe + `DQIX_INPUT`, so every
+experiment can be repeated and compared.
