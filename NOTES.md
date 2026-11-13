@@ -147,3 +147,6 @@ Newest first. One block per working session: what changed, why, how it was check
 - `test_menu.py`: own state file through `DQIX_MENU_STATE`, no dependence on what the user switched on.
 - New `test_all.py`: all 170 live cheats alone and in a two-player session, plain-write cheats checked in RAM.
 - All 50 code mods built together in a scratch copy plus six rounds for the clashing alternatives: all start, all stay in sync.
+
+## 2026-11-13 (27)  Cheats window redesign
+- `mod_cheatwin.c`: page list on the left (owner-drawn), one row per cheat (check box + grey line with who/status/note), choose-one groups are a drop-down again (Off + options), keys moved to their own **Keybinds** page, current-style controls (comctl32 v6 through an activation context), scrolling panel, "Do it now" per row. Test hook unchanged. Checked: compiles, headless render with a group member switched on (state file written). Not run: `dev test cheatwin` (the game was running).
