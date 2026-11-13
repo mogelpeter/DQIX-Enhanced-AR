@@ -322,7 +322,7 @@ def main():
             print(f"   [on] {what}")
         elif state == "unknown":
             print(f"   [skipped] {what}: this version of the game has runtime\\{name} written differently."
-                  + ("  Cheats still work when you play alone." if i == 0 else "  Cheats can still be switched in the files (see mods\README.txt)."
+                  + ("  Cheats still work when you play alone." if i == 0 else "  Cheats can still be switched in the files (see mods\\README.txt)."
                      if name in ("menu_win32.c", "frontend_sdl.c", "update.c") else "  \"Instant loading\" stays off."))
     lp_changed, lp_wrap, nfn, nsite = livepatch_files(root, on)
     changed |= lp_changed
