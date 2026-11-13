@@ -200,7 +200,7 @@ The cheat list comes from the community's R4 database (DeadSkullzJr's NDS(i) Che
 
 ## Uninstall
 
-1. Set `sync_cheats = no` in `mods\settings.txt` and run `mods\Play with mods.bat apply` (double-click `Play with mods.bat`, then close the menu): this takes the Cheats tab and the cheats' part out of the game's source and rebuilds it. Switch all code mods off first (**Everything off**) so the build is clean.
+1. Set `sync_cheats = no` in `mods\settings.txt` and open a Command Prompt in your DQIX Enhanced folder (type `cmd` in the folder's address bar) and run `"mods\Play with mods.bat" apply`: this takes the Cheats tab and the cheats' part out of the game's source and rebuilds it. Switch all code mods off first (**Everything off**) so the build is clean.
 2. Delete the `mods` folder and the desktop shortcut.
 
 Your save (`game\dqix.sav`) is never touched.
