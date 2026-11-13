@@ -523,12 +523,20 @@ loadSave();})();</script>";
             }
         }
 
-        string CachePath(string rel) { return Path.Combine(cache, rel.Replace('/', '\\')); }
+        /* only plain relative names, and only inside the cache folder (no drive letters, no .., no streams) */
+        string CachePath(string rel)
+        {
+            if (rel.Length == 0 || rel.Length > 200 || !Regex.IsMatch(rel, @"^[A-Za-z0-9_\-][A-Za-z0-9_\-./]*$") || rel.Contains("..") || rel.Contains("//")) return null;
+            string root = Path.GetFullPath(cache).TrimEnd('\\') + "\\";
+            string full = Path.GetFullPath(Path.Combine(root, rel.Replace('/', '\\')));
+            return full.StartsWith(root, StringComparison.OrdinalIgnoreCase) ? full : null;
+        }
 
         /* a file of the editor, from the cache; the start page is looked up fresh when the internet is there */
         public byte[] FileOf(string rel, bool fresh)
         {
             string f = CachePath(rel);
+            if (f == null) { LastError = "Not a file of the editor."; return null; }
             if (File.Exists(f) && !fresh) return File.ReadAllBytes(f);
             try
             {
@@ -1272,85 +1280,58 @@ loadSave();})();</script>";
         string CurrentTag() { return Nav.SelectedItem is ListBoxItem ? (string)((ListBoxItem)Nav.SelectedItem).Tag : "all"; }
 
         /* ---------------------------------------------------------------- save editor and treasure maps */
-        class ToolSub
-        {
-            public string Title, Tab, Text, Url;
-            public ToolSub(string title, string tab, string text, string url) { Title = title; Tab = tab; Text = text; Url = url; }
-        }
-
-        static readonly Dictionary<string, ToolSub[]> Tools = new Dictionary<string, ToolSub[]>
-        {
-            { "tool:save", new[] {
-                new ToolSub("Party", "party", "Your party members: name, vocation, appearance and equipment.", null),
-                new ToolSub("Items", "items", "The items you own and how many.", null),
-                new ToolSub("Inn", "inn", "The guests staying at your inn.", null),
-                new ToolSub("Records", "records", "Your records and quests.", null),
-                new ToolSub("DLC", "dlc", "The downloadable content stored in the save.", null),
-                new ToolSub("Misc", "misc", "Other settings stored in the save.", null),
-                new ToolSub("Hex", "hex", "The raw bytes of the save, for experts.", null) } },
-            { "tool:maps", new[] {
-                new ToolSub("Your maps", "grottos", "The treasure maps (grottos) in your save: the list, their treasures and where they are. Adding, removing and the map preview are not finished in this editor yet, so check the result in the game and keep the backup.", null),
-                new ToolSub("Find a map", "", "Search every grotto by name, level, terrain, boss, number of chests and more. Opens the Grotto Searcher website (needs the internet).", "https://dqix.github.io/Grotto-Searcher/") } }
-        };
-        readonly Dictionary<string, int> toolSub = new Dictionary<string, int>();
         EditorHost editor;
 
         void ShowTool(string tag)
         {
-            ToolSub[] subs = Tools[tag];
-            int cur;
-            if (!toolSub.TryGetValue(tag, out cur) || cur >= subs.Length) cur = 0;
-            StackPanel hp = new StackPanel { Margin = new Thickness(2, 2, 0, 8) };
-            hp.Children.Add(new TextBlock { Text = tag == "tool:save" ? "Save editor" : "Treasure maps", FontSize = 14, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 5) });
+            bool save = tag == "tool:save";
+            StackPanel hp = new StackPanel { Margin = new Thickness(2, 2, 0, 10) };
+            hp.Children.Add(new TextBlock { Text = save ? "Save editor" : "Treasure maps", FontSize = 14, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 5) });
             hp.Children.Add(new Border { Height = 1, Background = B("#8E2B27") });
             Rows.Children.Add(hp);
 
-            WrapPanel strip = new WrapPanel { Margin = new Thickness(0, 0, 0, 10) };
-            for (int i = 0; i < subs.Length; i++)
-            {
-                int pick = i;
-                Border b = new Border
-                {
-                    Padding = new Thickness(10, 5, 10, 5), Margin = new Thickness(0, 0, 2, 0), Cursor = Cursors.Hand, Background = Brushes.Transparent,
-                    BorderThickness = new Thickness(0, 0, 0, 2), BorderBrush = i == cur ? Gold : Brushes.Transparent,
-                    Child = new TextBlock { Text = subs[i].Title, FontSize = 12, Foreground = i == cur ? Text : Dim, FontWeight = i == cur ? FontWeights.SemiBold : FontWeights.Normal }
-                };
-                b.MouseLeftButtonUp += delegate { toolSub[tag] = pick; ShowPage(); };
-                strip.Children.Add(b);
-            }
-            Rows.Children.Add(strip);
-
-            ToolSub s = subs[cur];
             StackPanel body = new StackPanel();
-            body.Children.Add(new TextBlock { Text = s.Title, FontSize = 12, FontWeight = FontWeights.SemiBold });
-            body.Children.Add(new TextBlock { Text = s.Text, Foreground = Dim, FontSize = 10.5, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 4, 0, 12) });
+            body.Children.Add(new TextBlock
+            {
+                Text = save
+                    ? "Edit your save: party, items, inn, records, DLC and more. The editor opens in your browser with your game save already loaded."
+                    : "The treasure maps (grottos) in your save: the list, their treasures and where they are. Adding, removing and the map preview are not finished in this editor yet, so check the result in the game and keep the backup.",
+                Foreground = Dim, FontSize = 10.5, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 12)
+            });
             TextBlock status = new TextBlock { Foreground = Dim, FontSize = 10.5, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 10, 0, 0) };
-            Button open = new Button { Content = s.Url != null ? "Open Grotto Searcher" : "Open in the editor", Style = (Style)ui.FindResource("Primary"), HorizontalAlignment = HorizontalAlignment.Left };
-            open.Click += delegate { OpenTool(s, status); };
-            body.Children.Add(open);
+            StackPanel buttons = new StackPanel { Orientation = Orientation.Horizontal };
+            Button open = new Button { Content = save ? "Open the save editor" : "Open the treasure map editor", Style = (Style)ui.FindResource("Primary") };
+            string tab = save ? "party" : "grottos";
+            open.Click += delegate { OpenTool(tab, null, status); };
+            buttons.Children.Add(open);
+            if (!save)
+            {
+                Button find = new Button { Content = "Search all maps (website)", Style = (Style)ui.FindResource("Btn"), Margin = new Thickness(10, 0, 0, 0) };
+                find.Click += delegate { OpenTool(null, "https://dqix.github.io/Grotto-Searcher/", status); };
+                buttons.Children.Add(find);
+            }
+            body.Children.Add(buttons);
             body.Children.Add(status);
             Rows.Children.Add(new Border { Background = Card, BorderBrush = CardLine, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(2), Padding = new Thickness(14, 11, 14, 12), Margin = new Thickness(0, 0, 6, 8), Child = body });
 
-            string notes = s.Url != null
-                ? "The Grotto Searcher is a separate website by the DQIX project (CC BY-NC-SA). Nothing of it is part of this menu."
-                : "How it works: the editor opens in your browser with your game save already loaded. Press \"export\" in the editor to write the changes back; the old save is copied to mods\\save-backups first.\n"
+            string notes = "How it works: press \"export\" in the editor to write the changes back; the old save is copied to mods\\save-backups first. "
                 + "Close the game before you export: a save written under a running game is lost.\n"
-                + "The editor is the DQIX project's (github.com/dqix/editor, no license given). It is downloaded from dqix.github.io once, kept in mods\\bin\\editor-cache, and not part of this repo.";
+                + "The editor is the DQIX project's (github.com/dqix/editor, no license given). It is downloaded from dqix.github.io once, kept in mods\\bin\\editor-cache, and not part of this repo."
+                + (save ? "" : "\nThe map search is the DQIX project's Grotto Searcher (CC BY-NC-SA), a separate website.");
             Rows.Children.Add(new TextBlock { Text = notes, Foreground = Grey, FontSize = 10, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(2, 0, 6, 0) });
         }
 
-        void OpenTool(ToolSub s, TextBlock status)
+        void OpenTool(string tab, string url, TextBlock status)
         {
-            if (s.Url != null)
+            if (url != null)
             {
-                try { Process.Start(s.Url); } catch (Exception ex) { status.Text = ex.Message; }
+                try { Process.Start(url); } catch (Exception ex) { status.Text = ex.Message; }
                 return;
             }
             if (editor == null)
                 editor = new EditorHost(Path.Combine(mods, "bin", "editor-cache"), Path.Combine(gameDir, "dqix.sav"), Path.Combine(mods, "save-backups"),
                     delegate { return Process.GetProcessesByName("dqix").Length > 0; });
             EditorHost host = editor;
-            string tab = s.Tab;
             status.Text = "Getting the editor ready...";
             ThreadPool.QueueUserWorkItem(delegate
             {
@@ -1845,6 +1826,8 @@ loadSave();})();</script>";
                     byte[] got = Http("GET", "http://127.0.0.1:" + h.Port + "/__save", h.Token, null, bad, 200);
                     if (got.Length != 65536) bad.Add("save length " + got.Length);
                     Http("GET", "http://127.0.0.1:" + h.Port + "/__save", "wrong", null, bad, 403);
+                    foreach (string evil in new[] { "C:/Windows/win.ini", "%5CWindows/win.ini", "..%5C..%5Cx", "assets/..%2F..%2Fx", "a:b" })
+                        Http("GET", "http://127.0.0.1:" + h.Port + "/editor/" + evil, null, null, bad, 404);
                     Http("POST", "http://127.0.0.1:" + h.Port + "/__export", h.Token, new byte[100], bad, 400);
                     Http("POST", "http://127.0.0.1:" + h.Port + "/__export", "wrong", new byte[65536], bad, 403);
                     string hold = Environment.GetEnvironmentVariable("DQIX_EDITOR_HOLD");

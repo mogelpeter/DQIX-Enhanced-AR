@@ -2,6 +2,10 @@
 
 Newest first. One block per working session: what changed, why, how it was checked.
 
+## 2026-11-13 (10)  One button per editor page, cache path hardening
+- Save editor / Treasure maps pages have no subtabs now: one button opens the editor (treasure maps: also the Grotto Searcher website).
+- Security review finding fixed: editor cache paths are limited to `[A-Za-z0-9_-./]`, resolved and confined to `modsin\editor-cache` (a `C:/...` path could have left the folder). The host self-test sends five attack paths and expects 404. menu-smoke PASS.
+
 ## 2026-11-13 (9)  Save editor + treasure map tabs
 - Research: the working save editor is the DQIX project's browser editor (github.com/dqix/editor, JS, Sep 2026; parties, items, inn, records, DLC, misc, hex, grottos). It has **no license**, so its code is **not copied into this repo**: the menu downloads the built site from dqix.github.io on first use into `modsin\editor-cache` (git-ignored) and serves it on `127.0.0.1` (`EditorHost` in `CheatMenu.cs`). Its grotto editing is unfinished upstream (adding/removing, map preview). Treasure map search = their Grotto-Searcher (CC BY-NC-SA), opened as a website.
 - New menu pages **Save editor** (subtabs Party, Items, Inn, Records, DLC, Misc, Hex) and **Treasure maps** (Your maps, Find a map). A subtab opens the editor in the browser with `game\dqix.sav` loaded and the right tab selected (a small script is injected when serving the page).
