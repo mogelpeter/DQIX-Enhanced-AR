@@ -1148,6 +1148,18 @@ button{white-space:normal}
             Title = "Dragon Quest IX - cheat menu";
             Width = 880; Height = 600; MinWidth = 680; MinHeight = 420;
             Background = B("#0E0E10");
+            SourceInitialized += delegate
+            {   /* dark title bar (Windows 10 1809+ and 11); the caption colours only exist on Windows 11 */
+                try
+                {
+                    IntPtr h = new System.Windows.Interop.WindowInteropHelper(this).Handle;
+                    int on = 1, cap = (0x10 << 16) | (0x0E << 8) | 0x0E /* #0E0E10 as BGR */, txt = (0xD6 << 16) | (0xD2 << 8) | 0xD2;
+                    if (DwmSetWindowAttribute(h, 20, ref on, 4) != 0) DwmSetWindowAttribute(h, 19, ref on, 4);
+                    DwmSetWindowAttribute(h, 35, ref cap, 4);
+                    DwmSetWindowAttribute(h, 36, ref txt, 4);
+                }
+                catch (Exception) { }
+            };
             WindowStartupLocation = WindowStartupLocation.CenterScreen;
             try
             {
@@ -1324,7 +1336,6 @@ button{white-space:normal}
             AddNav("on", Tr.T("Switched on"), 0);
             foreach (string p in pages) AddNav("page:" + p, p, RowCount(e => (e.Cat == p || e.Also == p) && e.Kind != "blocked"));
             AddNav("all", Tr.T("All cheats"), RowCount(e => e.Kind != "blocked"));
-            AddNav("blocked", Tr.T("Not available"), nNo);
             AddNav("tool:save", Tr.T("Save editor"), 0);
             AddNav("tool:maps", Tr.T("Treasure maps"), 0);
             foreach (ListBoxItem it in Nav.Items) if ((string)it.Tag == was) Nav.SelectedItem = it;
@@ -1365,8 +1376,8 @@ button{white-space:normal}
 
         void ShowSub()
         {
-            int nLive = entries.Count(e => e.Kind == "live"), nCode = entries.Count(e => e.Kind == "code"), nNo = entries.Count(e => e.Kind == "blocked");
-            Sub.Text = (infoTitle.Length > 0 ? infoTitle : "Your own cheats") + "   ·   " + nLive + " live  ·  " + nCode + " built into the game  ·  " + nNo + " not available"
+            int nLive = entries.Count(e => e.Kind == "live"), nCode = entries.Count(e => e.Kind == "code");
+            Sub.Text = (infoTitle.Length > 0 ? infoTitle : "Your own cheats") + "   ·   " + nLive + " live  ·  " + nCode + " built into the game"
                 + (infoDatabase.Length > 0 && !infoExact ? "   ·   list for " + infoGame + " (another dump of it)" : "")
                 + (built.Count > 0 ? "   ·   built-in set " + SetCode() + " (friends need the same)" : "");
         }
@@ -1612,7 +1623,6 @@ button{white-space:normal}
                 heading = Tr.T("Search") + ": " + Search.Text.Trim();
             }
             else if (tag == "on") { fits = e => IsOn(e); heading = Tr.T("Switched on"); sub = Tr.T("Everything that is on now."); }
-            else if (tag == "blocked") { fits = e => e.Kind == "blocked"; heading = Tr.T("Not available"); sub = Tr.T("Codes of the list that can't work in this version of the game, or can't be checked. They stay off, so they can't break anything."); }
             else if (tag == "all") { fits = e => e.Kind != "blocked"; heading = Tr.T("All cheats"); }
             else { string p = tag.Substring(5); fits = e => e.Cat == p || e.Also == p; heading = p; }
 
@@ -1624,11 +1634,10 @@ button{white-space:normal}
 
             HashSet<string> doneGroups = new HashSet<string>();
             int shown = 0;
-            List<Entry> late = new List<Entry>();
             foreach (Entry e in entries)
             {
                 if (!fits(e)) continue;
-                if (e.Kind == "blocked" && tag != "blocked") { late.Add(e); continue; }
+                if (e.Kind == "blocked") continue;                    /* codes that can't work stay out of sight */
                 if (e.Group.Length > 0)
                 {
                     if (!doneGroups.Add(e.Group)) continue;
@@ -1636,11 +1645,6 @@ button{white-space:normal}
                     if (g != null) { Rows.Children.Add(GroupRow(g)); shown++; continue; }
                 }
                 Rows.Children.Add(EntryRow(e)); shown++;
-            }
-            if (late.Count > 0)
-            {
-                Rows.Children.Add(new TextBlock { Text = Tr.T("Not available here"), Foreground = Grey, FontSize = 10.5, FontWeight = FontWeights.SemiBold, Margin = new Thickness(2, 14, 0, 6) });
-                foreach (Entry e in late) { Rows.Children.Add(EntryRow(e)); shown++; }
             }
             if (shown == 0)
                 Rows.Children.Add(new TextBlock { Text = tag == "on" && q.Length == 0 ? Tr.T("Nothing is on. Pick a page on the left and flip a switch.") : Tr.T("Nothing here."), Foreground = Dim, FontSize = 11.5, Margin = new Thickness(2, 12, 0, 0) });
@@ -1676,12 +1680,12 @@ button{white-space:normal}
             else if (kind == "code") into.Children.Add(Chip(Tr.T("ALL PLAYERS"), Purple, MpCode));
             else if (kind == "launch" && data) into.Children.Add(Chip(Tr.T("ALL PLAYERS"), Purple, MpData));
             else if (kind == "launch") into.Children.Add(Chip(Tr.T("OWN PC"), Grey, MpLaunch));
-            if (status == "tested") into.Children.Add(Chip(Tr.T("TRIED OUT"), Green, Tr.T("Tried in this version of the game.")));
-            else if (status == "untested") into.Children.Add(Chip(Tr.T("UNTESTED"), Amber, Tr.T("From the R4 cheat list for your ROM. Checked as far as a program can, but not tried in this version: save first.")));
+            if (status == "untested") into.Children.Add(Chip(Tr.T("UNTESTED"), Amber, Tr.T("From the R4 cheat list for your ROM. Checked as far as a program can, but not tried in this version: save first.")));
         }
 
         /* ---- hover info: what it is, how to use it, and when it works ---- */
         static FontFamily Mono = new FontFamily("Consolas");
+        [DllImport("dwmapi.dll")] static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int value, int size);
         static string MpLive { get { return Tr.T("Multiplayer: one player switching it on is enough. It is sent to every PC of the session and runs for everyone. Every player needs the mods folder installed in their game."); } }
         static string MpCode { get { return Tr.T("Multiplayer: every player must have this built into their game, the same ones on every PC (the set code in the menu must match), or the session goes out of sync."); } }
         static string MpData { get { return Tr.T("Multiplayer: it changes what the game reads from the cartridge when it starts, so every player must start the game with the same choice, or the session goes out of sync."); } }

@@ -112,7 +112,6 @@ The labels on the cards:
 
 | Label | Meaning |
 |---|---|
-| `TRIED OUT` | Tried in this version of the game. |
 | `UNTESTED` | From the R4 list and checked as far as a program can, but not tried here. **Save first.** |
 | `BUILT IN` | Changes how the game works, so it is built into the game: Play rebuilds the changed parts (half a minute to a few minutes). |
 | `NEXT START` | Takes effect the next time the game starts from the menu ("Always fast forward", "Instant loading"). |
@@ -163,7 +162,7 @@ An Action Replay code is written for a real DS, where it may change anything at 
 
 - **Live cheat:** it only changes data. The game carries it out itself at one fixed point of each frame. A code can only write the DS's main memory, and a code that would loop forever is cut off.
 - **Built-in mod:** it changes instructions. Every instruction was found in your ROM where the code says it is; exactly those words and nothing else are written into the build.
-- **Not available:** it can't work here or can't be checked (adds its own routine, jumps out of the program, writes into the program, mixes program and data, DS hardware, doesn't fit your ROM, anti-piracy and Wi-Fi codes). It is listed with the reason and can't be switched on.
+- **Not available:** it can't work here or can't be checked (adds its own routine, jumps out of the program, writes into the program, mixes program and data, DS hardware, doesn't fit your ROM, anti-piracy and Wi-Fi codes). It is hidden in the menu and can't be switched on.
 
 The cheat menu is a program of its own: whatever happens in it, the game keeps running. What a program can't check is what a data cheat does to your *save* ("Max everything" codes can make a save odd): that is what `UNTESTED` warns about and what the save backups are for.
 

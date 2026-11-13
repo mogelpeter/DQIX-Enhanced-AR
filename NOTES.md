@@ -2,6 +2,11 @@
 
 Newest first. One block per working session: what changed, why, how it was checked.
 
+## 2026-11-13 (19)  Dark title bar, no "Not available" page, no TRIED OUT chip, shortcut icon
+- `CheatMenu.cs`: dark title bar (DwmSetWindowAttribute 20/19, caption colours 35/36 on Windows 11); the "Not available" nav page, its count in the sub line and the "Not available here" list are gone (blocked codes stay hidden and off); only UNTESTED chips are shown (TRIED OUT removed).
+- `Make a desktop shortcut.bat`: the icon path had `..` in it and was ignored; now resolved with GetFullPath, `build\icon\dqix.ico` first, else the exe's own icon.
+- Checked: `dev menu` compiles, `dev shot` (Party page: no Not available, no TRIED OUT). The title bar colour can't be seen in the shots; look at it once.
+
 ## 2026-11-13 (18)  Cheats tab in the game's own menu bar, installer puts it in
 - **Menu bar > Cheats > "Cheats enabled..."** (and "What is this?"): asks, saves, closes the game and opens the cheat menu (`mods\Play with mods.bat`, new window); its Play button builds and starts the game with the cheats. Refused while a session runs. Code: `mods/system/src/mod_menu.c` (copied to `runtime\`), three marked places added to `apply_runtime_mod.py`: `menu_win32.c` (menu items 360/361, before Help), `frontend_sdl.c` (`case 360/361` before `MI_UPDATE`), `update.c`.
 - **Survives updates of the game**: an update replaces `runtime\`, but the old game's `updatepply.bat` now also runs `mods\Play with mods.bat apply` before `BUILD.bat` (site in `update.c`, kept alive transitively: each build has it). Hand-made updates: run Install/Play once, `apply` puts every place back. A place that no longer matches an update is skipped with a message, the rest still works.
