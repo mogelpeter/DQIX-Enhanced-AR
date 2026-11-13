@@ -95,11 +95,10 @@ ents = entries()
 lps = [e for e in ents if lp(e)]
 if not lps:
     print("FAIL: no live code mods in the catalog (is the game built with the live-patch wrappers, and catalog.py run after?)"); sys.exit(1)
-by = {e["name"]: e for e in lps}
 print("live code mods:", len(lps), flush=True)
 ok = True
 A, ra = run("A", ())
-A2, ra2 = run("A2", ())
+A2, _ = run("A2", ())
 NOISE = {i for i, (x, y) in enumerate(zip(A, A2)) if x != y} if A and A2 else set()
 print("A  repeatable (apart from %d noisy bytes: %s):" % (len(NOISE), ", ".join("%08x" % (0x02000000 + i) for i in sorted(NOISE)[:6])), len(NOISE) < 64, ra, flush=True)
 ok &= A is not None and len(NOISE) < 64 and ra[0] == 0 and not ra[1]

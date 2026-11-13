@@ -47,7 +47,7 @@ print("1  switched on through the window:", "cheatwin test: switched on" in txt,
       "| gold in RAM: %#x" % gold(ram), "| state file has it:", "live file:cheats/max-gold.txt" in state, "| exit", rc, flush=True)
 ok &= rc == 0 and "cheatwin test: switched on" in txt and gold(ram) == GOLD and "live file:cheats/max-gold.txt" in state and os.path.exists(os.path.join(work, "one", "shot.bmp"))
 
-rc2, txt2, ram2, state2 = run("two", ["live file:cheats/max-gold.txt"], lambda d: {})
+rc2, _, ram2, _ = run("two", ["live file:cheats/max-gold.txt"], lambda d: {})
 print("2  a new start sends it again by itself: gold in RAM %#x" % gold(ram2), "| exit", rc2, flush=True)
 ok &= rc2 == 0 and gold(ram2) == GOLD
 
@@ -55,7 +55,7 @@ ok &= rc2 == 0 and gold(ram2) == GOLD
 # catalog test (one group member on); here only that two members of a group in the state file do not crash the start
 ids = [l.split("id=")[1].split("\t")[0] for l in open(os.path.join(root, "mods", "system", "bin", "catalog.txt"), encoding="utf-8")
        if l.startswith("entry\t") and "group=group:" in l and "kind=live" in l][:2]
-rc3, txt3, ram3, state3 = run("three", ["live " + i for i in ids], lambda d: {})
+rc3, txt3, _, _ = run("three", ["live " + i for i in ids], lambda d: {})
 print("3  two members of one choice in the state file: the game starts and runs, exit", rc3, flush=True)
 ok &= rc3 == 0 and "fatal" not in txt3.lower()
 print("RESULT:", "PASS" if ok else "FAIL")

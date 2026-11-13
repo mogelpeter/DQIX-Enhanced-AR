@@ -24,7 +24,6 @@ Nothing here changes the game: it only reads. apply_code_mods.py puts the code
 mods that are switched on into the build.
 """
 import bisect
-import glob
 import os
 import re
 import sys
@@ -105,8 +104,6 @@ class Rom:
         self.main = mods[0]
         self.overlays = mods[1:]
         self.by_name = {m.name: m for m in mods}
-        self.ovl_lo = min(m.base for m in self.overlays) if self.overlays else 0
-        self.ovl_hi = max(m.base + len(m.data) for m in self.overlays) if self.overlays else 0
         with open(os.path.join(extract, "..", "..", "game", "data", "dqix.nds"), "rb") as f:
             head = f.read(0x200)
         self.game = head[12:16].decode("ascii", "replace")

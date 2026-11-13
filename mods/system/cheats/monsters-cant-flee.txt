@@ -3,6 +3,6 @@
 # category: Battle
 # also: Custom
 # about: Monsters never run away from a battle (metal slimes and the like stay and fight). Works with friends too: it is built into the game and every PC carries it out at the same moment.
-# The address is not memory: mods/system/src/mod_cheats.c takes it as the switch "Monsters can't flee";
-# mods/system/src/noflee.c wraps the game's "what does this monster do?" (the action number 225 is Flee) and asks again.
+# The address is not memory: mods/system/src/runtime/mod_cheats.c takes it as the switch "Monsters can't flee";
+# mods/system/src/runtime/noflee.c wraps the game's "what does this monster do?" (the action number 225 is Flee) and asks again.
 02F5A5A8 00000001

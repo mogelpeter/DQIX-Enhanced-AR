@@ -80,7 +80,7 @@ def decode_ar(lines):
 
 
 def cmd_ar(a):
-    funcs = load_funcs(find_root(a.root)); keys = [f[0] for f in funcs]
+    funcs = load_funcs(find_root(a.root))
     for line, ad, _, what in decode_ar(a.lines):
         s = "%-20s %s" % (line, what)
         if ad is not None:

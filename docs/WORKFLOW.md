@@ -9,7 +9,7 @@ One rule: **do the cheapest check that can catch the mistake, and never repeat a
 2. `dev test fast` (about 1.5 min, 5 s when nothing changed). It deploys the changed files to the game folder first.
 3. Pick the extra check from the table below for what you touched.
 4. `dev test full` before you push (about 8 min, only the tests whose inputs changed are run).
-5. Add a line to `NOTES.md`, commit, push. `dev deploy` already put the working files in the game folder.
+5. Add a line to `docs/NOTES.md`, commit, push. `dev deploy` already put the working files in the game folder.
 
 ## Which check for which change
 
@@ -72,6 +72,6 @@ names, and the runtime has the hooks a debugger would give. So the way to "exten
 | Change the AI / a decision | wrap the function in `wrap.txt` (see `noflee.c`), never patch instructions |
 
 Method: (1) hypothesis from the R4 name/`ar` output, (2) two RAM dumps around the action (before/after), `diff` narrows to a few ranges,
-(3) `DQIX_WATCH` on one of them names the writer, (4) `func` names it, (5) write the result (address, meaning, how found) in `NOTES.md`
+(3) `DQIX_WATCH` on one of them names the writer, (4) `func` names it, (5) write the result (address, meaning, how found) in `docs/NOTES.md`
 and, if it is a lesson, in the memory `dqix-lessons.md`. Headless runs are deterministic for the same exe + `DQIX_INPUT`, so every
 experiment can be repeated and compared.

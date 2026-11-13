@@ -168,7 +168,7 @@ def watch(procs, m):
 
 ok = True
 if mode == "single":
-    p, d, log = start("single", {"DQIX_INPUT": ""} if False else {})
+    p, d, log = start("single", {})
     box = mailbox(p)
     if box is None:
         print("FAIL: no mailbox"); p.kill(); sys.exit(1)

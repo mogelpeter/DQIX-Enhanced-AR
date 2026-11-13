@@ -11,7 +11,7 @@ rem   1. works the cheat list out against your ROM (mods\system\tools\catalog.py
 rem   2. puts the code mods that are on, and the cheats' own part of the game (so they work with friends too),
 rem      into the game's build: an update of the game takes them out, this puts them back
 rem   3. rebuilds the game if they changed (only what changed: a few minutes)
-rem   4. makes the save editor's helper (mods\system\src\EditorHost.cs) with the C# compiler that comes with Windows
+rem   4. makes the save editor's helper (mods\system\src\editor\EditorHost.cs) with the C# compiler that comes with Windows
 rem Then start the game as always (game\dqix.exe) and use the menu bar: Cheats > Cheats...
 setlocal
 cd /d "%~dp0.."
@@ -50,8 +50,6 @@ call BUILD.bat
 if errorlevel 1 goto build_failed
 :built
 
-:built
-
 if /i "%WHAT%"=="catalog" goto catalog
 
 rem ---- the cheat list, worked out against this ROM
@@ -65,14 +63,14 @@ if errorlevel 1 goto end_bad
 
 rem ---- the save editor's helper, made here from its source when it's missing or older
 if not exist "mods\system\bin" mkdir "mods\system\bin"
-"%BASH%" -lc "[ mods/system/bin/dqix-editor.exe -nt mods/system/src/EditorHost.cs ]" && goto editor_made
+"%BASH%" -lc "[ mods/system/bin/dqix-editor.exe -nt mods/system/src/editor/EditorHost.cs ]" && goto editor_made
 set "NET=%WINDIR%\Microsoft.NET\Framework64\v4.0.30319"
 if not exist "%NET%\csc.exe" goto no_csc
 set "ICON="
 if exist "build\icon\dqix.ico" set "ICON=-win32icon:build\icon\dqix.ico"
 echo Making the save editor helper...
 tasklist /fi "imagename eq dqix-editor.exe" 2>nul | find /i "dqix-editor.exe" >nul && goto editor_made
-"%NET%\csc.exe" -nologo -target:winexe -platform:x64 -optimize+ "-out:mods\system\bin\dqix-editor.exe" %ICON% -r:System.Windows.Forms.dll -r:System.Core.dll "mods\system\src\EditorHost.cs"
+"%NET%\csc.exe" -nologo -target:winexe -platform:x64 -optimize+ "-out:mods\system\bin\dqix-editor.exe" %ICON% -r:System.Windows.Forms.dll -r:System.Core.dll "mods\system\src\editor\EditorHost.cs"
 if errorlevel 1 goto no_csc
 :editor_made
 echo.

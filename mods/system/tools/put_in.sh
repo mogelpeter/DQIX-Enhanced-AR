@@ -6,7 +6,7 @@ PY=python3; command -v python3 >/dev/null 2>&1 || PY=python
 echo "Code mods:"
 $PY mods/system/tools/apply_code_mods.py .
 [ $? -eq 1 ] && exit 1
-# the mods' own part of the game: live cheats that also work with friends (mods/system/src/mod_cheats.c)
+# the mods' own part of the game: live cheats that also work with friends (mods/system/src/runtime/mod_cheats.c)
 $PY mods/system/tools/apply_runtime_mod.py .
 [ $? -eq 1 ] && exit 1
 # your own codes as Action Replay codes for this ROM (mods/system/AR-codes-*.txt), for reference

@@ -12,7 +12,7 @@ Where things are (nothing is hard-coded to one PC):
   mods\\system\\dev-root.txt (one line: the path), or the parent of the mods\\ folder this file is in.
   Work on the repo copy of mods\\ and deploy: every command deploys first when this file is not in the game folder.
 
-Why it is fast (see WORKFLOW.md): tests are tiered (fast ~2 min, full ~8 min), results are cached by a hash of every
+Why it is fast (see docs/WORKFLOW.md in the repo): tests are tiered (fast ~2 min, full ~8 min), results are cached by a hash of every
 input so unchanged work is skipped, independent game tests run in parallel on their own ports, and the editor test
 runs alone at the end.
 """
@@ -57,7 +57,7 @@ def tree(base):
     for d, dirs, files in os.walk(base):
         dirs[:] = [x for x in dirs if x not in SKIP_DIRS]
         for f in files:
-            if f in USER_FILES or f.endswith(".pyc"):
+            if f in USER_FILES or f.endswith(".pyc") or f.startswith("AR-codes-"):
                 continue
             p = os.path.join(d, f)
             out[os.path.relpath(p, base)] = p
@@ -86,25 +86,9 @@ def sync(src, dst, quiet=False):
     return changed
 
 
-def migrate_layout(live):
-    """older installs kept cheats in mods/cheats, code mods in system/code and the R4 list in system/database;
-    all of it is system/cheats now. Own files move over (r4-<game>.txt for the lists), the old folders go."""
-    new = os.path.join(live, "system", "cheats")
-    for old, prefix in (("cheats", ""), (os.path.join("system", "code"), ""), (os.path.join("system", "database"), "r4-")):
-        d = os.path.join(live, old)
-        if not os.path.isdir(d):
-            continue
-        os.makedirs(new, exist_ok=True)
-        for f in os.listdir(d):
-            if f.lower().endswith(".txt") and f.lower() != "on.txt" and not os.path.exists(os.path.join(new, prefix + f)):
-                shutil.copy2(os.path.join(d, f), os.path.join(new, prefix + f))
-        shutil.rmtree(d, ignore_errors=True)
-
-
 def ensure_deployed(root):
     live = os.path.join(root, "mods")
     if os.path.abspath(live) != os.path.abspath(SRC_MODS):
-        migrate_layout(live)
         sync(SRC_MODS, live)
     return live
 
@@ -115,8 +99,6 @@ def cmd_deploy(a):
     src, dst = (live, SRC_MODS) if a.pull else (SRC_MODS, live)
     if os.path.abspath(src) == os.path.abspath(dst):
         print("repo and game folder are the same place: nothing to do"); return 0
-    if not a.pull:
-        migrate_layout(live)
     ch = sync(src, dst, quiet=True)
     print(("pulled" if a.pull else "deployed"), len(ch), "file(s)" + (": " + ", ".join(ch[:10]) if ch else " (already identical)"))
     return 0
@@ -133,7 +115,7 @@ def csc_path():
 
 def build_editor(root, out=None):
     live = os.path.join(root, "mods", "system")
-    src = os.path.join(live, "src", "EditorHost.cs")
+    src = os.path.join(live, "src", "editor", "EditorHost.cs")
     exe = out or os.path.join(live, "bin", "dqix-editor.exe")
     if os.path.isfile(exe) and os.path.getmtime(exe) >= os.path.getmtime(src):
         return exe, False
@@ -169,7 +151,7 @@ def input_key(root):
     """a hash of everything a test result depends on: the mods' sources, the catalog, the built game"""
     h = hashlib.sha1()
     live = os.path.join(root, "mods", "system")
-    for pat in ("src/*", "tools/*.py", "tools/*.sh", "tests/*.py", "cheats/*", "bin/catalog.txt"):
+    for pat in ("src/*/*", "tools/*.py", "tools/*.sh", "tests/*.py", "cheats/*", "bin/catalog.txt"):
         for f in sorted(glob.glob(os.path.join(live, pat))):
             h.update(f.encode() + digest(f).encode())
     for f in ("dqix.exe", "dqixcore.dll"):
@@ -190,7 +172,7 @@ def t_static(root, work):
     rp = subprocess.run([sys.executable, "-X", "utf8", os.path.join(live, "tests", "test_runtime_patch.py"), root], capture_output=True, text=True)
     if rp.returncode != 0:                                  # the Cheats tab and the other marked places in the game's source
         problems.append("test_runtime_patch.py: " + (rp.stdout + rp.stderr)[-300:])
-    cs = open(os.path.join(live, "src", "EditorHost.cs"), encoding="utf-8").read()
+    cs = open(os.path.join(live, "src", "editor", "EditorHost.cs"), encoding="utf-8").read()
     for pat, why in ((r'\$"', 'string interpolation'), (r'\w\?\.\w', '?. operator'), (r'nameof\(', 'nameof'), (r'\bout var\b', 'out var')):
         if re.search(pat, cs):
             problems.append("EditorHost.cs uses " + why + " (Windows' csc is C# 5)")

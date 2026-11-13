@@ -5,7 +5,7 @@ mods/system/AR-codes-USA.txt (YDQE).
 
   make_ar_list.py [project folder]
 
-The live cheats (mods/cheats) are Action Replay codes already and change
+The live cheats (mods/system/cheats) are Action Replay codes already and change
 data, which is at the same addresses in both versions: they are copied as
 they are. The code mods (mods/system/cheats) change instructions. Those in an overlay
 are at the same address in both versions; those in the main program are 16
@@ -14,7 +14,6 @@ written for this ROM, with the instruction that is there now read from the
 ROM itself as the code's "only if" line, so a code can't write into the wrong
 game. A mod whose instructions aren't in this ROM is left out and named.
 """
-import glob
 import os
 import sys
 

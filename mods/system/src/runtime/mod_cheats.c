@@ -9,7 +9,7 @@
  * DS and they must all compute exactly the same (session.h). A cheat written
  * into one PC's memory from outside makes that PC differ, and the session goes
  * out of sync. So here a cheat travels the way the buttons do: the cheat
- * window (mods/system/src/cheats.c) puts it in a mailbox, this console sends it in
+ * window (mod_cheatwin.c) puts it in a mailbox, this console sends it in
  * its own input stream, 16 bits per frame, and every copy of this console - the
  * player's own and the hidden ones on the friends' PCs - carries it out at the
  * same frame. The friends need this file in their game too (the same mods
@@ -45,7 +45,7 @@
 #define MC_SLOTS   128
 #define MC_MAXLEN  0xFFF
 
-/* the mailbox, shared with the cheat window (the same in mods/system/src/cheats.c) */
+/* the mailbox, shared with the cheat window (the same in mod_cheatwin.c) */
 typedef struct {
     uint32_t magic, version;
     volatile uint32_t wr;              /* the window: words written */

@@ -1,6 +1,6 @@
 # Settings for "Play with mods.bat" (the patcher)
 
 # Live cheats that also work while playing with friends: yes / no
-# (yes: a small part of the mods is built into the game; every player of a
-# session needs it. no: the game is built without it and cheats only work alone.)
+# (yes: a small part of the mods, with the Cheats tab, is built into the game;
+# every player of a session needs it. no: the game is built without any of it.)
 sync_cheats = yes

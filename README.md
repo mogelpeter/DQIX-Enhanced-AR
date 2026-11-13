@@ -117,7 +117,7 @@ The labels on the cards:
 
 ## How the Cheats tab works
 
-The game's menu bar (Game, Graphics, Screen, View, Wireless, Modern, Mods, **Cheats**, Help) gets one more entry with **Cheats...** (the window inside the game), **Save editor...** and **Treasure maps...**. Under the hood the window sends the cheats through a mailbox in the game, so they also work in a session with friends. Code mods work because the game is built once with a wrapper around every function a code mod touches; while a mod is on, that function runs in the game's ARM interpreter with the mod's instruction in it (`mods\system\src\livepatch.c`).
+The game's menu bar (Game, Graphics, Screen, View, Wireless, Modern, Mods, **Cheats**, Help) gets one more entry with **Cheats...** (the window inside the game), **Save editor...** and **Treasure maps...**. Under the hood the window sends the cheats through a mailbox in the game, so they also work in a session with friends. Code mods work because the game is built once with a wrapper around every function a code mod touches; while a mod is on, that function runs in the game's ARM interpreter with the mod's instruction in it (`mods\system\src\runtime\livepatch.c`).
 
 ### Why it survives updates of the game
 
@@ -144,7 +144,7 @@ In a session every PC runs every player's DS, and they must all compute exactly 
 
 Notes:
 
-- **Built-in mods** (faster text, experience x2...) change how the game computes. Every player needs *exactly the same ones*, or the session goes OUT OF SYNC. Simplest: switch them off before playing with friends. The menu shows a short name for what is built in ("built-in set 3F2A"): it must match for everyone.
+- **Built-in mods** (faster text, experience x2...) change how the game computes. Every player needs *exactly the same ones*, or the session goes OUT OF SYNC. Simplest: switch them off before playing with friends.
 - **Instant loading** only works alone; in a session the game keeps the cartridge's real timing by itself.
 - If one player's game doesn't have the mods in it, the first cheat puts the session out of sync (the title bar says so). Without cheats such a session plays normally.
 
@@ -152,11 +152,11 @@ Notes:
 
 ## Why the cheats can't break your game
 
-An Action Replay code is written for a real DS, where it may change anything at any moment. Here the game's program is compiled PC code. So before the menu shows a code, `mods\system\tools\catalog.py` runs it against a copy of **your own ROM's** program and sorts it:
+An Action Replay code is written for a real DS, where it may change anything at any moment. Here the game's program is compiled PC code. So before the cheat window shows a code, `mods\system\tools\catalog.py` runs it against a copy of **your own ROM's** program and sorts it:
 
 - **Live cheat:** it only changes data. The game carries it out itself at one fixed point of each frame. A code can only write the DS's main memory, and a code that would loop forever is cut off.
 - **Built-in mod:** it changes instructions. Every instruction was found in your ROM where the code says it is; exactly those words and nothing else are written into the build.
-- **Not available:** it can't work here or can't be checked (adds its own routine, jumps out of the program, writes into the program, mixes program and data, DS hardware, doesn't fit your ROM, anti-piracy and Wi-Fi codes). It is hidden in the menu and can't be switched on.
+- **Not available:** it can't work here or can't be checked (adds its own routine, jumps out of the program, writes into the program, mixes program and data, DS hardware, doesn't fit your ROM, anti-piracy and Wi-Fi codes). It is hidden in the cheat window and can't be switched on.
 
 What a program can't check is what a data cheat does to your *save* ("Max everything" codes can make a save odd): that is what `UNTESTED` warns about and what the save backups are for.
 
@@ -170,7 +170,7 @@ The cheat list comes from the community's R4 database (DeadSkullzJr's NDS(i) Che
 
 | Setting | Default | Meaning |
 |---|---|---|
-| `sync_cheats` | `yes` | Build the part that makes cheats work with friends (and the **Cheats** tab) into the game. `no`: leave it all out; cheats then only work alone. |
+| `sync_cheats` | `yes` | Build the part that makes cheats work with friends (and the **Cheats** tab) into the game. `no`: leave it all out (no Cheats tab). |
 
 ---
 
@@ -201,7 +201,7 @@ Your save (`game\dqix.sav`) is never touched.
 
 ## For development
 
-See [WORKFLOW.md](WORKFLOW.md) (fast loop, which test for which change, moving to another PC) and [NOTES.md](NOTES.md) (change notes). `mods\README.txt` is the user manual of the mods.
+See [docs/WORKFLOW.md](docs/WORKFLOW.md) (fast loop, which test for which change, moving to another PC) and [docs/NOTES.md](docs/NOTES.md) (change notes). `mods\README.txt` is the user manual of the mods.
 
 Layout:
 
@@ -209,7 +209,8 @@ Layout:
 Install mods.bat            one-click patcher (copies mods\, builds the Cheats tab in)
 mods\Play with mods.bat     the patcher: cheat list for your ROM, mods into the game, build, save editor helper
 mods\settings.txt           sync_cheats
-mods\system\src\            mod_cheatwin.c (the cheat window), EditorHost.cs (save editor helper), mod_cheats.c, ar_engine.h, mod_menu.c, ...
+mods\system\src\runtime\    mod_cheatwin.c (the cheat window), mod_cheats.c, ar_engine.h, mod_menu.c, livepatch.c, ... (built into the game)
+mods\system\src\editor\     EditorHost.cs (save editor helper)
 mods\system\tools\          catalog.py, apply_runtime_mod.py, apply_code_mods.py, build_stamp.py, dev.py
 mods\system\tests\          headless regression tests (run with dev.py test ...)
 mods\system\cheats\         the cheat lists (R4 database + hand-made, yours too)

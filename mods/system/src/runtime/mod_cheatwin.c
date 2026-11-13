@@ -547,7 +547,7 @@ static void maybe_restart(const Ent* e) {
 static int entry_changed(Row* r, int idx, int on) {
     Ent* e = &g_e[idx];
     if (!strcmp(e->kind, "code") && e->file[0]) {              /* a hand-written code file: its own switch, needs the build */
-        SetWindowTextW(g_note, L"This one is switched in its file (mods\\system\\code) and needs a rebuild.");
+        SetWindowTextW(g_note, L"This one is switched in its file (mods\\system\\cheats) and needs a rebuild.");
         return 0;
     }
     apply(idx, on);

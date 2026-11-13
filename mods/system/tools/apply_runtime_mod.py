@@ -178,7 +178,7 @@ def wrap_site(root, on, extra=""):
     for f in WRAP_FILES:
         dst = os.path.join(root, "runtime", f)
         if on:
-            src = read(os.path.join(root, "mods", "system", "src", f))
+            src = read(os.path.join(root, "mods", "system", "src", "runtime", f))
             if not os.path.isfile(dst) or read(dst) != src:
                 write(dst, src)
                 changed = True
@@ -311,7 +311,7 @@ def main():
         for f in files:          # the mods' own files go with their call in the game: without it they would be dead weight
             dst = os.path.join(root, "runtime", f)
             if state == "on":
-                src = read(os.path.join(root, "mods", "system", "src", f))
+                src = read(os.path.join(root, "mods", "system", "src", "runtime", f))
                 if not os.path.isfile(dst) or read(dst) != src:
                     write(dst, src)
                     changed = True

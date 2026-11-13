@@ -2,8 +2,8 @@
  * tables are read, and for each monster number given every roamer / companion of every zone must carry exactly that
  * monster, with the weights (upper bits) and every other byte of the two tables untouched.
  *   gcc -I <game>/runtime -o t.exe test_force_data.c   (run from anywhere)   t.exe <rom.nds> n [n ...]
- * (a `dev test launcher-data` runs it for all numbers of the catalog) */
-#include "../src/mod_data.c"
+ */
+#include "../src/runtime/mod_data.c"
 
 uint8_t* g_rom; size_t g_rom_size;
 char* rt_getenv(const char* n) { (void)n; return NULL; }   /* the runtime's getenv wrapper: no settings needed here */

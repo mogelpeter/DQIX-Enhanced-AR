@@ -161,14 +161,14 @@ def send(typ, cid, ops):
     struct.pack_into("<I", box, 8, w)
 
 
-for (fs, fd), e in zip(slots, entries):
+for (fs, _), e in zip(slots, entries):
     while u(28) < fs and p.poll() is None:
         time.sleep(0.005)
     send(1, None, e["ops"])
 while p.poll() is None and u(28) < frames - 5:
     time.sleep(0.2)
 p.wait(timeout=600); log.close()
-print("exit code", p.returncode, "| sent", len(entries), "carried out", u(24) if False else "-")
+print("exit code", p.returncode, "| sent", len(entries), "carried out", "-")
 
 ram0 = open(os.path.join(d, "ram%06d.bin" % (START - 5)), "rb").read()
 cur = bytearray(ram0)

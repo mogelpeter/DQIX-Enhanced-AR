@@ -1,5 +1,5 @@
 @echo off
-rem Developer helper for the mods (see WORKFLOW.md):  dev doctor | deploy | menu | shot | test fast | test full | scratch
+rem Developer helper for the mods (see docs\WORKFLOW.md in the repo):  dev doctor | deploy | editor | test fast | test full | scratch
 rem Works on any PC: uses the Python on the PATH, else the one of the MSYS2 build tools.
 setlocal
 set "PY="

@@ -17,7 +17,7 @@ class Nds:
     def __init__(self, path):
         self.rom = open(path, "rb").read()
         r = self.rom
-        fnt, fnt_sz, fat, fat_sz = struct.unpack_from("<4I", r, 0x40)
+        fnt, _, fat, fat_sz = struct.unpack_from("<4I", r, 0x40)
         self.fnt, self.fat = fnt, [struct.unpack_from("<2I", r, fat + i * 8) for i in range(fat_sz // 8)]
         self.files = {}
         self._dir(0xF000, "")
@@ -75,7 +75,7 @@ def rle(d, p, size):
 def huff(d, p, size, bits):
     tree = p + 1
     stream = p + (d[p] + 1) * 2
-    out = bytearray(); cur = 0xFF; word = 0; nbits = 0
+    out = bytearray(); word = 0; nbits = 0
     node = tree  # root
     nib_lo = None
     sp = stream
@@ -148,7 +148,6 @@ def gpc2(d):
                 etab = bios(d, 0x18 + skip, 12 * count); break
             except Exception:
                 pass
-    names = region(d, name_off).split(b"\0")
     out = {}
     nbytes = region(d, name_off)
     for i in range(count):
