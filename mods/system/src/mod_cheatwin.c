@@ -20,6 +20,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <ctype.h>
 
 int mod_cheats_post(const uint16_t* w, int n);       /* mod_cheats.c: words into the mailbox's ring; 0 = full or no mailbox */
 uint32_t mod_cheats_gen(void);                       /* goes up whenever the game forgot every cheat */
@@ -282,10 +283,13 @@ void mod_cheatwin_boot(void) {
 /* ---------------------------------------------------------------- the window
  * Left: the pages (owner-drawn list), the first one, "Enabled", lists everything that is on. Right: the page's rows in a scrolling panel. A row is a check box
  * (a cheat), a drop-down (a choice of which only one can be on: "Off" + the options). */
-enum { IDC_SIDE = 100, IDC_OFF, IDC_CLOSE, IDC_TITLE, IDC_COUNT, IDC_NOTE, IDC_ROW0 = 1000, WM_SHOW_CHEATS = WM_APP + 1 };
+enum { IDC_SIDE = 100, IDC_SEARCH, IDC_OFF, IDC_CLOSE, IDC_TITLE, IDC_COUNT, IDC_NOTE, IDC_ROW0 = 1000, WM_SHOW_CHEATS = WM_APP + 1 };
 enum { R_CHECK, R_ONCE, R_GROUP, R_KEY };
 typedef struct { int kind, idx, gi, y, h, nm, on, members[64]; HWND main, sub, right, combo, btn; } Row;
 
+static HWND g_search;
+static int g_search_page;
+static HBRUSH g_box;
 static HWND g_win, g_side, g_host, g_title, g_count, g_note, g_off, g_close;
 static HFONT g_font, g_small, g_bold, g_head, g_mono;
 static HBRUSH g_white, g_gray;
@@ -302,6 +306,9 @@ static Row* g_rows; static int g_nrows, g_scroll, g_total, g_on_page, g_cur_page
 #define COL_GRAY RGB(144, 146, 154)
 #define COL_ACCENT RGB(226, 178, 66)
 #define COL_OFF RGB(70, 72, 79)
+#define COL_BOX RGB(46, 48, 54)
+#define SEARCH_H 44
+#define IDT_SEARCH 100
 
 static wchar_t* wide(const char* s) {
     int n = MultiByteToWideChar(CP_UTF8, 0, s, -1, NULL, 0); wchar_t* w = (wchar_t*)malloc((size_t)(n + 1) * sizeof *w);
@@ -372,7 +379,7 @@ static void update_count(void) {
         if (r->kind == R_CHECK) { cheats++; on += ent_on(&g_e[r->idx]); }
         else if (r->kind == R_GROUP) { cheats++; for (int k = 0; k < r->nm; k++) if (ent_on(&g_e[r->members[k]])) { on++; break; } }
     }
-    char b[80]; if (g_cur_page == g_on_page) snprintf(b, sizeof b, on ? "%d switched on (all pages)" : "Nothing is switched on", on); else snprintf(b, sizeof b, "%d of %d on", on, cheats);
+    char b[80]; if (g_cur_page == g_search_page) snprintf(b, sizeof b, "%d found, %d on", cheats, on); else if (g_cur_page == g_on_page) snprintf(b, sizeof b, on ? "%d switched on (all pages)" : "Nothing is switched on", on); else snprintf(b, sizeof b, "%d of %d on", on, cheats);
     wchar_t* w = wide(b); SetWindowTextW(g_count, w); free(w);
 }
 
@@ -424,12 +431,36 @@ static void scroll_to(int pos) {
     g_scroll = pos; lay_rows();
 }
 
+/* the search box: its text, lower case, UTF-8 */
+static void search_text(char* out, size_t n) {
+    wchar_t w[200]; out[0] = 0;
+    int len = g_search ? GetWindowTextW(g_search, w, 200) : 0; if (len <= 0) return;
+    int k = WideCharToMultiByte(CP_UTF8, 0, w, len, out, (int)n - 1, NULL, NULL); if (k < 0) k = 0; out[k] = 0;
+    for (char* c = out; *c; c++) if ((unsigned char)*c < 128) *c = (char)tolower((unsigned char)*c);
+    char* a = out; while (*a == ' ') a++; if (a != out) memmove(out, a, strlen(a) + 1);
+    size_t l = strlen(out); while (l && out[l - 1] == ' ') out[--l] = 0;
+}
+
+/* every word of the search is somewhere in the cheat's name, option, note, page, keys or group title */
+static int match_words(const Ent* e, const char* q) {
+    const Grp* g = e->group[0] ? grp_of(e->group) : NULL;
+    char hay[3000]; snprintf(hay, sizeof hay, "%s %s %s %s %s %s %s", e->name, e->option, e->note, e->cat, e->also, e->keys, g ? g->title : "");
+    for (char* c = hay; *c; c++) if ((unsigned char)*c < 128) *c = (char)tolower((unsigned char)*c);
+    char w[200]; snprintf(w, sizeof w, "%s", q);
+    for (char* t = strtok(w, " "); t; t = strtok(NULL, " ")) if (!strstr(hay, t)) return 0;
+    return 1;
+}
+
 static void build_page(void) {
-    int sel = (int)SendMessageW(g_side, LB_GETCURSEL, 0, 0); if (sel < 0) return;
-    int p = (int)SendMessageW(g_side, LB_GETITEMDATA, (WPARAM)sel, 0);
+    char q[200]; search_text(q, sizeof q);
+    int sel = (int)SendMessageW(g_side, LB_GETCURSEL, 0, 0); if (sel < 0 && !q[0]) return;
+    int p = q[0] ? g_search_page : (int)SendMessageW(g_side, LB_GETITEMDATA, (WPARAM)sel, 0);
+    int special = p == g_on_page || p == g_search_page;
+    ShowWindow(g_host, SW_HIDE);                                  /* built out of sight, shown in one go: no controls flying in from the corner */
     clear_rows(); g_scroll = 0; g_cur_page = p;
     SetWindowTextW(g_note, L"");
-    wchar_t* tt = wide(p == g_on_page ? "Enabled" : g_pg[p]); SetWindowTextW(g_title, tt); free(tt);
+    { char ts[260]; if (p == g_search_page) snprintf(ts, sizeof ts, "Search: %s", q); else snprintf(ts, sizeof ts, "%s", p == g_on_page ? "Enabled" : g_pg[p]);
+      wchar_t* tt = wide(ts); SetWindowTextW(g_title, tt); free(tt); }
     {
 
         char* seen = (char*)calloc((size_t)g_ng + 1, 1);
@@ -437,8 +468,9 @@ static void build_page(void) {
             Ent* e = &g_e[i];
             if (!strcmp(e->kind, "blocked")) continue;
             if (p == g_on_page) { if (!ent_on(e)) continue; }          /* the Enabled page: everything that is on, from every page */
+            else if (p == g_search_page) { if (!match_words(e, q)) continue; }
             else if (strcmp(e->cat, g_pg[p]) && strcmp(e->also, g_pg[p])) continue;
-            if (e->group[0] && p != g_on_page) {
+            if (e->group[0]) {
                 int gi = -1; for (int k = 0; k < g_ng; k++) if (!strcmp(g_g[k].id, e->group)) gi = k;
                 if (gi >= 0) {
                     if (seen[gi]) continue;                      /* the whole choice is one row with a drop-down */
@@ -446,7 +478,7 @@ static void build_page(void) {
                     Row* r = add_row(R_GROUP, -1, gi); int id = IDC_ROW0 + g_nrows - 1;
                     for (int k = 0; k < g_ne && r->nm < 64; k++) {
                         Ent* m = &g_e[k];
-                        if (!strcmp(m->group, e->group) && strcmp(m->kind, "blocked") && (!strcmp(m->cat, g_pg[p]) || !strcmp(m->also, g_pg[p]))) r->members[r->nm++] = k;
+                        if (!strcmp(m->group, e->group) && strcmp(m->kind, "blocked") && (special || !strcmp(m->cat, g_pg[p]) || !strcmp(m->also, g_pg[p]))) r->members[r->nm++] = k;
                     }
                     r->main = mk(L"STATIC", g_g[gi].title, SS_NOPREFIX | SS_ENDELLIPSIS, g_bold, id);
                     r->sub = mk(L"STATIC", "Choose one. Only one of these can be on.", SS_NOPREFIX, g_small, id); SetWindowLongPtrW(r->sub, GWLP_USERDATA, 1);
@@ -480,6 +512,8 @@ static void build_page(void) {
     }
     update_count();
     lay_rows();
+    ShowWindow(g_host, SW_SHOW);
+    RedrawWindow(g_host, NULL, NULL, RDW_INVALIDATE | RDW_ERASE | RDW_ALLCHILDREN | RDW_UPDATENOW);
 }
 
 /* a switch was changed (click, or the test): state + game. Returns 0 when the change was refused (the control goes back). */
@@ -538,7 +572,8 @@ static void group_changed(Row* r, int sel) {
 }
 
 static void layout(int cw, int ch) {
-    MoveWindow(g_side, 0, 0, SIDE_W, ch, TRUE);
+    MoveWindow(g_side, 0, SEARCH_H, SIDE_W, ch - SEARCH_H, TRUE);
+    MoveWindow(g_search, 20, 14, SIDE_W - 40, 18, TRUE);
     MoveWindow(g_title, SIDE_W + PAD_X, 12, cw - SIDE_W - 2 * PAD_X, 28, TRUE);
     MoveWindow(g_count, SIDE_W + PAD_X, 41, cw - SIDE_W - 2 * PAD_X, 18, TRUE);
     MoveWindow(g_host, SIDE_W, 66, cw - SIDE_W, ch - 66 - 50, TRUE);
@@ -649,7 +684,14 @@ static void draw_side(DRAWITEMSTRUCT* d) {
 
 static LRESULT CALLBACK wndproc(HWND h, UINT m, WPARAM wp, LPARAM lp) {
     switch (m) {
-    case WM_TIMER: KillTimer(h, wp); test_step((int)wp); return 0;
+    case WM_TIMER: KillTimer(h, wp); if (wp == IDT_SEARCH) build_page(); else test_step((int)wp); return 0;
+    case WM_PAINT: {
+        PAINTSTRUCT ps; HDC dc = BeginPaint(h, &ps); RECT t = { 0, 0, SIDE_W, SEARCH_H }; FillRect(dc, &t, g_gray);
+        HBRUSH bb = CreateSolidBrush(COL_BOX); HPEN bp = CreatePen(PS_SOLID, 1, COL_LINE); HGDIOBJ o1 = SelectObject(dc, bb), o2 = SelectObject(dc, bp);
+        RoundRect(dc, 10, 8, SIDE_W - 10, 37, 8, 8); SelectObject(dc, o1); SelectObject(dc, o2); DeleteObject(bb); DeleteObject(bp);
+        EndPaint(h, &ps); return 0;
+    }
+    case WM_CTLCOLOREDIT: { HDC dc = (HDC)wp; SetBkColor(dc, COL_BOX); SetTextColor(dc, COL_TEXT); return (LRESULT)g_box; }
     case WM_SIZE: if (g_side) layout(LOWORD(lp), HIWORD(lp)); return 0;
     case WM_GETMINMAXINFO: { MINMAXINFO* mm = (MINMAXINFO*)lp; mm->ptMinTrackSize.x = 560; mm->ptMinTrackSize.y = 380; return 0; }
     case WM_SHOW_CHEATS: EnterCriticalSection(&g_cs); load_state(); LeaveCriticalSection(&g_cs); build_page(); ShowWindow(h, IsIconic(h) ? SW_RESTORE : SW_SHOWNORMAL); SetForegroundWindow(h); return 0;
@@ -664,7 +706,8 @@ static LRESULT CALLBACK wndproc(HWND h, UINT m, WPARAM wp, LPARAM lp) {
     case WM_DRAWITEM: if (wp == IDC_SIDE) { draw_side((DRAWITEMSTRUCT*)lp); return TRUE; } break;
     case WM_COMMAND:
         switch (LOWORD(wp)) {
-        case IDC_SIDE: if (HIWORD(wp) == LBN_SELCHANGE) build_page(); return 0;
+        case IDC_SIDE: if (HIWORD(wp) == LBN_SELCHANGE) { if (GetWindowTextLengthW(g_search)) { SetWindowTextW(g_search, L""); KillTimer(h, IDT_SEARCH); } build_page(); } return 0;
+        case IDC_SEARCH: if (HIWORD(wp) == EN_CHANGE) SetTimer(h, IDT_SEARCH, 180, NULL); return 0;
         case IDC_CLOSE: case IDCANCEL: ShowWindow(h, SW_HIDE); return 0;
         case IDC_OFF:
             if (MessageBoxW(h, L"Switch every cheat off?", L"Cheats", MB_YESNO | MB_ICONQUESTION) == IDYES) { all_off(); build_page(); SetWindowTextW(g_note, L"Everything is off."); }
@@ -761,7 +804,7 @@ static DWORD WINAPI ui_thread(LPVOID unused) {
     }
     g_font = mkfont(L"Segoe UI", 13, FW_NORMAL); g_small = mkfont(L"Segoe UI", 11, FW_NORMAL); g_bold = mkfont(L"Segoe UI", 13, FW_SEMIBOLD);
     g_head = mkfont(L"Segoe UI", 20, FW_SEMIBOLD); g_mono = mkfont(L"Consolas", 12, FW_SEMIBOLD);
-    g_white = CreateSolidBrush(COL_BG); g_gray = CreateSolidBrush(COL_SIDE);
+    g_box = CreateSolidBrush(COL_BOX); g_white = CreateSolidBrush(COL_BG); g_gray = CreateSolidBrush(COL_SIDE);
     HINSTANCE hi = GetModuleHandleW(NULL);
     WNDCLASSW wc; memset(&wc, 0, sizeof wc);
     wc.lpfnWndProc = wndproc; wc.hInstance = hi; wc.lpszClassName = L"DqixCheatWindow";
@@ -770,6 +813,8 @@ static DWORD WINAPI ui_thread(LPVOID unused) {
     wc.lpfnWndProc = hostproc; wc.lpszClassName = L"DqixCheatPage"; RegisterClassW(&wc);
     g_win = CreateWindowExW(0, L"DqixCheatWindow", L"Cheats", WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN, CW_USEDEFAULT, CW_USEDEFAULT, 800, 560, NULL, NULL, hi, NULL);
     g_side = CreateWindowExW(0, L"LISTBOX", L"", WS_CHILD | WS_VISIBLE | WS_TABSTOP | LBS_NOTIFY | LBS_OWNERDRAWFIXED | LBS_HASSTRINGS | LBS_NOINTEGRALHEIGHT, 0, 0, 10, 10, g_win, (HMENU)(UINT_PTR)IDC_SIDE, hi, NULL);
+    g_search = CreateWindowExW(0, L"EDIT", L"", WS_CHILD | WS_VISIBLE | WS_TABSTOP | ES_AUTOHSCROLL, 0, 0, 10, 10, g_win, (HMENU)(UINT_PTR)IDC_SEARCH, hi, NULL);
+    SendMessageW(g_search, WM_SETFONT, (WPARAM)g_font, TRUE); SendMessageW(g_search, 0x1501 /*EM_SETCUEBANNER*/, TRUE, (LPARAM)L"Search cheats"); SendMessageW(g_search, EM_LIMITTEXT, 100, 0);
     g_title = CreateWindowExW(0, L"STATIC", L"", WS_CHILD | WS_VISIBLE | SS_NOPREFIX | SS_ENDELLIPSIS, 0, 0, 10, 10, g_win, (HMENU)(UINT_PTR)IDC_TITLE, hi, NULL);
     g_count = CreateWindowExW(0, L"STATIC", L"", WS_CHILD | WS_VISIBLE | SS_NOPREFIX, 0, 0, 10, 10, g_win, (HMENU)(UINT_PTR)IDC_COUNT, hi, NULL);
     g_host = CreateWindowExW(WS_EX_CONTROLPARENT, L"DqixCheatPage", L"", WS_CHILD | WS_VISIBLE | WS_VSCROLL | WS_CLIPCHILDREN, 0, 0, 10, 10, g_win, NULL, hi, NULL);
@@ -782,7 +827,7 @@ static DWORD WINAPI ui_thread(LPVOID unused) {
     g_tip = CreateWindowExW(WS_EX_TOPMOST, L"tooltips_class32", NULL, WS_POPUP | 0x01 /*TTS_ALWAYSTIP*/ | 0x02 /*TTS_NOPREFIX*/, 0, 0, 0, 0, g_win, NULL, hi, NULL);
     if (g_tip) { SendMessageW(g_tip, TTM_SETMAXTIPWIDTH, 0, 400); SendMessageW(g_tip, TTM_SETDELAYTIME, TTDT_INITIAL, 450); SendMessageW(g_tip, TTM_SETDELAYTIME, TTDT_AUTOPOP, 30000); SendMessageW(g_tip, WM_SETFONT, (WPARAM)g_font, TRUE); }
     dark_title(g_win); dark(g_off, L"DarkMode_Explorer"); dark(g_close, L"DarkMode_Explorer"); dark(g_host, L"DarkMode_Explorer");
-    g_on_page = g_npg;                                            /* the Enabled entry: a page number past the real ones */
+    g_on_page = g_npg; g_search_page = g_npg + 1;                                            /* the Enabled entry: a page number past the real ones */
     { int at0 = (int)SendMessageW(g_side, LB_ADDSTRING, 0, (LPARAM)L"Enabled"); SendMessageW(g_side, LB_SETITEMDATA, (WPARAM)at0, g_on_page); }
     for (int i = 0; i < g_npg; i++) {
         int has = 0; for (int k = 0; k < g_ne && !has; k++) has = strcmp(g_e[k].kind, "blocked") && (!strcmp(g_e[k].cat, g_pg[i]) || !strcmp(g_e[k].also, g_pg[i]));
