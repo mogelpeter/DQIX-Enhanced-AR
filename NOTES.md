@@ -2,6 +2,10 @@
 
 Newest first. One block per working session: what changed, why, how it was checked.
 
+## 2026-11-13 (25)  Labels: alchemy Always + movement speed confirmed; launcher run settings
+- `verified.txt`: the alchemy `Always ...` mods (Success R/L/v2, Fail, Alchemiracle) and the Movement Speed choices (x0.5, x1, x1.5, x2) count as tried out (confirmed by the user in the game).
+- `test_launchers.py`: `TEST_FRAMES` (default 6000; the 288 crash run uses 3600 and its own copy of the exe, 6000 frames took ~2.5 min per monster). In progress, not committed yet: live code mods (`livepatch.c`, generator in `apply_runtime_mod.py`) and the in-emulator Cheats window.
+
 ## 2026-11-13 (24)  Monster launchers: host data test + in-game sample (in progress)
 - `tests/test_force_data.c` compiles `mod_data.c` as it is and applies every launcher (monster 1..288) to the ROM's own encounter tables: all 288 PASS (2102 roamer slots become that monster, weights and all other bytes untouched). Build: MSYS2 gcc, `-I <game>/runtime`, needs an `rt_getenv` stub.
 - `tests/test_launchers.py` runs the game per monster (`TEST_SAVE` with the hero in a dungeon, `TEST_EXE` without Monsters don't chase) and sees a battle by the orange bottom screen. Weak monsters do not chase a level-26 hero, so most runs end NOBATTLE; metal slime reaches a fight. A spread sample of 24 is running; launcher labels stay UNTESTED until it finishes.

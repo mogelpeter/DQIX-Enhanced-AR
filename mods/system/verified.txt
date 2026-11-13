@@ -48,3 +48,14 @@ db:edca12f9  # Hold [L/R] Walkthrough A Door/Stairs to Go Observatory/Storn
 db:f50a60a9  # Ranger
 db:fde52bd8  # Max Game Time
 db:ff3b1e01  # Unlock All Menus
+
+# Confirmed working by the user in the game (2026-11-13): the alchemy "Always ..." mods and the Movement Speed Multiplier choices.
+db:868c65d1  # Always Alchemiracle
+db:6323c187:0  # Always Success (R)
+db:6323c187:1  # Always Success (L)
+db:093c80ba  # Always Success v2
+db:16092dc9  # Always Fail
+db:598b370f  # Movement speed x0.5
+db:7216dff5  # Movement speed x1
+db:d2e26d65  # Movement speed x1.5
+db:71f3a7a2  # Movement speed x2

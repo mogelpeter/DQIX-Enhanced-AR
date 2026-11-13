@@ -15,7 +15,7 @@ root, work = os.path.abspath(sys.argv[1]), os.path.abspath(sys.argv[2])
 first = int(sys.argv[3]) if len(sys.argv) > 3 and sys.argv[3] else 0
 count = int(sys.argv[4]) if len(sys.argv) > 4 and sys.argv[4] else 999
 jobs = int(sys.argv[5]) if len(sys.argv) > 5 and sys.argv[5] else 4
-FRAMES = 6000
+FRAMES = int(os.environ.get("TEST_FRAMES", "6000"))
 exe = os.environ.get("TEST_EXE", os.path.join(root, "game", "dqix.exe"))
 save = os.environ.get("TEST_SAVE", os.path.join(root, "game", "dqix.sav"))
 os.makedirs(os.path.join(work, "shots"), exist_ok=True)
@@ -58,7 +58,7 @@ def run(item):
     txt = open(os.path.join(d, "run.log"), "rb").read().decode("utf-8", "replace")
     bad = [l for l in txt.splitlines() if any(k in l.lower() for k in ("interpreting code", "fatal", "abort", "unhandled", "crash", "out of sync"))]
     best, shot = 0.0, None
-    for f in range(4000, FRAMES + 1, 500):
+    for f in range(max(500, FRAMES - 2000), FRAMES + 1, 500):
         fp = os.path.join(d, "f%06d.ppm" % f)
         if os.path.exists(fp):
             o = orange(fp)
