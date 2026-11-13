@@ -86,13 +86,13 @@ static int mc_read(void* u, uint32_t a, void* out, size_t n) {
     if (a + n > MAIN_RAM_SIZE) return 0;
     memcpy(out, &g_main_ram[a], n); return 1;
 }
-/* A switch, not memory: a code that writes this address (mods/cheats/lower-level-more-exp.txt)
+/* A switch, not memory: a code that writes this address (mods/system/cheats/lower-level-more-exp.txt)
  * turns "lower-level characters get more experience" on for this frame (lowexp.c reads it).
  * It is cleared at the start of every frame and set again by the code while that is on, so it
  * is the same on every PC of a session. */
 uint8_t g_mod_lowexp;
 #define MC_SWITCH_LOWEXP 0x02F5A5A0u
-/* More switches of the same kind (mods/cheats/vanish.txt, metal-slimes-only.txt):
+/* More switches of the same kind (mods/system/cheats/vanish.txt, metal-slimes-only.txt):
  *   vanish  armed by the cheat; the buttons L+R+SELECT together flip it on and off. While it is on, vanish.c
  *           makes the field's "did a monster touch you" check find nothing, so you walk through monsters. */
 uint8_t g_mod_vanish;

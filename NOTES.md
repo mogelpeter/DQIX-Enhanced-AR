@@ -2,6 +2,13 @@
 
 Newest first. One block per working session: what changed, why, how it was checked.
 
+## 2026-11-13 (16)  One cheats folder, Play = Rebuild, boxed tags, editor layout in other languages
+- **One folder**: `mods/cheats`, `mods/system/code` and `mods/system/database` are all `mods/system/cheats` now. `apply_code_mods.hand_files()` tells live cheats from code mods by their `patch` lines; the R4 lists are `r4-<game>.txt` (skipped as hand-made files). Ids stay (`file:cheats/..`, `file:code/..`), so saved switches and `built.txt` keep working. `dev.py deploy` and `Install mods.bat` move an old layout over (own files kept) and delete the old folders. `mods\` shows only Play with mods.bat, README.txt, settings.txt, system\.
+- **Play is the rebuild button**: the banner and "Rebuild now" are gone. While the switched-on built-in cheats differ from what the game has (`Pending()`: set compare, so switching a cheat back off cancels the rebuild), Play reads "Rebuild and play" (hover: how many to put in / take out) and does both (`RunApply(true)`).
+- **Cards**: ONE PLAYER / ALL PLAYERS / OWN PC / BUILT IN / NEXT START / TRIED OUT / UNTESTED / key chips are small outlined boxes (ONE PLAYER teal, ALL PLAYERS purple, OWN PC grey). Multiplayer lines in every hover are boxed in the same colour. The yellow "works only after a rebuild" lines are removed (card and hover).
+- **Save editor in other languages**: lookup ignores a missing/extra trailing colon (`weapons` and `weapons:`, `equipment:` from the ROM glossary); country codes (ARM, KAM...) are no longer "translated" (ARM became "Sch"); new texts in `editor.tsv` (unallocated skill points, unlock all dlc, canvased guests, everyday/important items in full); the Items tab is the game's own "Gepäck". `FixCss` (injected only when translated): card headings wrap instead of overlapping, misc/dlc cards grow, record tabs wrap, profile labels get room.
+- Checked: `dev test static menu-smoke` PASS; menu screenshots (Battle page, "Rebuild and play" with a pending built-in cheat); the editor rendered in headless Chrome through a copy of the host's injection (German party/items/inn/records/dlc/misc). Not run: the live game tests (nothing in the game's code changed). The real host swaps the item names; that harness does not, so they stay English there.
+
 ## 2026-11-13 (15)  Claude Code project hooks
 - `.claude/hooks/dqix_hook.py` + `.claude/settings.json`: session status, deny edits in the game folder that have a repo twin, deny killing dqix.exe, automatic `dev test static` after edits under `mods/`, NOTES.md reminder at turn end. Checked by feeding each event a sample payload.
 

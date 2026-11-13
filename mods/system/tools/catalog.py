@@ -5,9 +5,9 @@
   catalog.py [project folder] --report   also says why each code ended up where it did
 
 Where the codes come from:
-  mods/system/database/<game code>.txt   the whole R4 cheat list for your ROM (r4_to_text.py)
-  mods/cheats/*.txt               live cheats made by hand (tried out)
-  mods/system/code/*.txt                 code mods made by hand (tried out)
+  mods/system/cheats/r4-<game code>.txt  the whole R4 cheat list for your ROM (r4_to_text.py)
+  mods/system/cheats/*.txt        live cheats and code mods made by hand (tried out); a file
+                                  with "patch" lines is a code mod, any other a live cheat
 
 An Action Replay code is written for a DS, where it can change anything at any
 moment. Here the game's program is compiled PC code, so every code is worked
@@ -652,10 +652,9 @@ def build(root):
     # ---- the hand-made files first: a database code that does the same becomes that file's
     by_sig = {}
     files = []
-    for f in sorted(glob.glob(os.path.join(root, "mods", "cheats", "*.txt"))):
+    live_files, code_files = acm.hand_files(root)
+    for f in live_files:
         base = os.path.basename(f)
-        if base.lower() == "on.txt" or base.startswith("_"):
-            continue
         name, about, mode, cat, ops = read_cheat_file(f)
         if not ops:
             continue
@@ -667,14 +666,12 @@ def build(root):
             e.update(kind="blocked", status="blocked", reason=REASONS["long"])
         files.append(e)
         by_sig.setdefault(("live", tuple(ops)), e)
-    for f in sorted(glob.glob(os.path.join(root, "mods", "system", "code", "*.txt"))):
+    for f in code_files:
         base = os.path.basename(f)
-        if base.startswith("_"):
-            continue
         name, on, checks, patches, errors = acm.parse_mod(f)
         e = dict(id="file:code/" + base, name=name, note=file_header(f, "about"), cat=file_header(f, "category"),
                  group="", kind="code", status=file_header(f, "status") or "tested", mode="", ops=[], keys=[], reason="",
-                 file="system/code/" + base, on=on, patch=[], env="",
+                 file="system/cheats/" + base, on=on, patch=[], env="",
                  also=file_header(f, "also"), replaces=file_header(f, "replaces"), help=file_header(f, "help"))
         fit = None if errors else fit_code_file(rom, checks, patches)
         if errors:
@@ -689,7 +686,7 @@ def build(root):
 
     # ---- the database for this ROM
     info = dict(game=rom.game, region=rom.region, title="", database="", exact="0")
-    db = os.path.join(root, "mods", "system", "database", rom.game + ".txt")
+    db = os.path.join(root, "mods", "system", "cheats", "r4-" + rom.game + ".txt")
     folders = []
     if os.path.isfile(db):
         game, crc, title, folders = read_database(db)
@@ -907,7 +904,7 @@ def main():
     write(root, info, entries, groups)
     n = {k: sum(1 for e in entries if e["kind"] == k) for k in ("live", "code", "blocked", "launch")}
     print(f"   Cheat list: {n['live']} live, {n['code']} built into the game, {n['blocked']} that can't work here"
-          + ("" if info["database"] else f"  (no mods\\system\\database\\{info['game']}.txt: only your own files)"))
+          + ("" if info["database"] else f"  (no mods\\system\\cheats\\r4-{info['game']}.txt: only your own files)"))
     # the game's own item names in all five languages (for the save editor), read from the ROM
     try:
         sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))

@@ -718,9 +718,12 @@ loadSave();})();</script>";
         /* ---- the editor's own texts in the chosen language: ROM glossary (monsters, vocations, accolades, menu words...) + mods\system\lang\editor.tsv ---- */
         const string TranslatorJs = @"<script>(function(){var D=window.__DQIX_TR;if(!D)return;
 function nk(s){var a=s.toLowerCase().replace(/[^a-z0-9]/g,'');return a?a+(/:\s*$/.test(s)?':':''):'';}
-function one(s){var k=nk(s);if(!k)return null;if(Object.prototype.hasOwnProperty.call(D,k))return D[k];
+function has(k){return Object.prototype.hasOwnProperty.call(D,k);}
+function one(s){var k=nk(s);if(!k)return null;if(has(k))return D[k];
+if(k.slice(-1)===':'&&has(k.slice(0,-1)))return D[k.slice(0,-1)]+':';
+if(k.slice(-1)!==':'&&has(k+':'))return D[k+':'].replace(/\s*:\s*$/,'');
 var m=s.match(/^(.*?)(\s+L?\d+)$/);if(m){k=nk(m[1]);if(k&&Object.prototype.hasOwnProperty.call(D,k))return D[k]+m[2];}return null;}
-function tr(s){var m=s.match(/^(\s*)([\s\S]*?)(\s*)$/),t=m[2];if(!t||!/[A-Za-z]{2}/.test(t))return s;var r=one(t);
+function tr(s){var m=s.match(/^(\s*)([\s\S]*?)(\s*)$/),t=m[2];if(!t||!/[A-Za-z]{2}/.test(t)||/^[^A-Za-z]*[A-Z]{2,4}$/.test(t))return s;var r=one(t);
 if(r===null&&/ - |\(/.test(t)){var p=t.split(/( - |\(|\)| \/ )/),ch=false;for(var i=0;i<p.length;i+=2){if(p[i]){var q=one(p[i]);if(q!==null){p[i]=q;ch=true;}}}if(ch)r=p.join('');}
 return r===null?s:m[1]+r+m[3];}
 var AT=['placeholder','title','alt','aria-label'];
@@ -731,6 +734,21 @@ for(var c=n.firstChild;c;c=c.nextSibling)walk(c);}
 new MutationObserver(function(ms){for(var i=0;i<ms.length;i++){var m=ms[i];if(m.type==='characterData')walk(m.target);else for(var j=0;j<m.addedNodes.length;j++)walk(m.addedNodes[j]);}})
 .observe(document.documentElement,{childList:true,subtree:true,characterData:true});
 walk(document.documentElement);})();</script>";
+
+        /* the editor's boxes and tabs are sized for English words: in another language let headings wrap, cards grow,
+         * tab rows wrap instead of running off the edge, labels get the room they need */
+        const string FixCss = @"<style>
+.card>.card-label{height:auto;min-height:36px;overflow-wrap:anywhere}
+.misc-root,.dlc-root{grid-template-rows:none;grid-auto-rows:minmax(204px,auto)}
+.misc-root>div,.dlc-root>div{aspect-ratio:auto;min-height:204px}
+.records-root .records .tab-header{height:auto;flex-wrap:wrap;justify-content:center;gap:0 1.4em}
+.records-root .records .tab-header>*{white-space:nowrap}
+nav ul li,nav ul li a{white-space:nowrap}
+.misc-root .save-location label span{width:auto;min-width:10%}
+.misc-root .profile-card>div>label>span,.profile-card>div>label>span{width:auto;min-width:25%;padding-right:.4em}
+.misc-root .profile-card>div>label>input,.misc-root .profile-card>div>label>select,.profile-card>div>label>input,.profile-card>div>label>select{width:auto;flex:1}
+button{white-space:normal}
+</style>";
 
         readonly Dictionary<string, string> trJson = new Dictionary<string, string>();
 
@@ -793,7 +811,7 @@ walk(document.documentElement);})();</script>";
                     trJson[lang] = json;
                 }
             }
-            return "<script>window.__DQIX_TR=" + json + ";</script>" + TranslatorJs;
+            return "<script>window.__DQIX_TR=" + json + ";</script>" + FixCss + TranslatorJs;
         }
 
         void Handle(HttpListenerContext c)
@@ -1056,12 +1074,6 @@ walk(document.documentElement);})();</script>";
     </Border>
     <Grid Grid.Column='1'>
       <Grid.RowDefinitions><RowDefinition Height='Auto'/><RowDefinition Height='*'/></Grid.RowDefinitions>
-      <Border x:Name='Banner' Grid.Row='0' Margin='14,10,14,0' Padding='10,7' CornerRadius='4' Background='#2B1618' BorderBrush='#C8413B' BorderThickness='1' Visibility='Collapsed'>
-        <DockPanel>
-          <Button x:Name='ApplyBtn' DockPanel.Dock='Right' Style='{StaticResource Btn}' Content='Rebuild now' Margin='12,0,0,0' VerticalAlignment='Center'/>
-          <TextBlock x:Name='BannerText' TextWrapping='Wrap' VerticalAlignment='Center' FontSize='11'/>
-        </DockPanel>
-      </Border>
       <ScrollViewer x:Name='Scroll' Grid.Row='1' VerticalScrollBarVisibility='Auto' Padding='14,8,8,8' Focusable='False'>
         <StackPanel x:Name='Rows'/>
       </ScrollViewer>
@@ -1113,21 +1125,20 @@ walk(document.documentElement);})();</script>";
 
         ComboBox LangBox;
         Run TitleSub;
-        TextBlock Sub, PillText, Status, BannerText, SearchHint, OverTitle, OverSub, OverLog;
+        TextBlock Sub, PillText, Status, SearchHint, OverTitle, OverSub, OverLog;
         System.Windows.Shapes.Ellipse Dot;
         TextBox Search;
         ListBox Nav;
-        Border Banner;
         StackPanel Rows;
         ScrollViewer Scroll, OverScroll;
-        Button ApplyBtn, OffBtn, ReloadBtn, PlayBtn, OverClose;
+        Button OffBtn, ReloadBtn, PlayBtn, OverClose;
         Grid Overlay;
         ProgressBar OverBar;
         FrameworkElement ui;
 
         static Brush B(string hex) { Brush b = (Brush)new BrushConverter().ConvertFromString(hex); b.Freeze(); return b; }
         static readonly Brush Dim = B("#8C8C92"), Gold = B("#C8413B"), Text = B("#D2D2D6"), Card = B("#18181B"), CardLine = B("#26262B"),
-            Green = B("#5CCB7B"), Amber = B("#FFB000"), Blue = B("#5AB4E6"), Grey = B("#6E6E75"), Red = B("#FF5050");
+            Green = B("#5CCB7B"), Amber = B("#FFB000"), Blue = B("#5AB4E6"), Teal = B("#4FD1C5"), Purple = B("#B48EF0"), Grey = B("#6E6E75"), Red = B("#FF5050");
 
         public MainWindow(string rootDir)
         {
@@ -1153,11 +1164,11 @@ walk(document.documentElement);})();</script>";
             try { Mono = new FontFamily(fontName); } catch (Exception) { }
             ui = (FrameworkElement)XamlReader.Parse(Xaml.Replace("@FONT@", fontName));
             Content = ui;
-            Sub = F<TextBlock>("Sub"); PillText = F<TextBlock>("PillText"); Status = F<TextBlock>("Status"); BannerText = F<TextBlock>("BannerText");
+            Sub = F<TextBlock>("Sub"); PillText = F<TextBlock>("PillText"); Status = F<TextBlock>("Status");
             SearchHint = F<TextBlock>("SearchHint"); OverTitle = F<TextBlock>("OverTitle"); OverSub = F<TextBlock>("OverSub"); OverLog = F<TextBlock>("OverLog");
-            Dot = F<System.Windows.Shapes.Ellipse>("Dot"); Search = F<TextBox>("Search"); Nav = F<ListBox>("Nav"); Banner = F<Border>("Banner");
+            Dot = F<System.Windows.Shapes.Ellipse>("Dot"); Search = F<TextBox>("Search"); Nav = F<ListBox>("Nav");
             Rows = F<StackPanel>("Rows"); Scroll = F<ScrollViewer>("Scroll"); OverScroll = F<ScrollViewer>("OverScroll");
-            ApplyBtn = F<Button>("ApplyBtn"); OffBtn = F<Button>("OffBtn"); ReloadBtn = F<Button>("ReloadBtn"); PlayBtn = F<Button>("PlayBtn"); OverClose = F<Button>("OverClose");
+            OffBtn = F<Button>("OffBtn"); ReloadBtn = F<Button>("ReloadBtn"); PlayBtn = F<Button>("PlayBtn"); OverClose = F<Button>("OverClose");
             Overlay = F<Grid>("Overlay"); OverBar = F<ProgressBar>("OverBar");
             LangBox = F<ComboBox>("LangBox"); TitleSub = ui.FindName("TitleSub") as Run;
             string langFile = Path.Combine(mods, "system", "menu-lang.txt");
@@ -1179,7 +1190,6 @@ walk(document.documentElement);})();</script>";
             Search.TextChanged += delegate { SearchHint.Visibility = Search.Text.Length > 0 ? Visibility.Collapsed : Visibility.Visible; ShowPage(); };
             Nav.SelectionChanged += delegate { if (!building) { if (Search.Text.Length > 0 && Nav.SelectedIndex >= 0) { building = true; Search.Text = ""; building = false; SearchHint.Visibility = Visibility.Visible; } ShowPage(); } };
             PlayBtn.Click += delegate { Play(); };
-            ApplyBtn.Click += delegate { RunApply(false); };
             ReloadBtn.Click += delegate { RunCatalog(); };
             OffBtn.Click += delegate { EverythingOff(); };
             OverClose.Click += delegate { Overlay.Visibility = Visibility.Collapsed; };
@@ -1198,8 +1208,8 @@ walk(document.documentElement);})();</script>";
             Title = "Dragon Quest IX - " + Tr.T("cheat menu");
             if (TitleSub != null) TitleSub.Text = "  /  " + Tr.T("cheats");
             SearchHint.Text = Tr.T("Search all cheats");
-            OffBtn.Content = Tr.T("Everything off"); ReloadBtn.Content = Tr.T("Reload list"); ApplyBtn.Content = Tr.T("Rebuild now"); OverClose.Content = Tr.T("Close");
-            PlayBtn.Content = Tr.T(link.Running ? "Game is running" : "Play");
+            OffBtn.Content = Tr.T("Everything off"); ReloadBtn.Content = Tr.T("Reload list"); OverClose.Content = Tr.T("Close");
+            UpdatePlay();
             lastPill = "";
         }
 
@@ -1321,7 +1331,7 @@ walk(document.documentElement);})();</script>";
             if (Nav.SelectedIndex < 0 && Nav.Items.Count > 1) Nav.SelectedIndex = 1;
             building = false;
             ShowPage();
-            UpdateBanner();
+            UpdatePlay();
             link.ClearAll();
         }
 
@@ -1468,7 +1478,7 @@ walk(document.documentElement);})();</script>";
             if (!Store(e, on)) { ShowPage(); return; }
             if (e.Kind == "live") link.Set(e, on);
             SaveState();
-            UpdateBanner();
+            UpdatePlay();
             if (!redraw)
             {
                 if (e.Kind == "live") Say(Tr.T(e.Name) + ": " + Tr.T(on ? (link.Connected ? "on" : "on (starts with the game)") : "off"));
@@ -1489,23 +1499,27 @@ walk(document.documentElement);})();</script>";
             link.ClearAll();
             SaveState();
             ShowPage();
-            UpdateBanner();
+            UpdatePlay();
             Say(Tr.T("Everything is off."));
         }
 
         HashSet<string> WantedCode() { return new HashSet<string>(entries.Where(e => e.Kind == "code" && IsOn(e)).Select(e => e.Id)); }
         bool Pending() { return !builtKnown ? WantedCode().Count > 0 : !WantedCode().SetEquals(built); }
 
-        void UpdateBanner()
+        /* Play is also the rebuild button: while the switched-on built-in cheats differ from what the game
+         * has, it says "Rebuild and play" and does both (RunApply). Switching the cheats back makes the sets
+         * equal again, so it says "Play" again and nothing needs rebuilding. */
+        void UpdatePlay()
         {
-            if (!Pending()) { Banner.Visibility = Visibility.Collapsed; return; }
+            bool pend = Pending();
+            PlayBtn.Content = Tr.T(link.Running ? "Game is running" : (pend ? "Rebuild and play" : "Play"));
+            if (!pend) { PlayBtn.ToolTip = null; return; }
             HashSet<string> want = WantedCode();
             int add = want.Count(id => !built.Contains(id)), del = built.Count(id => !want.Contains(id));
-            BannerText.Inlines.Clear();
-            BannerText.Inlines.Add(new Run(Tr.T("The game has to be rebuilt")) { FontWeight = FontWeights.SemiBold, Foreground = Gold });
-            BannerText.Inlines.Add(new Run("  " + Tr.T("(a few minutes)") + "  —  " + (add > 0 ? Tr.F("{0} to put in", add) : "") + (add > 0 && del > 0 ? ", " : "") + (del > 0 ? Tr.F("{0} to take out", del) : "")
-                + ". " + Tr.T("Play does it by itself.") + (link.Running ? "  " + Tr.T("Save and close the game first.") : "")));
-            Banner.Visibility = Visibility.Visible;
+            PlayBtn.ToolTip = MakeTip("The game has to be rebuilt", new[] {
+                Tr.T("(a few minutes)") + "  -  " + (add > 0 ? Tr.F("{0} to put in", add) : "") + (add > 0 && del > 0 ? ", " : "") + (del > 0 ? Tr.F("{0} to take out", del) : ""),
+                Tr.T("Play does it by itself.") + (link.Running ? "  " + Tr.T("Save and close the game first.") : "") }, null);
+            ToolTipService.SetPlacement(PlayBtn, System.Windows.Controls.Primitives.PlacementMode.Top);
         }
 
         /* ---------------------------------------------------------------- drawing */
@@ -1638,10 +1652,19 @@ walk(document.documentElement);})();</script>";
         {
             Border b = new Border
             {
-                Margin = new Thickness(0, 0, 8, 0), VerticalAlignment = VerticalAlignment.Center, Background = Brushes.Transparent,
-                Child = new TextBlock { Text = text, Foreground = color, FontSize = 9.5, Opacity = 0.85 }
+                Margin = new Thickness(0, 0, 6, 0), VerticalAlignment = VerticalAlignment.Center, Background = Brushes.Transparent,
+                BorderBrush = color, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(2), Padding = new Thickness(4, 1, 4, 1),
+                Child = new TextBlock { Text = text, Foreground = color, FontSize = 9.5 }
             };
-            if (tip != null) { b.ToolTip = tip; ToolTipService.SetShowDuration(b, 30000); }
+            if (tip != null)
+            {
+                Brush mp = MpColor(tip);
+                StackPanel p = new StackPanel { MaxWidth = 400 };
+                if (mp != null) p.Children.Add(MpBox(tip, mp));
+                else p.Children.Add(new TextBlock { Text = Tr.T(tip), Foreground = Text, FontSize = 10.5, TextWrapping = TextWrapping.Wrap });
+                b.ToolTip = new ToolTip { Content = p, Background = B("#0E0E10"), BorderBrush = B("#3A3A40"), BorderThickness = new Thickness(1), Padding = new Thickness(9, 7, 9, 8), FontFamily = Mono, HasDropShadow = false };
+                ToolTipService.SetShowDuration(b, 30000);
+            }
             return b;
         }
 
@@ -1649,39 +1672,50 @@ walk(document.documentElement);})();</script>";
         {
             if (kind == "code") into.Children.Add(Chip(Tr.T("BUILT IN"), Blue, Tr.T("Changes how the game works, so it is built into the game: switching it takes a rebuild (a few minutes).\nEvery instruction it changes was found in your ROM first.")));
             if (kind == "launch") into.Children.Add(Chip(Tr.T("NEXT START"), Blue, Tr.T("Takes effect the next time the game starts from this menu.")));
-            if (kind == "live") into.Children.Add(Chip(Tr.T("ONE PLAYER"), Dim, MpLive));
-            else if (kind == "code") into.Children.Add(Chip(Tr.T("ALL PLAYERS"), Dim, MpCode));
-            else if (kind == "launch" && data) into.Children.Add(Chip(Tr.T("ALL PLAYERS"), Dim, MpData));
-            else if (kind == "launch") into.Children.Add(Chip(Tr.T("OWN PC"), Dim, MpLaunch));
+            if (kind == "live") into.Children.Add(Chip(Tr.T("ONE PLAYER"), Teal, MpLive));
+            else if (kind == "code") into.Children.Add(Chip(Tr.T("ALL PLAYERS"), Purple, MpCode));
+            else if (kind == "launch" && data) into.Children.Add(Chip(Tr.T("ALL PLAYERS"), Purple, MpData));
+            else if (kind == "launch") into.Children.Add(Chip(Tr.T("OWN PC"), Grey, MpLaunch));
             if (status == "tested") into.Children.Add(Chip(Tr.T("TRIED OUT"), Green, Tr.T("Tried in this version of the game.")));
             else if (status == "untested") into.Children.Add(Chip(Tr.T("UNTESTED"), Amber, Tr.T("From the R4 cheat list for your ROM. Checked as far as a program can, but not tried in this version: save first.")));
         }
 
         /* ---- hover info: what it is, how to use it, and when it works ---- */
         static FontFamily Mono = new FontFamily("Consolas");
-        static string WarnBuilt { get { return Tr.T("Works only after a full rebuild and a restart of the game."); } }
-        static string WarnNext { get { return Tr.T("Works after the next start of the game from this menu."); } }
         static string MpLive { get { return Tr.T("Multiplayer: one player switching it on is enough. It is sent to every PC of the session and runs for everyone. Every player needs the mods folder installed in their game."); } }
         static string MpCode { get { return Tr.T("Multiplayer: every player must have this built into their game, the same ones on every PC (the set code in the menu must match), or the session goes out of sync."); } }
         static string MpData { get { return Tr.T("Multiplayer: it changes what the game reads from the cartridge when it starts, so every player must start the game with the same choice, or the session goes out of sync."); } }
         static string MpLaunch { get { return Tr.T("Multiplayer: only changes your own PC; nobody else has to do anything."); } }
+
+        /* the colour of a multiplayer text (the same as its tag on the card), null when the text is not one */
+        static Brush MpColor(string t)
+        {
+            if (t == MpLive) return Teal;
+            if (t == MpCode || t == MpData) return Purple;
+            if (t == MpLaunch) return Grey;
+            return null;
+        }
+
+        /* a multiplayer text in a small box in its colour; the word before the colon is bold */
+        static Border MpBox(string t, Brush color)
+        {
+            TextBlock tb = new TextBlock { Foreground = color, FontSize = 10.5, TextWrapping = TextWrapping.Wrap };
+            int c = t.IndexOf(':');
+            if (c > 0) { tb.Inlines.Add(new Run(t.Substring(0, c + 1)) { FontWeight = FontWeights.Bold }); tb.Inlines.Add(new Run(t.Substring(c + 1))); }
+            else tb.Text = t;
+            return new Border { BorderBrush = color, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(2), Padding = new Thickness(6, 3, 6, 4), Margin = new Thickness(0, 6, 0, 0), Child = tb };
+        }
 
         static ToolTip MakeTip(string title, IEnumerable<string> lines, string warn)
         {
             StackPanel p = new StackPanel { MaxWidth = 400 };
             p.Children.Add(new TextBlock { Text = Tr.T(title), FontWeight = FontWeights.Bold, Foreground = Gold, FontSize = 11.5, TextWrapping = TextWrapping.Wrap });
             foreach (string l in lines)
-                if (l != null && l.Length > 0) p.Children.Add(new TextBlock { Text = Tr.T(l), Foreground = Text, FontSize = 10.5, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 4, 0, 0) });
+                if (l != null && l.Length > 0 && MpColor(l) != null) p.Children.Add(MpBox(l, MpColor(l)));
+                else if (l != null && l.Length > 0) p.Children.Add(new TextBlock { Text = Tr.T(l), Foreground = Text, FontSize = 10.5, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 4, 0, 0) });
             if (warn != null)
                 p.Children.Add(new TextBlock { Text = "! " + Tr.T(warn), Foreground = Amber, FontSize = 10.5, FontWeight = FontWeights.Normal, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 6, 0, 0) });
             return new ToolTip { Content = p, Background = B("#0E0E10"), BorderBrush = B("#3A3A40"), BorderThickness = new Thickness(1), Padding = new Thickness(9, 7, 9, 8), FontFamily = Mono, HasDropShadow = false };
-        }
-
-        static string WarnFor(Entry e)
-        {
-            if (e.Kind == "code") return WarnBuilt;
-            if (e.Kind == "launch") return WarnNext;
-            return null;
         }
 
         static void Hover(FrameworkElement el, ToolTip tip)
@@ -1704,11 +1738,9 @@ walk(document.documentElement);})();</script>";
                 else l.Add(Tr.T("Switch it on: it works every frame until you switch it off."));
                 l.Add(MpLive);
             }
-            else if (e.Kind == "code") { l.Add(Tr.T("Switch it on, press Rebuild, then restart the game.")); l.Add(MpCode); }
+            else if (e.Kind == "code") { l.Add(Tr.T("Switch it on: the Play button then rebuilds the game and starts it.")); l.Add(MpCode); }
             else if (e.Kind == "launch") { l.Add(Tr.T("Applied each time the game is started from this menu.")); l.Add(e.Env.StartsWith("DQIX_MOD_") ? MpData : MpLaunch); }
-            string warn = null;
-            if (e.Kind == "code" && IsOn(e) && !built.Contains(e.Id)) warn = Tr.T("Switched on but not built into the game yet: press Rebuild, then restart the game.");
-            return MakeTip(e.Name, l, warn);
+            return MakeTip(e.Name, l, null);
         }
 
         /* the warning that stays visible on the card, not only on hover */
@@ -1764,9 +1796,7 @@ walk(document.documentElement);})();</script>";
                             "Works like on a DS: switch it on, then hold these buttons in the game." + (e.Mode == "both" ? "\n\"Once\" does it right away, without the buttons." : "")));
                 StatusChips(w, e.Kind, e.Status, e.Env.StartsWith("DQIX_MOD_"));
             });
-            string warn = WarnFor(e);
             if (e.Kind == "code" && IsOn(e) && built.Contains(e.Id)) AddWarn(left, Tr.T("Built into your game: active from the next start of the game."), false);
-            else if (warn != null) AddWarn(left, warn);
             StackPanel right = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
             if (e.Kind == "live" && (e.Mode == "once" || e.Mode == "both"))
             {
@@ -1795,7 +1825,6 @@ walk(document.documentElement);})();</script>";
             {
                 StatusChips(w, g.Kind, sel != null ? sel.Status : (anyUntested ? "" : "tested"), g.Items.Count > 0 && g.Items[0].Env.StartsWith("DQIX_MOD_"));
             });
-            if (g.Kind == "code" || g.Kind == "launch") AddWarn(left, g.Kind == "code" ? WarnBuilt : WarnNext);
             ComboBox cb = new ComboBox { VerticalAlignment = VerticalAlignment.Center };
             cb.Items.Add(new ComboBoxItem { Content = Tr.T("Off"), Tag = null });
             foreach (Entry e in g.Items)
@@ -1865,8 +1894,7 @@ walk(document.documentElement);})();</script>";
             lastPill = t;
             PillText.Text = t; Dot.Fill = dot;
             PlayBtn.IsEnabled = !link.Running && !busy;
-            PlayBtn.Content = Tr.T(link.Running ? "Game is running" : "Play");
-            UpdateBanner();
+            UpdatePlay();
             if (link.Inside && link.Session && built.Count > 0)
                 Say(Tr.F("With friends: every player needs exactly these built into their game too, or the session goes OUT OF SYNC: {0}. Their menu must show the same set ({1}).", string.Join(", ", entries.Where(e => built.Contains(e.Id)).Select(e => Tr.T(e.Name)).ToArray()), SetCode()));
             if (link.Inside && link.Version < 2) Say(Tr.T("This game was built with an older version of the mods: close it and press Play here once."));
@@ -1888,7 +1916,7 @@ walk(document.documentElement);})();</script>";
         /* "Play with mods.bat" <what>, its output into the window */
         void RunBat(string what, Action<int> then)
         {
-            busy = true; PlayBtn.IsEnabled = false; ApplyBtn.IsEnabled = false; ReloadBtn.IsEnabled = false;
+            busy = true; PlayBtn.IsEnabled = false; ReloadBtn.IsEnabled = false;
             Thread th = new Thread(delegate ()
             {
                 int rc = 1;
@@ -1913,7 +1941,7 @@ walk(document.documentElement);})();</script>";
                 catch (Exception ex) { string m = ex.Message; Dispatcher.BeginInvoke(new Action(delegate { Log("Couldn't run \"Play with mods.bat\": " + m); })); }
                 Dispatcher.BeginInvoke(new Action(delegate
                 {
-                    busy = false; ApplyBtn.IsEnabled = true; ReloadBtn.IsEnabled = true; PlayBtn.IsEnabled = !link.Running;
+                    busy = false; ReloadBtn.IsEnabled = true; PlayBtn.IsEnabled = !link.Running;
                     then(rc);
                 }));
             });
@@ -1953,7 +1981,7 @@ walk(document.documentElement);})();</script>";
             {
                 ReadBuilt();
                 ShowSub();
-                UpdateBanner();
+                UpdatePlay();
                 if (rc != 0)
                 {
                     OverlayDone(rc == 3 ? "The game is still running" : "That didn't work",

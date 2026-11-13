@@ -19,16 +19,15 @@ Build the game once the normal way first (if you haven't already).
 Then start with "mods\Play with mods.bat" (the installer also puts a shortcut
 to it on your desktop).
 
-What is in the mods folder (only these four things are for you):
+What is in the mods folder (only these three things are for you):
 
     Play with mods.bat    start here
     README.txt            this file
     settings.txt          a few switches (yes / no), explained inside
-    cheats\               your own cheat files (one text file per cheat)
     system\               everything the mods run on: the menu, the cheat
-                          lists, translations, your saved switches and the
-                          save backups (system\save-backups). You never need
-                          to open it.
+                          lists (system\cheats, with yours too),
+                          translations, your saved switches and the save
+                          backups (system\save-backups).
 
 
 THE CHEAT MENU
@@ -69,10 +68,10 @@ your save goes to mods\system\save-backups (the last 30).
 
 WHERE THE CHEATS COME FROM, AND WHY THEY CAN'T BREAK THE GAME
 -------------------------------------------------------------
-mods\system\database\YDQP.txt (Europe) and YDQE.txt (USA) hold the whole list for the
+mods\system\cheats\r4-YDQP.txt (Europe) and r4-YDQE.txt (USA) hold the whole list for the
 game from the community's R4 cheat database (DeadSkullzJr's NDS(i) Cheat
 Databases): 216 codes for the European version, 271 for the USA one. To them
-come the files in mods\cheats and mods\system\code (made and tried by hand; yours go
+come the other files in mods\system\cheats (made and tried by hand; yours go
 there too).
 
 An Action Replay code is written for a DS, where it may change anything at any
@@ -103,7 +102,7 @@ everything" codes can make a save odd. That is what UNTESTED warns about, and
 what the save copies are for.
 
 A newer usrcheat.dat? "mods\system\tools\r4_to_text.py usrcheat.dat YDQP
-mods\system\database\YDQP.txt" brings the list up to date; "Reload list" in the menu
+mods\system\cheats\r4-YDQP.txt" brings the list up to date; "Reload list" in the menu
 reads it.
 
 
@@ -135,7 +134,7 @@ developer changes in the PC side of the game.
 USA AND EUROPEAN ROMS
 ---------------------
 Both work. The menu takes the list for your ROM (its game code, YDQP or YDQE).
-The files in mods\cheats and mods\system\code serve both: the European ROM is the
+The files in mods\system\cheats serve both: the European ROM is the
 same program with the main code moved by 16 bytes (8 for a little near the
 start); the data, where the cheats write, and the overlays, where most code
 mods are, are in the same place.
@@ -190,7 +189,7 @@ mods, in runtime\card.c), so it can't put a session out of sync.
 
 MAKE YOUR OWN
 -------------
-Live cheat (mods\cheats\anything.txt): any Action Replay DS code that writes
+Live cheat (mods\system\cheats\anything.txt): any Action Replay DS code that writes
 data.
 
     # name: What the menu shows
@@ -199,7 +198,7 @@ data.
     # category: Party       (the page; without it: "My cheats")
     020F6D48 0098967F
 
-Code mod (mods\system\code\anything.txt):
+Code mod (mods\system\cheats\anything.txt, with "patch" lines):
 
     # name: What it's called
     # enabled: no           (the menu's switch changes this line)

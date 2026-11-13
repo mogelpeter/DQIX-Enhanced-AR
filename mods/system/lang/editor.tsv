@@ -1,6 +1,6 @@
 # The save editor's own texts: English (case and punctuation do not matter)	Deutsch	Français	Español	Italiano
 party	Gruppe	Équipe	Grupo	Gruppo
-items	Gegenstände	Objets	Objetos	Oggetti
+items	Gepäck	Objets	Objetos	Oggetti
 inn	Herberge	Auberge	Posada	Locanda
 grottos	Grotten	Antres	Grutas	Antri
 records	Archiv	Résultats	Registros	Risultati
@@ -186,3 +186,11 @@ ending	Ende	Fin	Final	Finale
 plateau	Plateau	Plateau	Meseta	Altopiano
 island	Insel	Île	Isla	Isola
 glitched area	Fehlerhafter Bereich	Zone buguée	Zona con fallos	Area difettosa
+
+unallocated skill points:	Nicht verteilte Talentpunkte:	Points de compétence non attribués :	Puntos de destreza sin asignar:	Punti abilità non assegnati:
+unlock all dlc	Alle DLC freischalten	Tout débloquer (DLC)	Desbloquear todo el DLC	Sblocca tutti i DLC
+canvased guests:	Geworbene Gäste:	Invités recrutés :	Invitados reclutados:	Ospiti reclutati:
+everyday items:	Normale Gegenstände:	Objets courants :	Objetos cotidianos:	Oggetti comuni:
+important items:	Wichtige Gegenstände:	Objets importants :	Objetos importantes:	Oggetti importanti:
+everyday items	Normale Gegenstände	Objets courants	Objetos cotidianos	Oggetti comuni
+important items	Wichtige Gegenstände	Objets importants	Objetos importantes	Oggetti importanti

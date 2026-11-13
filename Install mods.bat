@@ -26,6 +26,12 @@ if exist "%TARGET%\mods\tools\dev.py" (
   for %%D in (src tools tests lang fonts database) do if exist "%TARGET%\mods\%%D" rmdir /s /q "%TARGET%\mods\%%D"
   del /q "%TARGET%\mods\dev.bat" "%TARGET%\mods\Make a desktop shortcut.bat" "%TARGET%\mods\AR-codes-*.txt" 2>nul
 )
+rem ---- previous layout (mods\cheats, mods\system\code, mods\system\database): own files move into mods\system\cheats
+if exist "%TARGET%\mods\cheats\*.txt" ( if not exist "%TARGET%\mods\system\cheats" mkdir "%TARGET%\mods\system\cheats" & for %%F in ("%TARGET%\mods\cheats\*.txt") do if /i not "%%~nxF"=="on.txt" if not exist "%TARGET%\mods\system\cheats\%%~nxF" copy "%%F" "%TARGET%\mods\system\cheats\" >nul )
+if exist "%TARGET%\mods\system\code\*.txt" ( if not exist "%TARGET%\mods\system\cheats" mkdir "%TARGET%\mods\system\cheats" & for %%F in ("%TARGET%\mods\system\code\*.txt") do if not exist "%TARGET%\mods\system\cheats\%%~nxF" copy "%%F" "%TARGET%\mods\system\cheats\" >nul )
+if exist "%TARGET%\mods\system\database" rmdir /s /q "%TARGET%\mods\system\database"
+if exist "%TARGET%\mods\system\code" rmdir /s /q "%TARGET%\mods\system\code"
+if exist "%TARGET%\mods\cheats" rmdir /s /q "%TARGET%\mods\cheats"
 robocopy "%~dp0mods" "%TARGET%\mods" /E /R:1 /W:1 /NFL /NDL /NJH /NJS /NP /XF menu-state.txt menu-lang.txt msys2-root.txt settings.txt dev-root.txt AR-codes-EU.txt AR-codes-USA.txt /XD bin save-backups __pycache__ >nul
 if errorlevel 8 ( echo Copy failed. Close the game and the menu, then try again. & pause & exit /b 1 )
 if not exist "%TARGET%\mods\settings.txt" copy "%~dp0mods\settings.txt" "%TARGET%\mods\settings.txt" >nul

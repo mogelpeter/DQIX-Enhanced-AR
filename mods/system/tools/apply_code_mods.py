@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Put the code mods that are on (mods/system/code/*.txt) into the game's build.
+"""Put the code mods that are on (mods/system/cheats/*.txt) into the game's build.
 
   apply_code_mods.py [project folder]
 
@@ -10,7 +10,7 @@ out the ones that are off. An update of the game brings a fresh patches.txt
 without them; running this again (Play with mods.bat does, every time) puts
 them back.
 
-Which mods: the files in mods/system/code that say "enabled: yes", and the codes from
+Which mods: the files in mods/system/cheats that say "enabled: yes", and the codes from
 the cheat database that are switched on in the cheat menu (mods/system/menu-state.txt).
 catalog.py works every one of them out against your ROM's code (build/extract,
 written by the last build), so a mod that doesn't fit your ROM, or that can't be
@@ -87,6 +87,20 @@ def load_modules(extract):
         mods.append(Module(f"ov{int(ov['id']):03d}", int(ov["base_address"], 0),
                            open(os.path.join(extract, "arm9_overlays", ov["file_name"]), "rb").read()))
     return mods
+
+
+def hand_files(root):
+    """-> (live cheat files, code mod files) of mods/system/cheats, told apart by their content:
+    a file with "patch <address> <word>" lines changes the game's code, any other is a live cheat.
+    r4-*.txt (the R4 database) and files starting with _ are not hand-made."""
+    live, code = [], []
+    for f in sorted(glob.glob(os.path.join(root, "mods", "system", "cheats", "*.txt"))):
+        base = os.path.basename(f)
+        if base.startswith("_") or base.lower().startswith("r4-"):
+            continue
+        is_code = any(re.match(r"patch\s", l.strip()) for l in open(f, encoding="utf-8-sig"))
+        (code if is_code else live).append(f)
+    return live, code
 
 
 def parse_mod(path):

@@ -87,9 +87,25 @@ def sync(src, dst, quiet=False):
     return changed
 
 
+def migrate_layout(live):
+    """older installs kept cheats in mods/cheats, code mods in system/code and the R4 list in system/database;
+    all of it is system/cheats now. Own files move over (r4-<game>.txt for the lists), the old folders go."""
+    new = os.path.join(live, "system", "cheats")
+    for old, prefix in (("cheats", ""), (os.path.join("system", "code"), ""), (os.path.join("system", "database"), "r4-")):
+        d = os.path.join(live, old)
+        if not os.path.isdir(d):
+            continue
+        os.makedirs(new, exist_ok=True)
+        for f in os.listdir(d):
+            if f.lower().endswith(".txt") and f.lower() != "on.txt" and not os.path.exists(os.path.join(new, prefix + f)):
+                shutil.copy2(os.path.join(d, f), os.path.join(new, prefix + f))
+        shutil.rmtree(d, ignore_errors=True)
+
+
 def ensure_deployed(root):
     live = os.path.join(root, "mods")
     if os.path.abspath(live) != os.path.abspath(SRC_MODS):
+        migrate_layout(live)
         sync(SRC_MODS, live)
     return live
 
@@ -100,6 +116,8 @@ def cmd_deploy(a):
     src, dst = (live, SRC_MODS) if a.pull else (SRC_MODS, live)
     if os.path.abspath(src) == os.path.abspath(dst):
         print("repo and game folder are the same place: nothing to do"); return 0
+    if not a.pull:
+        migrate_layout(live)
     ch = sync(src, dst, quiet=True)
     print(("pulled" if a.pull else "deployed"), len(ch), "file(s)" + (": " + ", ".join(ch[:10]) if ch else " (already identical)"))
     return 0
@@ -172,7 +190,7 @@ def input_key(root):
     """a hash of everything a test result depends on: the mods' sources, the catalog, the built game"""
     h = hashlib.sha1()
     live = os.path.join(root, "mods", "system")
-    for pat in ("src/*", "tools/*.py", "tools/*.sh", "tests/*.py", "../cheats/*", "code/*", "bin/catalog.txt", "database/*"):
+    for pat in ("src/*", "tools/*.py", "tools/*.sh", "tests/*.py", "cheats/*", "bin/catalog.txt"):
         for f in sorted(glob.glob(os.path.join(live, pat))):
             h.update(f.encode() + digest(f).encode())
     for f in ("dqix.exe", "dqixcore.dll"):
@@ -414,6 +432,7 @@ def cmd_scratch(a):
     shutil.copy2(os.path.join(root, "game", "dqix.sav"), os.path.join(proj, "game", "dqix.sav"))
     sys.path.insert(0, os.path.join(proj, "mods", "system", "tools"))
     import catalog
+    import apply_code_mods as acm
     _, entries, _ = catalog.build(proj)
     rounds = []
     for e in entries:                                      # entries that patch the same instruction differently go in later rounds
@@ -433,7 +452,7 @@ def cmd_scratch(a):
         ids = [e["id"] for e in r["e"] if not e["file"]]
         files = {e["file"] for e in r["e"] if e["file"]}
         open(os.path.join(proj, "mods", "system", "menu-state.txt"), "w").write("\n".join(["code " + x for x in ids]) + "\nflag warned\n")
-        for f in glob.glob(os.path.join(proj, "mods", "system", "code", "*.txt")):
+        for f in acm.hand_files(proj)[1]:
             s = open(f, encoding="utf-8-sig").read()
             on = any(n.replace("\\", "/").endswith("/" + os.path.basename(f)) or n == os.path.basename(f) for n in files)
             open(f, "w", encoding="utf-8").write(re.sub(r"(?m)^#\s*enabled\s*:.*$", "# enabled: " + ("yes" if on else "no"), s))

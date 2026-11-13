@@ -14,7 +14,7 @@
  * what the highest would have, and the other way round. The first run's result is thrown
  * away; the routine only reads game data, so running it twice changes nothing else.
  *
- * Only while the cheat "Lower-level characters get more experience" (mods/cheats) is on. It
+ * Only while the cheat "Lower-level characters get more experience" (mods/system/cheats) is on. It
  * travels in the input stream like every live cheat, so in a session every PC switches it
  * on and off on the same frame and they all work out the same experience.
  */

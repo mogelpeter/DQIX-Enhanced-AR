@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """Take one game's codes out of an R4 cheat database (usrcheat.dat) and write
-them as a text file for mods/system/database.
+them as a text file for mods/system/cheats (as r4-<game code>.txt).
 
   r4_to_text.py <usrcheat.dat> <game code, e.g. YDQP> <out.txt>
 
-The cheat menu reads mods/system/database/<game code>.txt (the one for your ROM). The
+The cheat menu reads mods/system/cheats/r4-<game code>.txt (the one for your ROM). The
 files that come with the mods were made with this from the community database
 (DeadSkullzJr's NDS(i) Cheat Databases). Run it again on a newer usrcheat.dat
 to bring a list up to date.
@@ -106,7 +106,7 @@ def main():
         return 1
     lines = [f"# Action Replay codes for {sys.argv[2]}, from an R4 cheat database (mods/system/tools/r4_to_text.py).",
              "# The cheat menu sorts them: which work live, which have to be built into the game,",
-             "# and which can't work in this version. Your own codes go in mods/cheats and mods/system/code.",
+             "# and which can't work in this version. Your own codes go in mods/system/cheats.",
              ""]
     for _, out in games:
         lines += out + [""]

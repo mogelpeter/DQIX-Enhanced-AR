@@ -7,7 +7,7 @@ mods/system/AR-codes-USA.txt (YDQE).
 
 The live cheats (mods/cheats) are Action Replay codes already and change
 data, which is at the same addresses in both versions: they are copied as
-they are. The code mods (mods/system/code) change instructions. Those in an overlay
+they are. The code mods (mods/system/cheats) change instructions. Those in an overlay
 are at the same address in both versions; those in the main program are 16
 bytes further on in the European ROM (8 for a few near the start). Each is
 written for this ROM, with the instruction that is there now read from the
@@ -54,10 +54,11 @@ def main():
     w("Action Replay, or an emulator's cheat list.")
     w("")
     w("")
-    w("CODES THAT CHANGE THE GAME'S CODE  (mods\\system\\code)")
+    w("CODES THAT CHANGE THE GAME'S CODE  (mods\\system\\cheats)")
     w("-" * 60)
     left_out, n_entries = [], 0
-    for f in sorted(glob.glob(os.path.join(root, "mods", "system", "code", "*.txt"))):
+    live_files, code_files = acm.hand_files(root)
+    for f in code_files:
         name, _, checks, patches, errors = acm.parse_mod(f)
         if errors:
             left_out.append((name, "; ".join(errors)))
@@ -82,12 +83,10 @@ def main():
         w("D2000000 00000000")
         w("")
     w("")
-    w("CODES THAT CHANGE DATA  (mods\\cheats; the same in the USA and European versions)")
+    w("CODES THAT CHANGE DATA  (mods\\system\\cheats; the same in the USA and European versions)")
     w("-" * 60)
-    for f in sorted(glob.glob(os.path.join(root, "mods", "cheats", "*.txt"))):
+    for f in live_files:
         base = os.path.basename(f)
-        if base.lower() == "on.txt" or base.startswith("_"):
-            continue
         name, mode, lines = base[:-4], "always", []
         for line in open(f, encoding="utf-8-sig"):
             s = line.strip()
