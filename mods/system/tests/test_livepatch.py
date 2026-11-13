@@ -3,8 +3,8 @@
 
    Needs a game built with the mods' live-patch wrappers (mods/system/bin/livepatch.txt exists) and its catalog.
    A  nothing on                         (twice: the run must be repeatable)
-   B  DQIX_LP_FORCE=1                    every wrapped function runs in the interpreter: RAM must equal A (a timing counter may be one off)
-   C  "x1" of Movement Speed Multiplier  patched with the game's own word: RAM must equal A (within the same few bytes)
+   B  DQIX_LP_FORCE=1                    every wrapped function runs in the interpreter: the game must run on
+   C  DQIX_LP_CHECK=150                  the first calls of every wrapped function run compiled and interpreted from the same state: RAM and registers identical
    E  all live code mods at once         nothing may crash or print a suspicious line; the log (DQIX_MODLOG) says which patched functions ran
    D  one mod whose function ran in E    alone: its instructions are applied (log line), the game keeps running
    Uses TEST_EXE / TEST_SAVE like the other tests."""
@@ -104,8 +104,17 @@ NOISE = {i for i, (x, y) in enumerate(zip(A, A2)) if x != y} if A and A2 else se
 print("A  repeatable (apart from %d noisy bytes: %s):" % (len(NOISE), ", ".join("%08x" % (0x02000000 + i) for i in sorted(NOISE)[:6])), len(NOISE) < 64, ra, flush=True)
 ok &= A is not None and len(NOISE) < 64 and ra[0] == 0 and not ra[1]
 B, rb = run("B", (), {"DQIX_LP_FORCE": "1"})
-print("B  interpreter ~ compiled (a timing counter may be one off):", 0 <= ndiff(A, B) <= 16, "(diff bytes %d)" % ndiff(A, B), rb, flush=True)
-ok &= B is not None and 0 <= ndiff(A, B) <= 16 and rb[0] == 0 and not rb[1]
+print("B  every wrapped function interpreted: the game runs on:", B is not None and rb[0] == 0 and not rb[1],
+      "| RAM differs from the compiled run by %d bytes (timing makes the states drift in the field: informational only)" % ndiff(A, B), rb, flush=True)
+ok &= B is not None and rb[0] == 0 and not rb[1]
+# C: the strict fidelity check: the first calls of every wrapped function run twice from the same state, compiled and interpreted
+C, rc = run("C", (), {"DQIX_LP_CHECK": "150"})
+compared = re.findall(r"LPCHECK function ([0-9a-f]{8}): (\d+) calls compared, (\d+) mismatches", LASTLOG)
+mism = re.findall(r"LPCHECK MISMATCH.*", LASTLOG)
+print("C  interpreted == compiled on identical states: %d functions fully compared, %d mismatch lines" % (len(compared), len(mism)), rc, flush=True)
+for m in mism[:6]:
+    print("     ", m[:220])
+ok &= C is not None and rc[0] == 0 and not rc[1] and len(compared) >= 1 and not mism
 # E: every live code mod that clashes with none of the others (one of each address), with the log on
 chosen, used = [], set()
 for e in lps:
