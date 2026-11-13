@@ -52,7 +52,8 @@ THE CHEATS WINDOW
 -----------------
 On the left the pages (Speed & comfort, Experience & gold, Party, Battle, Items, ...),
 first "Enabled": everything that is on now, from every page. The search box above them
-finds a cheat by any word of its name, option, note or keys. Under each cheat a grey line
+finds a cheat by the words of its name, option, note, page or keys (all words must fit;
+inside a choice only the fitting options are offered; the first 60 hits are shown). Under each cheat a grey line
 says who needs it in a session, the buttons to hold and its labels; hover a row for the
 full text. You can keep the window open while you play.
 
@@ -71,9 +72,9 @@ The labels in the grey line:
 
   untested         from the R4 list, checked as far as a program can (below), but not
                    tried here. Save first.
-  needs a rebuild  the one code mod that can't switch while the game runs (Always
-                   strike first). The window offers to rebuild the game (a few minutes)
-                   and start it again.
+  needs a rebuild  a code mod that can't switch while the game runs. None of the shipped
+                   cheats needs it (a code of your own or from a newer R4 list might).
+                   The window offers to rebuild the game (a few minutes) and start it again.
   next start       takes effect the next time the game starts ("Battle any monster
                    you want", "Metal slimes only", "Instant loading"...). The window
                    offers to restart the game.
@@ -128,7 +129,7 @@ the PC side of the game.
   small, marked changes in the game's source that Apply cheats.bat makes before the game
   is built. An update replaces those files; the game's updater runs Apply cheats.bat
   before it rebuilds, so they are back at once.
-- The code mod that needs a rebuild goes into the game's patches.txt between two marker
+- A code mod that needs a rebuild goes into the game's patches.txt between two marker
   lines. An update replaces patches.txt; Apply cheats.bat notices
   (mods\system\bin\built.txt remembers what the built game has in it), puts it back and
   rebuilds.
@@ -177,9 +178,8 @@ If one player's game doesn't have the cheats in it (or an older version of them:
 is version 2), the first cheat puts the session out of sync (the title bar says so).
 Without cheats such a session plays normally.
 
-The code mod that needs a rebuild (Always strike first) changes how the game computes:
-every player needs it the same (on or off), or the session goes OUT OF SYNC. The simple
-way: switch it off before playing with friends.
+A code mod that needs a rebuild (none of the shipped ones) would change how the game
+computes: every player would need it the same, or the session goes OUT OF SYNC.
 
 "Instant loading" only works while you play alone. In a session the game keeps the
 cartridge's real timing by itself, so it can't put a session out of sync.

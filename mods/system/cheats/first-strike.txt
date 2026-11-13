@@ -1,4 +1,8 @@
 # name: Always strike first
-# enabled: no
+# mode: always
+# category: Battle
+# replaces: Always First Strike
 # about: Your party always gets the first move when a battle starts.
-patch 02196B40 EB000156 E3A00001
+# The address is not memory: mods/system/src/runtime/mod_cheats.c takes it as the switch "Always strike first";
+# mods/system/src/runtime/firststrike.c answers "the party strikes first" where the field asks who moves first.
+02F5A5AC 00000001

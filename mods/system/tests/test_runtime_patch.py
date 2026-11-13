@@ -26,7 +26,7 @@ try:
 
     def snap():
         d = {}
-        for n in ("input.c", "card.c", "menu_win32.c", "frontend_sdl.c", "update.c", "mod_menu.c", "mod_cheats.c", "noflee.c", "lowexp.c"):
+        for n in ("input.c", "card.c", "menu_win32.c", "frontend_sdl.c", "update.c", "mod_menu.c", "mod_cheats.c", "noflee.c", "lowexp.c", "firststrike.c"):
             p = os.path.join(tmp, "runtime", n)
             d[n] = open(p, "rb").read() if os.path.isfile(p) else None
         return d

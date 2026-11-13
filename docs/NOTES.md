@@ -2,6 +2,13 @@
 
 Newest first. One block per working session: what changed, why, how it was checked.
 
+## 2026-11-14 (30)  Always strike first switches live, faster search
+- **Always strike first is live** (no rebuild). Its instruction (`bl 021970a0` at ov017 0x02196b40 -> `mov r0,#1`) sits in func_ov017_02196430, which vanish.c already wraps, so livepatch can't take it. New `src/runtime/firststrike.c` wraps the called function `021970a0` instead: with the switch on and lr = 0x02196b44 (the recompiled `bl` sets r14) it answers 1 without running; other callers are untouched. Switch `02F5A5AC` in mod_cheats.c (cleared every frame like noflee). `first-strike.txt` is now a live cheat with `# replaces: Always First Strike` (the R4 twin). No shipped cheat needs a rebuild any more (catalog: 235 live, 0 code, 292 launch).
+- `tests/test_firststrike.py` (`dev test firststrike`, needs `TEST_SAVE`): two headless runs on the dungeon save with metal slimes. With the cheat the field's question was answered by it (1); without it the game answered 2 and 0. PASS.
+- **Search in the Cheats window**: each entry's lower-case search text, group index and each group's member list are built once at load (before: a 3000-byte snprintf + lowercase per entry per keystroke, and a scan of all entries per group row). In a choice only the fitting members are offered (unless the choice's title fits). Before, a group row listed the first 64 members, so "slime" did not reach most of the 288 monsters, and the Battle page offered only 64 of them. Members are dynamic now. At most 60 rows are built ("152 found, first 60 shown: type more words"). An unchanged query (only spaces) doesn't rebuild. Typing delay 180 -> 120 ms. `grp_of` removed.
+- `test_cheatwin.py` step 4 (hook `DQIX_CHEATWIN_SEARCH=q1;q2...[,picture]`): checks every row and drop-down entry against the words. slime 3 rows / 25 options, "a" 60 of 152 (168 ms), "gold max" 1, "zzqx" 0, "metal slime" 3 rows / 7 options; all bad=0. PASS.
+- Checked: installer rebuilt the game, and `dev test fast cheatwin` passed 6/6.
+
 ## 2026-11-14 (29)  Duplicates out, game icon on the Cheats window
 - Removed **Walk through monsters** (`cheats/no-touch-battles.txt`): Vanish does the same, switchable while playing. It was one of the two code mods that needed a rebuild; *Always strike first* is now the only one. `Install cheats.bat` deletes the file in the game folder (copying never deletes).
 - The R4 code **Hold [A] Enemy Wil Never Chase After You** (EU) and its USA twin **Enemies Will Not Chase You** are left out: `monsters-dont-chase.txt` covers both routines and now says `# replaces:` for them.

@@ -25,8 +25,9 @@
 int mod_cheats_post(const uint16_t* w, int n);       /* mod_cheats.c: words into the mailbox's ring; 0 = full or no mailbox */
 uint32_t mod_cheats_gen(void);                       /* goes up whenever the game forgot every cheat */
 
-typedef struct { char *id, *cat, *group, *kind, *status, *name, *option, *note, *mode, *keys, *env, *also, *file; int on, nops; uint32_t* ops; } Ent;
-typedef struct { char *id, *cat, *title, *kind; } Grp;
+typedef struct { char *id, *cat, *group, *kind, *status, *name, *option, *note, *mode, *keys, *env, *also, *file; int on, nops; uint32_t* ops;
+                 int gi; char* hay; } Ent;                        /* gi: index into g_g or -1; hay: the search text, lower case */
+typedef struct { char *id, *cat, *title, *kind; char* lt; int* mem; int nmem; } Grp;   /* lt: title lower case; mem: its entries */
 
 static Ent* g_e; static int g_ne;
 static Grp* g_g; static int g_ng;
@@ -114,6 +115,22 @@ static void load_catalog(void) {
         line = nl ? nl + 1 : NULL;
     }
     free(text);
+    /* once: each entry's group, each group's members, and the lower-case text the search looks through */
+    for (int k = 0; k < g_ng; k++) {
+        Grp* g = &g_g[k]; g->mem = NULL; g->nmem = 0;
+        g->lt = xdup(g->title, strlen(g->title)); for (char* c = g->lt; *c; c++) if ((unsigned char)*c < 128) *c = (char)tolower((unsigned char)*c);
+    }
+    for (int i = 0; i < g_ne; i++) {
+        Ent* e = &g_e[i]; e->gi = -1;
+        if (e->group[0]) for (int k = 0; k < g_ng; k++) if (!strcmp(g_g[k].id, e->group)) { e->gi = k; break; }
+        if (e->gi >= 0 && strcmp(e->kind, "blocked")) { Grp* g = &g_g[e->gi]; g->mem = (int*)realloc(g->mem, (size_t)(g->nmem + 1) * sizeof *g->mem); g->mem[g->nmem++] = i; }
+        size_t n = strlen(e->name) + strlen(e->option) + strlen(e->note) + strlen(e->cat) + strlen(e->also) + strlen(e->keys) + 8;
+        e->hay = (char*)malloc(n);
+        if (e->hay) {
+            snprintf(e->hay, n, "%s %s %s %s %s %s", e->name, e->option, e->note, e->cat, e->also, e->keys);
+            for (char* c = e->hay; *c; c++) if ((unsigned char)*c < 128) *c = (char)tolower((unsigned char)*c);
+        }
+    }
     g_loaded = 1;
 }
 
@@ -225,7 +242,7 @@ static void resend_all(void) {
 }
 
 void mod_cheatwin_show(void);
-static char g_test_id[200], g_test_shot[MAX_PATH];
+static char g_test_id[200], g_test_shot[MAX_PATH], g_test_search[400];
 static DWORD WINAPI agent(LPVOID unused) {
     (void)unused;
     uint32_t last = 0;
@@ -233,6 +250,13 @@ static DWORD WINAPI agent(LPVOID unused) {
     if (t && *t) {
         const char* c = strchr(t, ',');
         snprintf(g_test_id, sizeof g_test_id, "%.*s", c ? (int)(c - t) : (int)strlen(t), t);
+        if (c) snprintf(g_test_shot, sizeof g_test_shot, "%s", c + 1);
+        Sleep(1500); mod_cheatwin_show();
+    }
+    t = getenv("DQIX_CHEATWIN_SEARCH");                  /* test hook: searches;searches...[,picture] (see test_step) */
+    if (t && *t && !g_test_id[0]) {
+        const char* c = strchr(t, ',');
+        snprintf(g_test_search, sizeof g_test_search, "%.*s", c ? (int)(c - t) : (int)strlen(t), t);
         if (c) snprintf(g_test_shot, sizeof g_test_shot, "%s", c + 1);
         Sleep(1500); mod_cheatwin_show();
     }
@@ -285,7 +309,7 @@ void mod_cheatwin_boot(void) {
  * (a cheat), a drop-down (a choice of which only one can be on: "Off" + the options). */
 enum { IDC_SIDE = 100, IDC_SEARCH, IDC_OFF, IDC_CLOSE, IDC_TITLE, IDC_COUNT, IDC_NOTE, IDC_ROW0 = 1000, WM_SHOW_CHEATS = WM_APP + 1 };
 enum { R_CHECK, R_ONCE, R_GROUP, R_KEY };
-typedef struct { int kind, idx, gi, y, h, nm, on, members[64]; HWND main, sub, right, combo, btn; } Row;
+typedef struct { int kind, idx, gi, y, h, nm, on, *members; HWND main, sub, right, combo, btn; } Row;
 
 static HWND g_search;
 static int g_search_page;
@@ -296,6 +320,9 @@ static HBRUSH g_white, g_gray;
 static HWND g_tip;
 static wchar_t g_tiptext[2100];
 static Row* g_rows; static int g_nrows, g_scroll, g_total, g_on_page, g_cur_page = -1;
+static int g_found;                       /* search page: how many rows matched (only the first SEARCH_MAX are built) */
+static char g_last_q[200];                /* the search the page was last built for */
+#define SEARCH_MAX 60
 
 #define PAD_X 18
 #define SIDE_W 176
@@ -316,7 +343,6 @@ static wchar_t* wide(const char* s) {
     return w;
 }
 
-static const Grp* grp_of(const char* id) { for (int i = 0; i < g_ng; i++) if (!strcmp(g_g[i].id, id)) return &g_g[i]; return NULL; }
 static const char* label(const Ent* e) { return e->option[0] ? e->option : e->name; }
 
 /* the small grey line under a cheat: who needs it, the keys to hold, status, note */
@@ -362,6 +388,7 @@ static void clear_rows(void) {
         for (int k = 0; k < 5; k++) if (hs[k]) DestroyWindow(hs[k]);
     }
     for (int i = 0; i < g_nrows && g_tip; i++) { TOOLINFOW ti; memset(&ti, 0, sizeof ti); ti.cbSize = sizeof ti; ti.hwnd = g_host; ti.uId = (UINT_PTR)i; SendMessageW(g_tip, TTM_DELTOOLW, 0, (LPARAM)&ti); }
+    for (int i = 0; i < g_nrows; i++) free(g_rows[i].members);
     free(g_rows); g_rows = NULL; g_nrows = 0;
 }
 
@@ -379,7 +406,7 @@ static void update_count(void) {
         if (r->kind == R_CHECK) { cheats++; on += ent_on(&g_e[r->idx]); }
         else if (r->kind == R_GROUP) { cheats++; for (int k = 0; k < r->nm; k++) if (ent_on(&g_e[r->members[k]])) { on++; break; } }
     }
-    char b[80]; if (g_cur_page == g_search_page) snprintf(b, sizeof b, "%d found, %d on", cheats, on); else if (g_cur_page == g_on_page) snprintf(b, sizeof b, on ? "%d switched on (all pages)" : "Nothing is switched on", on); else snprintf(b, sizeof b, "%d of %d on", on, cheats);
+    char b[80]; if (g_cur_page == g_search_page) { if (g_found > cheats) snprintf(b, sizeof b, "%d found, first %d shown: type more words", g_found, cheats); else snprintf(b, sizeof b, "%d found, %d on", cheats, on); } else if (g_cur_page == g_on_page) snprintf(b, sizeof b, on ? "%d switched on (all pages)" : "Nothing is switched on", on); else snprintf(b, sizeof b, "%d of %d on", on, cheats);
     wchar_t* w = wide(b); SetWindowTextW(g_count, w); free(w);
 }
 
@@ -426,7 +453,8 @@ static void lay_rows(void) {
 
 static void scroll_to(int pos) {
     RECT cr; GetClientRect(g_host, &cr); int max = g_total - cr.bottom; if (max < 0) max = 0;
-    if (pos > max) pos = max; if (pos < 0) pos = 0;
+    if (pos > max) pos = max;
+    if (pos < 0) pos = 0;
     if (pos == g_scroll) return;
     g_scroll = pos; lay_rows();
 }
@@ -441,21 +469,28 @@ static void search_text(char* out, size_t n) {
     size_t l = strlen(out); while (l && out[l - 1] == ' ') out[--l] = 0;
 }
 
-/* every word of the search is somewhere in the cheat's name, option, note, page, keys or group title */
-static int match_words(const Ent* e, const char* q) {
-    const Grp* g = e->group[0] ? grp_of(e->group) : NULL;
-    char hay[3000]; snprintf(hay, sizeof hay, "%s %s %s %s %s %s %s", e->name, e->option, e->note, e->cat, e->also, e->keys, g ? g->title : "");
-    for (char* c = hay; *c; c++) if ((unsigned char)*c < 128) *c = (char)tolower((unsigned char)*c);
-    char w[200]; snprintf(w, sizeof w, "%s", q);
-    for (char* t = strtok(w, " "); t; t = strtok(NULL, " ")) if (!strstr(hay, t)) return 0;
+/* the search, split into words once per build */
+static char g_qbuf[200]; static char* g_qw[24]; static int g_nqw;
+static void split_query(const char* q) {
+    snprintf(g_qbuf, sizeof g_qbuf, "%s", q); g_nqw = 0;
+    for (char* t = strtok(g_qbuf, " "); t && g_nqw < 24; t = strtok(NULL, " ")) g_qw[g_nqw++] = t;
+}
+/* every word is in the text, or (for a member of a choice) in the text or the choice's title */
+static int words_in(const char* a, const char* b) {
+    for (int i = 0; i < g_nqw; i++) if (!(a && strstr(a, g_qw[i])) && !(b && strstr(b, g_qw[i]))) return 0;
     return 1;
 }
+static int match_words(const Ent* e) { return words_in(e->hay, e->gi >= 0 ? g_g[e->gi].lt : NULL); }
 
 static void build_page(void) {
     char q[200]; search_text(q, sizeof q);
     int sel = (int)SendMessageW(g_side, LB_GETCURSEL, 0, 0); if (sel < 0 && !q[0]) return;
     int p = q[0] ? g_search_page : (int)SendMessageW(g_side, LB_GETITEMDATA, (WPARAM)sel, 0);
+    if (p == g_search_page && g_cur_page == g_search_page && !strcmp(q, g_last_q)) return;      /* only spaces changed */
+    snprintf(g_last_q, sizeof g_last_q, "%s", p == g_search_page ? q : "");
+    if (p == g_search_page) split_query(q);
     int special = p == g_on_page || p == g_search_page;
+    g_found = 0;
     ShowWindow(g_host, SW_HIDE);                                  /* built out of sight, shown in one go: no controls flying in from the corner */
     clear_rows(); g_scroll = 0; g_cur_page = p;
     SetWindowTextW(g_note, L"");
@@ -468,17 +503,22 @@ static void build_page(void) {
             Ent* e = &g_e[i];
             if (!strcmp(e->kind, "blocked")) continue;
             if (p == g_on_page) { if (!ent_on(e)) continue; }          /* the Enabled page: everything that is on, from every page */
-            else if (p == g_search_page) { if (!match_words(e, q)) continue; }
+            else if (p == g_search_page) { if (!match_words(e)) continue; }
             else if (strcmp(e->cat, g_pg[p]) && strcmp(e->also, g_pg[p])) continue;
-            if (e->group[0]) {
-                int gi = -1; for (int k = 0; k < g_ng; k++) if (!strcmp(g_g[k].id, e->group)) gi = k;
-                if (gi >= 0) {
+            if (e->gi >= 0) {
+                int gi = e->gi;
+                {
                     if (seen[gi]) continue;                      /* the whole choice is one row with a drop-down */
                     seen[gi] = 1;
+                    if (p == g_search_page && ++g_found > SEARCH_MAX) continue;
+                    Grp* g = &g_g[gi];
+                    /* searching: the members the words fit, or all of them when the choice's own title fits */
+                    int all = p == g_search_page && words_in(g->lt, NULL);
                     Row* r = add_row(R_GROUP, -1, gi); int id = IDC_ROW0 + g_nrows - 1;
-                    for (int k = 0; k < g_ne && r->nm < 64; k++) {
-                        Ent* m = &g_e[k];
-                        if (!strcmp(m->group, e->group) && strcmp(m->kind, "blocked") && (special || !strcmp(m->cat, g_pg[p]) || !strcmp(m->also, g_pg[p]))) r->members[r->nm++] = k;
+                    r->members = (int*)malloc((size_t)(g->nmem ? g->nmem : 1) * sizeof *r->members);
+                    for (int j = 0; j < g->nmem && r->members; j++) {
+                        Ent* m = &g_e[g->mem[j]];
+                        if (p == g_search_page ? (all || match_words(m)) : (special || !strcmp(m->cat, g_pg[p]) || !strcmp(m->also, g_pg[p]))) r->members[r->nm++] = g->mem[j];
                     }
                     r->main = mk(L"STATIC", g_g[gi].title, SS_NOPREFIX | SS_ENDELLIPSIS, g_bold, id);
                     r->sub = mk(L"STATIC", "Choose one. Only one of these can be on.", SS_NOPREFIX, g_small, id); SetWindowLongPtrW(r->sub, GWLP_USERDATA, 1);
@@ -495,8 +535,9 @@ static void build_page(void) {
                     continue;
                 }
             }
+            if (p == g_search_page && ++g_found > SEARCH_MAX) continue;
             char shown[500]; snprintf(shown, sizeof shown, "%s", label(e));
-            if (p == g_on_page) { const Grp* gg = e->group[0] ? grp_of(e->group) : NULL; if (gg) snprintf(shown, sizeof shown, "%s: %s", gg->title, label(e)); else snprintf(shown, sizeof shown, "%s", e->name); }
+            if (p == g_on_page) { const Grp* gg = e->gi >= 0 ? &g_g[e->gi] : NULL; if (gg) snprintf(shown, sizeof shown, "%s: %s", gg->title, label(e)); else snprintf(shown, sizeof shown, "%s", e->name); }
             int once = !strcmp(e->mode, "once"), both = !strcmp(e->kind, "live") && (once || !strcmp(e->mode, "both"));
             Row* r = add_row(once ? R_ONCE : R_CHECK, i, -1); int id = IDC_ROW0 + g_nrows - 1;
             if (once) r->main = mk(L"STATIC", shown, SS_NOPREFIX | SS_ENDELLIPSIS, g_font, id);
@@ -707,7 +748,7 @@ static LRESULT CALLBACK wndproc(HWND h, UINT m, WPARAM wp, LPARAM lp) {
     case WM_COMMAND:
         switch (LOWORD(wp)) {
         case IDC_SIDE: if (HIWORD(wp) == LBN_SELCHANGE) { if (GetWindowTextLengthW(g_search)) { SetWindowTextW(g_search, L""); KillTimer(h, IDT_SEARCH); } build_page(); } return 0;
-        case IDC_SEARCH: if (HIWORD(wp) == EN_CHANGE) SetTimer(h, IDT_SEARCH, 180, NULL); return 0;
+        case IDC_SEARCH: if (HIWORD(wp) == EN_CHANGE) SetTimer(h, IDT_SEARCH, 120, NULL); return 0;
         case IDC_CLOSE: case IDCANCEL: ShowWindow(h, SW_HIDE); return 0;
         case IDC_OFF:
             if (MessageBoxW(h, L"Switch every cheat off?", L"Cheats", MB_YESNO | MB_ICONQUESTION) == IDYES) { all_off(); build_page(); SetWindowTextW(g_note, L"Everything is off."); }
@@ -744,8 +785,31 @@ static void select_page_of(int idx) {
     }
 }
 
+/* the search test: types each search (separated by ';'), builds the page and checks it: every row and every drop-down
+ * entry fits the words, at most SEARCH_MAX rows; one log line each, the last one stays on screen for the picture */
+static void test_search(void) {
+    char all[400]; snprintf(all, sizeof all, "%s", g_test_search);
+    char* save = NULL;
+    for (char* q = strtok_s(all, ";", &save); q; q = strtok_s(NULL, ";", &save)) {
+        wchar_t* w = wide(q); SetWindowTextW(g_search, w); free(w);
+        KillTimer(g_win, IDT_SEARCH);
+        LARGE_INTEGER f, a, b; QueryPerformanceFrequency(&f); QueryPerformanceCounter(&a);
+        g_last_q[0] = 0; build_page();
+        QueryPerformanceCounter(&b);
+        int bad = 0, members = 0;
+        for (int i = 0; i < g_nrows; i++) {
+            Row* r = &g_rows[i];
+            if (r->kind == R_GROUP) { int title = words_in(g_g[r->gi].lt, NULL); for (int k = 0; k < r->nm; k++) { members++; if (!title && !match_words(&g_e[r->members[k]])) bad++; } }
+            else if (r->idx >= 0 && !match_words(&g_e[r->idx])) bad++;
+        }
+        fprintf(stderr, "cheatwin search: q=%s rows=%d found=%d members=%d bad=%d ms=%.1f\n", q, g_nrows, g_found, members, bad,
+                (double)(b.QuadPart - a.QuadPart) * 1000.0 / (double)f.QuadPart);
+    }
+}
+
 static void test_step(int step) {
-    if (step == 1) {
+    if (step == 1 && g_test_search[0]) test_search();
+    else if (step == 1) {
         int idx = -1; for (int i = 0; i < g_ne; i++) if (!strcmp(g_e[i].id, g_test_id)) idx = i;
         if (idx < 0) { fprintf(stderr, "cheatwin test: no entry %s\n", g_test_id); return; }
         select_page_of(idx);
@@ -845,7 +909,7 @@ static DWORD WINAPI ui_thread(LPVOID unused) {
     RECT r; GetClientRect(g_win, &r); layout(r.right, r.bottom);
     build_page();
     ShowWindow(g_win, SW_SHOWNORMAL); SetForegroundWindow(g_win);
-    if (g_test_id[0]) { SetTimer(g_win, 1, 1500, NULL); SetTimer(g_win, 2, 4000, NULL); }
+    if (g_test_id[0] || g_test_search[0]) { SetTimer(g_win, 1, 1500, NULL); SetTimer(g_win, 2, 4000, NULL); }
     MSG msg;
     while (GetMessageW(&msg, NULL, 0, 0) > 0) {
         if (g_tip && (msg.message == WM_MOUSEMOVE || msg.message == WM_LBUTTONDOWN || msg.message == WM_MOUSELEAVE) && msg.hwnd && (msg.hwnd == g_host || IsChild(g_host, msg.hwnd))) {

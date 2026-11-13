@@ -157,8 +157,9 @@ WRAP_LINES = """main 0202053c lowlvl
 ov023 021f4098 lowexp
 ov017 02196430 enccheck
 main 0208a91c noflee
+ov017 021970a0 firststrike
 """
-WRAP_FILES = ["lowexp.c", "vanish.c", "noflee.c"]
+WRAP_FILES = ["lowexp.c", "vanish.c", "noflee.c", "firststrike.c"]
 
 
 def wrap_site(root, on, extra=""):

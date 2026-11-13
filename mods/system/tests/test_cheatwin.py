@@ -8,6 +8,9 @@
         - the picture exists (look at it: <work>/one/shot.bmp)
    2  a new start with that state file and no window: the cheat is sent again by itself (the gold is in RAM)
    3  a state with a choice from a group (x2 then x4) keeps only the last one
+   4  the search box (DQIX_CHEATWIN_SEARCH): "slime" finds the slime monsters inside the "Battle any monster" choice and
+      nothing that doesn't fit; "a" finds more than the row limit and builds only the first 60; "gold max" needs both words;
+      "zzqx" finds nothing. Every row and drop-down entry must fit the words (bad=0).
    Needs the game built with the mods (mod_cheatwin.c in runtime/) and a catalog. TEST_EXE / TEST_SAVE as in the other tests."""
 import os, shutil, subprocess, sys
 
@@ -58,5 +61,19 @@ ids = [l.split("id=")[1].split("\t")[0] for l in open(os.path.join(root, "mods",
 rc3, txt3, _, _ = run("three", ["live " + i for i in ids], lambda d: {})
 print("3  two members of one choice in the state file: the game starts and runs, exit", rc3, flush=True)
 ok &= rc3 == 0 and "fatal" not in txt3.lower()
+# 4: the search
+rc4, txt4, _, _ = run("four", [], lambda d: {"DQIX_CHEATWIN_SEARCH": "slime;a;gold max;zzqx;metal slime," + os.path.join(d, "shot.bmp")})
+res = {}
+for line in txt4.splitlines():
+    if line.startswith("cheatwin search: "):
+        kv = dict(x.split("=", 1) for x in line[len("cheatwin search: "):].split(" ") if "=" in x)
+        q = line.split("q=", 1)[1].split(" rows=")[0]
+        res[q] = {k: float(v) if k == "ms" else int(v) for k, v in kv.items() if k != "q"}
+        print("4  search", repr(q), res[q], flush=True)
+s4 = rc4 == 0 and len(res) == 5 and all(r["bad"] == 0 for r in res.values())
+s4 &= res.get("slime", {}).get("members", 0) > 0 and res.get("a", {}).get("rows") == 60 and res.get("a", {}).get("found", 0) > 60
+s4 &= res.get("zzqx", {}).get("rows") == 0 and 0 < res.get("gold max", {}).get("rows", 0) < res.get("a", {}).get("found", 0)
+print("4  search works:", s4, "| exit", rc4, flush=True)
+ok &= s4
 print("RESULT:", "PASS" if ok else "FAIL")
 sys.exit(0 if ok else 1)

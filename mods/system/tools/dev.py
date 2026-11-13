@@ -266,6 +266,7 @@ def runners(root, work):
         "all-session":    (fn("test_all.py", ["session", "", "{port}"]), True, 160),
         "cheatwin":       (fn("test_cheatwin.py", ["900"]), True, 60),             # the Cheats window inside the game (mod_cheatwin.c)
         "livepatch":      (fn("test_livepatch.py", ["4500"]), True, 400),         # live code mods; needs TEST_SAVE = a save with the hero in a dungeon
+        "firststrike":    (fn("test_firststrike.py", []), True, 200),             # "Always strike first" (firststrike.c); needs TEST_SAVE as above
         "editor":         (inproc(t_editor, "editor"), False, 10),
     }
 

@@ -2,7 +2,7 @@
 
 A cheat list and code mods for [DQIX Enhanced](https://github.com/sackchief/dqix-enhanced) (Dragon Quest IX on PC), in the style of an R4 / Action Replay cheat menu, built into the game's own menu bar.
 
-- **234 cheats that switch while you play** (50 of them code mods that change the game's instructions), **1 code mod** that needs a rebuild, and launch options such as *Battle any monster you want* (288 monsters). All are checked against your own ROM before they can run, so they cannot crash the game.
+- **235 cheats that switch while you play** (50 of them code mods that change the game's instructions; none needs a rebuild), and launch options such as *Battle any monster you want* (288 monsters). All are checked against your own ROM before they can run, so they cannot crash the game.
 - **A "Cheats" tab inside the game's own menu bar**: *Cheats...* opens the cheat list in a window of the game itself, and a switch works at once while you play: no restart, no rebuild, code mods included. There is no separate cheat program. *Save editor...* and *Treasure maps...* open the web tools. The tab is put back automatically after the game updates itself.
 - **Works alone and in sessions with friends** (cheats travel with the buttons, so every PC stays in sync).
 - **Save editor** and **Treasure maps**: the DQIX project's browser editor opens with your save already loaded (downloaded on first use, needs the internet once; not part of this repo), and the map search website.
@@ -91,7 +91,7 @@ The very first time after an update of the cheats the game is built once (a few 
 
 ## Using the cheats
 
-The cheat window has pages on the left: **Enabled** (everything that is on), then Speed & comfort, Experience & gold, Party, Battle, Items, Alchemy, World, Unlocks, Records & quests, Fun, Miscellaneous and Custom. The search box above them looks through every page. Keep the window open while you play and switch cheats on the fly. The grey line under a cheat says who needs it in a session, the buttons to hold and its labels; hover a row for the full text.
+The cheat window has pages on the left: **Enabled** (everything that is on), then Speed & comfort, Experience & gold, Party, Battle, Items, Alchemy, World, Unlocks, Records & quests, Fun, Miscellaneous and Custom. The search box above them looks through every page (all words must fit; inside a choice like *Battle any monster you want* only the fitting options are offered; the first 60 hits are shown). Keep the window open while you play and switch cheats on the fly. The grey line under a cheat says who needs it in a session, the buttons to hold and its labels; hover a row for the full text.
 
 Each cheat is one of these:
 
@@ -107,7 +107,7 @@ The labels in the grey line:
 | Label | Meaning |
 |---|---|
 | `untested` | From the R4 list and checked as far as a program can, but not tried here. **Save first.** |
-| `needs a rebuild` | The one code mod that can't switch while the game runs (*Always strike first*). The window offers to rebuild the game (a few minutes) and start it again. |
+| `needs a rebuild` | A code mod that can't switch while the game runs. None of the shipped cheats needs it; it can appear for a code of your own or from a newer R4 list. The window offers to rebuild the game (a few minutes) and start it again. |
 | `next start` | Takes effect the next time the game starts ("Battle any monster you want", "Metal slimes only", "Instant loading"...). The window offers to restart the game. |
 | *Only one player* / *All players* / *Your PC only* | How it behaves in a session with friends. |
 
@@ -144,7 +144,7 @@ In a session every PC runs every player's DS, and they must all compute exactly 
 
 Notes:
 
-- **Code mods switched in the window** travel like any other cheat, so they stay in sync. The one that **needs a rebuild** (*Always strike first*) changes how the game computes: every player needs it the same (on or off), or the session goes OUT OF SYNC. Simplest: switch it off before playing with friends.
+- **Code mods switched in the window** travel like any other cheat, so they stay in sync. A code mod that **needs a rebuild** (none of the shipped ones) would change how the game computes: every player would need it the same, or the session goes OUT OF SYNC.
 - **Instant loading** only works alone; in a session the game keeps the cartridge's real timing by itself.
 - If one player's game doesn't have the cheats in it, the first cheat puts the session out of sync (the title bar says so). Without cheats such a session plays normally.
 
@@ -155,7 +155,7 @@ Notes:
 An Action Replay code is written for a real DS, where it may change anything at any moment. Here the game's program is compiled PC code. So before the cheat window shows a code, `mods\system\tools\catalog.py` runs it against a copy of **your own ROM's** program and sorts it:
 
 - **Live cheat:** it only changes data. The game carries it out itself at one fixed point of each frame. A code can only write the DS's main memory, and a code that would loop forever is cut off.
-- **Code mod:** it changes instructions. Every instruction was found in your ROM where the code says it is, and only those words are ever used. The game is built once with a wrapper around every function a code mod touches; while a mod is on, that function runs in the game's ARM interpreter with the mod's instruction in it. One mod can't run this way (*Always strike first*): it goes into the build (`needs a rebuild`).
+- **Code mod:** it changes instructions. Every instruction was found in your ROM where the code says it is, and only those words are ever used. The game is built once with a wrapper around every function a code mod touches; while a mod is on, that function runs in the game's ARM interpreter with the mod's instruction in it. A code mod that can't run this way goes into the build instead (`needs a rebuild`); none of the shipped ones.
 - **Not available:** it can't work here or can't be checked (adds its own routine, jumps out of the program, writes into the program, mixes program and data, DS hardware, doesn't fit your ROM, anti-piracy and Wi-Fi codes). It is left out of the cheat window and can't be switched on.
 
 What a program can't check is what a data cheat does to your *save* ("Max everything" codes can make a save odd): that is what `UNTESTED` warns about and what the save backups are for.
@@ -185,7 +185,7 @@ The cheat list comes from the community's R4 database (DeadSkullzJr's NDS(i) Che
 | *"cmp: command not found"* at the end of a build | Harmless. To silence it: open the MSYS2 UCRT64 terminal and run `pacman -S diffutils`. |
 | The build fails | Read the last lines of the black window; run `mods\system\dev.bat doctor`; check that you have ~4 GB free and the internet on. |
 | *Cheats > Save editor* does nothing | The editor helper needs the C# compiler that comes with Windows 10/11 (.NET Framework 4); run `Install cheats.bat` again. The cheat list works without it. |
-| A friend's session says OUT OF SYNC | Everyone needs *Always strike first* (the `needs a rebuild` mod) the same, on or off, and the same version of these cheats. See [Playing with friends](#playing-with-friends). |
+| A friend's session says OUT OF SYNC | Everyone needs the same version of these cheats (and the same `needs a rebuild` mods, if you added any). See [Playing with friends](#playing-with-friends). |
 | Something else | Press **F10** in the game: it saves a bug report and can open GitHub for you. |
 
 ---

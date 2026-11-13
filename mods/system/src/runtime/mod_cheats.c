@@ -121,6 +121,9 @@ uint8_t g_mod_vanish;
 /* "Monsters can't flee" (mods/system/cheats/monsters-cant-flee.txt): on for this frame while the code is on; noflee.c reads it. */
 uint8_t g_mod_noflee;
 #define MC_SWITCH_NOFLEE 0x02F5A5A8u
+/* "Always strike first" (mods/system/cheats/first-strike.txt): on for this frame while the code is on; firststrike.c reads it. */
+uint8_t g_mod_first;
+#define MC_SWITCH_FIRST 0x02F5A5ACu
 /* Code mods that run live (livepatch.c): a write to 02F60000 + 4n says "instruction site n is patched with this word" this frame. */
 int lp_set(uint32_t addr, uint32_t word);
 void lp_clear(void);
@@ -133,6 +136,7 @@ static int mc_write(void* u, uint32_t a, const void* in, size_t n) {
     if ((a & 0x0FFFFFFFu) == MC_SWITCH_LOWEXP) { g_mod_lowexp = 1; return 1; }
     if ((a & 0x0FFFFFFFu) == MC_SWITCH_VANISH) { g_vanish_armed = 1; return 1; }
     if ((a & 0x0FFFFFFFu) == MC_SWITCH_NOFLEE) { g_mod_noflee = 1; return 1; }
+    if ((a & 0x0FFFFFFFu) == MC_SWITCH_FIRST) { g_mod_first = 1; return 1; }
     if (n == 4 && (a & 0x0FFFFFFFu) >= MC_LP_BASE && (a & 0x0FFFFFFFu) < MC_LP_BASE + 0x10000u) { uint32_t w; memcpy(&w, in, 4); return lp_set(a & 0x0FFFFFFFu, w); }
     a &= MAIN_RAM_SIZE - 1;
     if (a + n > MAIN_RAM_SIZE) return 0;
@@ -153,6 +157,7 @@ static void mc_forget(void) {
     g_type = g_len = g_got = 0;
     g_mod_lowexp = 0;
     g_mod_noflee = 0;
+    g_mod_first = 0;
     g_mod_vanish = 0;
     lp_clear();
     g_vanish_armed = g_vanish_on = g_vanish_prev = 0;
@@ -251,6 +256,7 @@ uint32_t mod_cheats_in(uint32_t v) {
     }
     g_mod_lowexp = 0;                                    /* the codes below set it again while they are on */
     g_mod_noflee = 0;
+    g_mod_first = 0;
     lp_clear();                                          /* the live code mods below set their sites again while they are on */
     g_vanish_armed = 0;
     int keys = (int)(v & 0xFFF);                         /* this console's buttons this frame: the same on every PC */
