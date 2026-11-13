@@ -314,6 +314,8 @@ def runners(root, work):
         "session":        (fn("test_session.py", ["{port}"]), True, 40),
         "all-single":     (fn("test_all.py", ["single"]), True, 150),
         "all-session":    (fn("test_all.py", ["session", "", "{port}"]), True, 160),
+        "cheatwin":       (fn("test_cheatwin.py", ["900"]), True, 60),             # the Cheats window inside the game (mod_cheatwin.c)
+        "livepatch":      (fn("test_livepatch.py", ["4500"]), True, 400),         # live code mods; needs TEST_SAVE = a save with the hero in a dungeon
         "menu-smoke":     (inproc(t_menu_smoke, "menu-smoke"), False, 10),
         "menu-inside":    (fn("test_menu.py", ["inside"]), False, 150),
         "menu-outside":   (fn("test_menu.py", ["outside"]), False, 150),
@@ -322,7 +324,7 @@ def runners(root, work):
 
 TIERS = {
     "fast": ["static", "live-fast", "session-fast", "all-quick", "menu-smoke"],
-    "full": ["static", "live", "session", "all-single", "all-session", "menu-smoke", "menu-inside", "menu-outside"],
+    "full": ["static", "live", "session", "all-single", "all-session", "cheatwin", "menu-smoke", "menu-inside", "menu-outside"],
 }
 
 

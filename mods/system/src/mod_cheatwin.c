@@ -160,6 +160,16 @@ static const char* skind(const Ent* e) { return !strcmp(e->kind, "live") ? "live
 
 static int ent_on(const Ent* e) { return st_has(skind(e), e->id); }
 
+/* code mods that now switch live (livepatch.c): what the state file lists as "code" is "live" */
+static void migrate_state(void) {
+    int changed = 0;
+    for (int i = 0; i < g_ne; i++) {
+        if (strcmp(g_e[i].kind, "live")) continue;
+        if (st_has("code", g_e[i].id)) { st_set("code", g_e[i].id, 0); st_set("live", g_e[i].id, 1); changed = 1; }
+    }
+    if (changed) st_save();
+}
+
 /* entries a hand-written file turns on by itself ("# enabled: yes"): on the first time only */
 static void seed_defaults(void) {
     int changed = 0;
@@ -263,7 +273,7 @@ void mod_cheatwin_boot(void) {
     load_catalog();
     if (!g_loaded) return;
     load_state();
-    seed_defaults();
+    migrate_state(); seed_defaults();
     for (int i = 0; i < g_ne; i++)                           /* options for the next start: set before the game reads them */
         if (!strcmp(g_e[i].kind, "launch") && ent_on(&g_e[i]) && strchr(g_e[i].env, '=')) _putenv(g_e[i].env);
     CreateThread(NULL, 0, agent, NULL, 0, NULL);
@@ -504,7 +514,7 @@ static DWORD WINAPI ui_thread(LPVOID unused) {
 /* NB: the tab's page index is its position, but pages without a visible cheat are left out: map through lParam */
 void mod_cheatwin_show(void) {
     if (!g_cs_init) { InitializeCriticalSection(&g_cs); g_cs_init = 1; }
-    if (!g_loaded) { load_catalog(); if (g_loaded) { load_state(); seed_defaults(); } }
+    if (!g_loaded) { load_catalog(); if (g_loaded) { load_state(); migrate_state(); seed_defaults(); } }
     if (!g_loaded) {
         MessageBoxW(NULL, L"There is no cheat list yet. Run \"mods\\Play with mods.bat\" once (it makes the list), then try again.", L"Cheats", MB_OK | MB_ICONINFORMATION);
         return;
