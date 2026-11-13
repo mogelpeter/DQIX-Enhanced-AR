@@ -77,8 +77,29 @@ __attribute__((constructor)) static void mc_start(void) {
     memset(b, 0, sizeof *b);
     b->version = MC_VERSION; b->magic = MC_MAGIC;
     g_box = b;
+    {   /* the Cheats window inside the emulator (mod_cheatwin.c): its options for this start, and the thread that sends the cheats that are on */
+        void mod_cheatwin_boot(void);
+        mod_cheatwin_boot();
+    }
 }
 #endif
+
+/* The in-emulator Cheats window (mod_cheatwin.c, its own thread) puts messages into the same ring the external cheat
+ * window used. One producer at a time (mod_cheatwin.c holds a lock); returns 0 when there is no room or no mailbox. */
+int mod_cheats_post(const uint16_t* w, int n) {
+    if (!g_box || n <= 0) return 0;
+    uint32_t wr = g_box->wr;
+    if (wr - g_box->rd + (uint32_t)n > MC_RING - 8) return 0;
+    for (int i = 0; i < n; i++) g_box->ring[(wr + (uint32_t)i) % MC_RING] = w[i];
+#ifdef _WIN32
+    MemoryBarrier();
+#endif
+    g_box->wr = wr + (uint32_t)n;
+    return 1;
+}
+
+/* goes up whenever this console forgot every cheat (started, reset, a session began or ended): the window sends them again */
+uint32_t mod_cheats_gen(void) { return g_box ? g_box->gen : 0; }
 
 /* ---- the DS's memory, for the code interpreter ---- */
 static int mc_read(void* u, uint32_t a, void* out, size_t n) {
@@ -100,6 +121,10 @@ uint8_t g_mod_vanish;
 /* "Monsters can't flee" (mods/system/cheats/monsters-cant-flee.txt): on for this frame while the code is on; noflee.c reads it. */
 uint8_t g_mod_noflee;
 #define MC_SWITCH_NOFLEE 0x02F5A5A8u
+/* Code mods that run live (livepatch.c): a write to 02F60000 + 4n says "instruction site n is patched with this word" this frame. */
+int lp_set(uint32_t addr, uint32_t word);
+void lp_clear(void);
+#define MC_LP_BASE 0x02F60000u
 #define MC_VANISH_KEYS  ((1 << 8) | (1 << 9) | (1 << 2))      /* R, L, SELECT */
 static uint8_t g_vanish_armed, g_vanish_on, g_vanish_prev;
 
@@ -108,6 +133,7 @@ static int mc_write(void* u, uint32_t a, const void* in, size_t n) {
     if ((a & 0x0FFFFFFFu) == MC_SWITCH_LOWEXP) { g_mod_lowexp = 1; return 1; }
     if ((a & 0x0FFFFFFFu) == MC_SWITCH_VANISH) { g_vanish_armed = 1; return 1; }
     if ((a & 0x0FFFFFFFu) == MC_SWITCH_NOFLEE) { g_mod_noflee = 1; return 1; }
+    if (n == 4 && (a & 0x0FFFFFFFu) >= MC_LP_BASE && (a & 0x0FFFFFFFu) < MC_LP_BASE + 0x10000u) { uint32_t w; memcpy(&w, in, 4); return lp_set(a & 0x0FFFFFFFu, w); }
     a &= MAIN_RAM_SIZE - 1;
     if (a + n > MAIN_RAM_SIZE) return 0;
     memcpy(&g_main_ram[a], in, n); return 1;
@@ -128,6 +154,7 @@ static void mc_forget(void) {
     g_mod_lowexp = 0;
     g_mod_noflee = 0;
     g_mod_vanish = 0;
+    lp_clear();
     g_vanish_armed = g_vanish_on = g_vanish_prev = 0;
 }
 
@@ -224,6 +251,7 @@ uint32_t mod_cheats_in(uint32_t v) {
     }
     g_mod_lowexp = 0;                                    /* the codes below set it again while they are on */
     g_mod_noflee = 0;
+    lp_clear();                                          /* the live code mods below set their sites again while they are on */
     g_vanish_armed = 0;
     int keys = (int)(v & 0xFFF);                         /* this console's buttons this frame: the same on every PC */
     for (int i = 0; i < MC_SLOTS; i++) if (g_slot[i].used) ar_run(&g_mem, g_slot[i].ops, g_slot[i].nops, keys);

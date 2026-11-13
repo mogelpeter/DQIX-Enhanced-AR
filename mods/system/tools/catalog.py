@@ -644,6 +644,22 @@ def db_id(folder, name, ops):
     return f"db:{zlib.crc32(text.encode('utf-8')) & 0xFFFFFFFF:08x}"
 
 
+LP_BASE = 0x02F60000        # a write here is "instruction site #n is patched" (mod_cheats.c / livepatch.c), not memory
+
+
+def read_livepatch(root):
+    """{(module, address): site number} of the instruction sites the built game can patch while it runs."""
+    out = {}
+    try:
+        for line in open(os.path.join(root, "mods", "system", "bin", "livepatch.txt"), encoding="utf-8"):
+            w = line.split()
+            if len(w) >= 3 and not line.startswith("#"):
+                out[(w[1], int(w[2], 16))] = int(w[0])
+    except OSError:
+        pass
+    return out
+
+
 def build(root):
     """-> (info, entries, groups). An entry is a dict; see write() for what the menu gets."""
     rom = Rom(root)
@@ -842,6 +858,21 @@ def build(root):
         entries.append(dict(id=lid, name=name, note=note, cat=cat, group="", kind="launch",
                             status="untested" if env.startswith("DQIX_MOD_") and not env.startswith("DQIX_MOD_METAL") else "tested",
                             mode="", ops=[], keys=[], reason="", file="", on=False, patch=[], env=env, option=name, also=also))
+    # ---- code mods that run live: the build wraps every function they touch (mods/system/bin/livepatch.txt, written by
+    # apply_runtime_mod.py), so the game applies their instructions while it runs and switching needs no rebuild.
+    sites = read_livepatch(root)
+    if sites:
+        def lp_ok(e):
+            return e["kind"] == "code" and e["patch"] and all((n, a) in sites for n, a, w in e["patch"])
+        grp_ok = {g["id"]: all(lp_ok(e) for e in entries if e["group"] == g["id"]) for g in groups if g["kind"] == "code"}
+        for e in entries:
+            if lp_ok(e) and grp_ok.get(e["group"], True):
+                e.update(kind="live", mode="always", keys=[], lp=1,
+                         ops=[(LP_BASE + 4 * sites[(n, a)], w) for n, a, w in e["patch"]])
+        for g in groups:
+            if grp_ok.get(g["id"]):
+                g["kind"] = "live"
+
     # ---- cheats whose effect an automated test confirmed (mods/system/verified.txt) count as tried out
     try:
         ok = set(l.split()[0] for l in open(os.path.join(root, "mods", "system", "verified.txt"), encoding="utf-8") if l.strip() and not l.startswith("#"))

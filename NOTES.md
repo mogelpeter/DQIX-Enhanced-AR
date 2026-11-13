@@ -2,6 +2,11 @@
 
 Newest first. One block per working session: what changed, why, how it was checked.
 
+## 2026-11-13 (26)  WIP (branch wip/live-cheats): code mods without rebuild, Cheats window in the emulator
+- **Live code mods** (`src/livepatch.c`, generator in `apply_runtime_mod.py`, `catalog.py`): the build wraps once every function any code mod touches (53 sites in 29 functions, `bin/livepatch.txt`); a mod that is on makes that function run in the runtime's ARM interpreter with its instruction put in RAM for the call. A mod is a live cheat whose lines write the new word to `02F60000 + 4n` (cleared every frame like the other switches, so sessions work). 50 of the mods qualify. `tests/test_livepatch.py`: A/B/C/E pass in the scratch build (interpreter vs compiled differs by 2 timing bytes, 31 mods at once run), D (a mod applied alone) being reworked.
+- **Cheats window in the emulator** (`src/mod_cheatwin.c`, menu bar Cheats: Cheats... / Save editor... / Treasure maps...): same catalog and `menu-state.txt` as the cheat menu program, own thread, sends through the same mailbox; the options for the next start are applied at program start; on a new start the cheats that are on are sent again by themselves. Save editor starts the menu program in `--editor` mode (browser), Treasure maps opens the Grotto Searcher site. `tests/test_cheatwin.py` not run yet.
+- Not on main until the tests pass. The 288-launcher crash run is going (2000 frames each, 3 jobs).
+
 ## 2026-11-13 (25)  Labels: alchemy Always + movement speed confirmed; launcher run settings
 - `verified.txt`: the alchemy `Always ...` mods (Success R/L/v2, Fail, Alchemiracle) and the Movement Speed choices (x0.5, x1, x1.5, x2) count as tried out (confirmed by the user in the game).
 - `test_launchers.py`: `TEST_FRAMES` (default 6000; the 288 crash run uses 3600 and its own copy of the exe, 6000 frames took ~2.5 min per monster). In progress, not committed yet: live code mods (`livepatch.c`, generator in `apply_runtime_mod.py`) and the in-emulator Cheats window.

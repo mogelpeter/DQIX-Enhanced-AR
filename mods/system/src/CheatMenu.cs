@@ -1311,6 +1311,12 @@ button{white-space:normal}
                     foreach (string line in File.ReadAllLines(old))
                         if (line.Trim().Length > 0 && !line.StartsWith("#")) liveOn.Add("file:cheats/" + line.Trim());
             }
+            /* code mods that now switch live (livepatch.c): what was a "code" switch is a "live" one */
+            foreach (string id in codeOn.ToList())
+                if (entries.Any(e => e.Id == id && e.Kind == "live")) { codeOn.Remove(id); liveOn.Add(id); }
+            /* a hand-written code file that was on by itself ("# enabled: yes"): on the first time only */
+            foreach (Entry e in entries)
+                if (e.Kind == "live" && e.Id.StartsWith("file:code/") && e.FileOn && !flags.Contains("seeded-" + e.Id)) { liveOn.Add(e.Id); flags.Add("seeded-" + e.Id); }
             HashSet<string> known = new HashSet<string>(entries.Select(e => e.Id));
             liveOn.RemoveWhere(id => !entries.Any(e => e.Id == id && e.Kind == "live" && e.Mode != "once"));
             codeOn.RemoveWhere(id => !entries.Any(e => e.Id == id && e.Kind == "code" && e.File.Length == 0));
@@ -2029,6 +2035,13 @@ button{white-space:normal}
         }
 
         /* tests: show a page ("Party", "on", "search:gold") and draw the window into a picture */
+        /* the emulator's "Save editor" / "Treasure maps": show that page and open the editor in the browser */
+        public void OpenEditorAuto(string tab)
+        {
+            TestPage(tab == "grottos" ? "tool:maps" : "tool:save");
+            OpenTool(tab, null, new TextBlock());
+        }
+
         public void TestPage(string page)
         {
             if (page.StartsWith("search:")) { Search.Text = page.Substring(7); return; }
@@ -2154,6 +2167,8 @@ button{white-space:normal}
             else root = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location), "..", ".."));
             logPath = Path.Combine(root, "mods", "system", "bin", "menu-error.log");
             if (args.Length > 1 && args[0] == "--editor-selftest") return EditorSelfTest(root, args[1]);
+            string openEditor = null;                                       /* "<root> --editor <tab>": from the emulator's Cheats > Save editor: open the editor in the browser */
+            { int ea = Array.IndexOf(args, "--editor"); if (ea >= 0 && ea + 1 < args.Length) openEditor = args[ea + 1]; }
 
             bool first;
             using (Mutex one = new Mutex(true, "dqix-cheat-menu-" + root.ToLowerInvariant().GetHashCode().ToString("x"), out first))
@@ -2173,6 +2188,7 @@ button{white-space:normal}
                 try
                 {
                     MainWindow w = new MainWindow(root);
+                    if (openEditor != null) { MainWindow mw = w; w.Loaded += delegate { mw.OpenEditorAuto(openEditor); }; }
                     if (args.Contains("--shot"))
                     {
                         /* tests: "--shot file page [seconds]" draws the window into a picture (after that long) and leaves */

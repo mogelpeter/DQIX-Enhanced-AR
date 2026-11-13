@@ -78,7 +78,9 @@ MENU_ORIGINAL = """\
 """
 MENU_PATCHED = MENU_BEGIN + """\
     HMENU cheats = sub(g_bar, L"&Cheats");
-    item(cheats, 360, L"Cheats &enabled...");              /* 360, 361: handled in frontend_sdl.c, mod_menu.c */
+    item(cheats, 360, L"&Cheats...");                       /* 360-363: handled in frontend_sdl.c, mod_menu.c, mod_cheatwin.c */
+    item(cheats, 362, L"&Save editor...");
+    item(cheats, 363, L"&Treasure maps...");
     sep(cheats);
     item(cheats, 361, L"&What is this?");
 """ + MENU_ORIGINAL + END
@@ -88,21 +90,20 @@ ACT_ORIGINAL = """\
     case MI_UPDATE: update_menu(); break;
 """
 ACT_PATCHED = ACT_BEGIN + r"""
-    case 360: case 361: {
-        int mod_menu_available(void), mod_menu_launch(void);
+    case 360: case 361: case 362: case 363: {
+        void mod_cheatwin_show(void);
+        int mod_editor_launch(const char* tab), mod_open_url(const char* url);
         if (id == 361) {
             info_box(SDL_MESSAGEBOX_INFORMATION, "Cheats",
-                "Cheats enabled closes the game and opens the cheat menu: every cheat is a switch there, and its Play button "
-                "starts the game again with them (the first time it builds them in: a few minutes).\n\n"
-                "Your save is not touched (copies go to mods\\system\\save-backups). Updating the game from the Help menu keeps this tab.", g_win);
+                "Cheats... opens the cheat list in a window of its own: every cheat is a switch, and it works at once while you play "
+                "(no restart, no rebuild). Pick one of several (experience x2, x4...) where the list says so.\n\n"
+                "Save editor opens your save in the editor website (close the game before you export). Treasure maps opens the map search website.\n\n"
+                "Your save is not touched by the cheats (copies go to mods\system\save-backups). Updating the game from the Help menu keeps this tab.", g_win);
             break;
         }
-        if (session_requested()) { info_box(SDL_MESSAGEBOX_INFORMATION, "Cheats", "Not while playing with friends: leave the session first.", g_win); break; }
-        if (!mod_menu_available()) { info_box(SDL_MESSAGEBOX_ERROR, "Cheats", "The mods folder isn't next to the game. Run Install mods.bat first.", g_win); break; }
-        if (!ask_yes("Cheats", "The game closes and the cheat menu opens. Its Play button starts the game again with your cheats.\n\nSave your adventure first (in the game) if you haven't.", "Enable cheats")) break;
-        backup_flush(); settings_save();
-        if (mod_menu_launch()) exit(0);
-        info_box(SDL_MESSAGEBOX_ERROR, "Cheats", "The cheat menu couldn't be started. Use mods\\Play with mods.bat.", g_win);
+        if (id == 362) { if (!mod_editor_launch("party")) info_box(SDL_MESSAGEBOX_ERROR, "Save editor", "The editor couldn't be started: the cheat menu program is missing. Run mods\Play with mods.bat once.", g_win); break; }
+        if (id == 363) { if (!mod_open_url("https://dqix.github.io/Grotto-Searcher/")) info_box(SDL_MESSAGEBOX_ERROR, "Treasure maps", "The browser couldn't be opened. The page is https://dqix.github.io/Grotto-Searcher/", g_win); break; }
+        mod_cheatwin_show();
         break;
     }
 """ + ACT_ORIGINAL + END
@@ -123,7 +124,7 @@ SITES = [
     ("frontend_sdl.c", ACT_ORIGINAL, ACT_PATCHED, ACT_BEGIN, "Cheats tab: what it does"),
     ("update.c", UPD_ORIGINAL, UPD_PATCHED, UPD_BEGIN, "Cheats stay after an update of the game"),
 ]
-FILES = ["mod_cheats.c", "ar_engine.h", "mod_data.c"]       # belong to the first site
+FILES = ["mod_cheats.c", "ar_engine.h", "mod_data.c", "livepatch.c", "mod_cheatwin.c"]       # belong to the first site
 MENU_FILES = ["mod_menu.c"]                                  # belong to the "what it does" site (frontend_sdl.c)
 
 
@@ -158,7 +159,7 @@ main 0208a91c noflee
 WRAP_FILES = ["lowexp.c", "vanish.c", "noflee.c"]
 
 
-def wrap_site(root, on):
+def wrap_site(root, on, extra=""):
     """lowexp.c and its two lines in wrap.txt (USA addresses; region.py moves them). -> changed"""
     changed = False
     path = os.path.join(root, "wrap.txt")
@@ -170,7 +171,7 @@ def wrap_site(root, on):
     pat = r"\r?\n?" + re.escape(WRAP_BEGIN) + r".*?" + re.escape(WRAP_END) + r"\r?\n?"
     stripped = re.sub(pat, lambda m: nl, text, flags=re.S)
     stripped = stripped.rstrip(cr + lf) + nl
-    new = stripped + (nl + WRAP_BEGIN + nl + WRAP_LINES.replace(lf, nl) + WRAP_END + nl if on else "")
+    new = stripped + (nl + WRAP_BEGIN + nl + (WRAP_LINES + extra).replace(lf, nl) + WRAP_END + nl if on else "")
     if new != text:
         write(path, new)
         changed = True
@@ -185,6 +186,85 @@ def wrap_site(root, on):
             os.remove(dst)
             changed = True
     return changed
+
+
+def livepatch_plan(root):
+    """The functions the build wraps so that code mods can be switched while the game runs, and the instruction sites in them.
+    -> (functions [(module, start, usa_start)], sites [(module, address, function number)]) or None if the game isn't built yet.
+    A function another mod already wraps, a Thumb function and anything that is not in a known function is left out: the code
+    mods that touch those stay "built in" (rebuild)."""
+    if not os.path.isfile(os.path.join(root, "build", "recomp", "dispatch_table.c")):
+        return None
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    import catalog
+    rom = catalog.Rom(root)
+    _, entries, _ = catalog.build(root)
+    fixed = set()
+    for line in WRAP_LINES.splitlines():
+        w = line.split()
+        if len(w) >= 2:
+            fixed.add((w[0], int(w[1], 16)))
+    found = {}
+    for e in entries:
+        if e["id"].startswith("launch:") or not (e["kind"] == "code" or e.get("lp")):
+            continue
+        for n, a, w in e["patch"]:
+            m = rom.by_name.get(n)
+            if m is None or a & 3:
+                continue
+            f = rom.func_at(m, a)
+            if f is None or f[2]:
+                continue
+            usa = rom.from_rom(f[0]) if n == "main" else f[0]
+            if (n, usa) not in fixed:
+                found[(n, a)] = (f[0], usa)
+    sites = sorted(found)
+    fns = sorted({(n, found[(n, a)][0], found[(n, a)][1]) for n, a in sites})
+    num = {(n, st): i for i, (n, st, usa) in enumerate(fns)}
+    return fns, [(n, a, num[(n, found[(n, a)][0])]) for n, a in sites]
+
+
+def livepatch_files(root, on):
+    """runtime/mod_livepatch_tab.c, mods/system/bin/livepatch.txt and the extra wrap.txt lines. -> (changed, wrap lines, functions, sites)"""
+    plan = livepatch_plan(root) if on else None
+    fns, sites = plan if plan else ([], [])
+    tab = ["/* written by mods/system/tools/apply_runtime_mod.py: the functions that live code mods can patch (see livepatch.c) */",
+           "#include <stdint.h>", '#include "cpu.h"',
+           "void lp_call(unsigned, Cpu*, void (*)(Cpu*));"]
+    tab.append("const unsigned g_lp_nfn = %d, g_lp_nsite = %d;" % (len(fns), len(sites)))
+    first, count = {}, {}
+    for k, (n, a, fi) in enumerate(sites):
+        first.setdefault(fi, k)
+        count[fi] = count.get(fi, 0) + 1
+
+    def arr(t, name, vals):
+        return "const %s %s[%d] = { %s };" % (t, name, max(1, len(vals)), ", ".join(vals) if vals else "0")
+    tab.append(arr("uint32_t", "g_lp_entry", ["0x%08xu" % st for n, st, usa in fns]))
+    tab.append(arr("uint16_t", "g_lp_first", [str(first.get(i, 0)) for i in range(len(fns))]))
+    tab.append(arr("uint16_t", "g_lp_count", [str(count.get(i, 0)) for i in range(len(fns))]))
+    tab.append(arr("uint16_t", "g_lp_site_fn", [str(fi) for n, a, fi in sites]))
+    tab.append(arr("uint32_t", "g_lp_site_addr", ["0x%08xu" % a for n, a, fi in sites]))
+    for i in range(len(fns)):
+        tab.append("void wrap_lp%d_orig(Cpu* c); void wrap_lp%d(Cpu* c) { lp_call(%d, c, wrap_lp%d_orig); }" % (i, i, i, i))
+    text = "\n".join(tab) + "\n"
+    changed = False
+    dst = os.path.join(root, "runtime", "mod_livepatch_tab.c")
+    if on:
+        if not os.path.isfile(dst) or read(dst).replace("\r\n", "\n") != text:
+            write(dst, text)
+            changed = True
+    elif os.path.isfile(dst):
+        os.remove(dst)
+        changed = True
+    lp = ["# The instruction sites the built game can patch while it runs (apply_runtime_mod.py): number, module, address, function"]
+    lp += ["%d %s %08x %08x" % (k, n, a, fns[fi][1]) for k, (n, a, fi) in enumerate(sites)]
+    out = os.path.join(root, "mods", "system", "bin", "livepatch.txt")
+    os.makedirs(os.path.dirname(out), exist_ok=True)
+    old = read(out) if os.path.isfile(out) else ""
+    if old.replace("\r\n", "\n") != "\n".join(lp) + "\n":
+        write(out, "\n".join(lp) + "\n")
+    wrap = "".join("%s %08x lp%d\n" % (n, usa, i) for i, (n, st, usa) in enumerate(fns))
+    return changed, wrap, len(fns), len(sites)
 
 
 def site(root, name, original, patched, begin, on):
@@ -235,8 +315,12 @@ def main():
             print(f"   [skipped] {what}: this version of the game has runtime\\{name} written differently."
                   + ("  Cheats still work when you play alone." if i == 0 else "  The cheat menu still starts with Play with mods.bat."
                      if name in ("menu_win32.c", "frontend_sdl.c", "update.c") else "  \"Instant loading\" stays off."))
-    if wrap_site(root, on):
+    lp_changed, lp_wrap, nfn, nsite = livepatch_files(root, on)
+    changed |= lp_changed
+    if wrap_site(root, on, lp_wrap):
         changed = True
+    if on and nfn:
+        print(f"   [on] Code mods switch while the game runs: {nsite} instruction sites in {nfn} functions")
     if on:
         print("   [on] Lower-level characters get more experience (when switched on in the menu)")
     if not on:

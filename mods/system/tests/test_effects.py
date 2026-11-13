@@ -198,8 +198,8 @@ for k, e in enumerate(entries):
         for i, byte in enumerate(v.to_bytes(n, "little")):
             want[(a & 0x3FFFFF) + i] = byte
     want = {a: b for a, b in want.items() if prev[a] != b and later.get(a) == k}
-    if any((a & ~0xF) == 0x02F5A5A0 for a, b in e["ops"]):
-        status = "NOCHANGE(SWITCH address 02F5A5xx: handled by mod_cheats.c, see test_noflee / test_vanish)"
+    if any((a & ~0xF) == 0x02F5A5A0 or 0x02F60000 <= (a & 0x0FFFFFFF) < 0x02F70000 for a, b in e["ops"]):
+        status = "NOCHANGE(SWITCH address (02F5A5xx / 02F6xxxx live code mod): handled by mod_cheats.c, see test_noflee / test_vanish / test_livepatch)"
     elif not w:
         status = "NOCHANGE(no write: condition not met here)"
     elif not want:

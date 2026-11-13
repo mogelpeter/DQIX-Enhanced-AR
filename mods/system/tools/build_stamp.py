@@ -29,7 +29,7 @@ def now(root):
     except OSError:
         pass
     h.update(block.encode("utf-8"))
-    for name in ("mod_cheats.c", "ar_engine.h", "mod_menu.c", "mod_data.c", "lowexp.c", "vanish.c", "noflee.c"):
+    for name in ("mod_cheats.c", "ar_engine.h", "mod_menu.c", "mod_data.c", "lowexp.c", "vanish.c", "noflee.c", "livepatch.c", "mod_cheatwin.c", "mod_livepatch_tab.c"):
         try:
             h.update(open(os.path.join(root, "runtime", name), "rb").read().replace(b"\r\n", b"\n"))
         except OSError:
