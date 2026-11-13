@@ -163,3 +163,6 @@ Newest first. One block per working session: what changed, why, how it was check
 
 ## 2026-11-13 (30)  Cheat window: smaller, dark
 - 800x560 (was 980x700), smaller type and rows, dark palette like the DS Lite black skin with a gold accent, owner-drawn toggle switches, dark title bar and dark drop-downs/buttons (system dark theme, falls back to the normal look). `dev test static cheatwin` PASS.
+
+## 2026-11-13 (31)  Cheat window: Enabled page, hover info, keys inline
+- Stale separator lines fixed (page erased again). Keybinds page removed: keys are in each cheat's grey line. New first page **Enabled** (everything on, all pages). Hover on a row: full note, who needs it (one player / all players), keys, untested warning (tooltip per row). Not checked by picture: the hover itself (headless); `dev test static cheatwin` PASS.

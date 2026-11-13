@@ -280,8 +280,8 @@ void mod_cheatwin_boot(void) {
 }
 
 /* ---------------------------------------------------------------- the window
- * Left: the pages (owner-drawn list), the last one is "Keybinds". Right: the page's rows in a scrolling panel. A row is a check box
- * (a cheat), a drop-down (a choice of which only one can be on: "Off" + the options), or a name with its keys (Keybinds page). */
+ * Left: the pages (owner-drawn list), the first one, "Enabled", lists everything that is on. Right: the page's rows in a scrolling panel. A row is a check box
+ * (a cheat), a drop-down (a choice of which only one can be on: "Off" + the options). */
 enum { IDC_SIDE = 100, IDC_OFF, IDC_CLOSE, IDC_TITLE, IDC_COUNT, IDC_NOTE, IDC_ROW0 = 1000, WM_SHOW_CHEATS = WM_APP + 1 };
 enum { R_CHECK, R_ONCE, R_GROUP, R_KEY };
 typedef struct { int kind, idx, gi, y, h, nm, on, members[64]; HWND main, sub, right, combo, btn; } Row;
@@ -289,7 +289,9 @@ typedef struct { int kind, idx, gi, y, h, nm, on, members[64]; HWND main, sub, r
 static HWND g_win, g_side, g_host, g_title, g_count, g_note, g_off, g_close;
 static HFONT g_font, g_small, g_bold, g_head, g_mono;
 static HBRUSH g_white, g_gray;
-static Row* g_rows; static int g_nrows, g_scroll, g_total, g_keys_page, g_cur_page = -1;
+static HWND g_tip;
+static wchar_t g_tiptext[2100];
+static Row* g_rows; static int g_nrows, g_scroll, g_total, g_on_page, g_cur_page = -1;
 
 #define PAD_X 18
 #define SIDE_W 176
@@ -311,13 +313,29 @@ static const Grp* grp_of(const char* id) { for (int i = 0; i < g_ng; i++) if (!s
 static const char* label(const Ent* e) { return e->option[0] ? e->option : e->name; }
 
 /* the small grey line under a cheat: who needs it, status, note (the keys are on their own page) */
+static const char* who_short(const Ent* e) {
+    if (!strcmp(e->kind, "live")) return "Only one player needs it enabled";
+    if (!strcmp(e->kind, "launch")) return !strncmp(e->env, "DQIX_MOD_", 9) ? "All players need it enabled \xC2\xB7 next start" : "Your PC only \xC2\xB7 next start";
+    return "All players need it enabled \xC2\xB7 needs a rebuild";
+}
+
+/* the grey line under a cheat */
 static void tag_text(const Ent* e, char* out, size_t n) {
+    snprintf(out, n, "%s%s%s%s%s%s%s", who_short(e), e->keys[0] ? "  \xC2\xB7  hold " : "", e->keys, !strcmp(e->status, "untested") ? "  \xC2\xB7  untested" : "",
+             !strcmp(e->mode, "once") ? "  \xC2\xB7  once" : "", e->note[0] ? "  \xC2\xB7  " : "", e->note);
+}
+
+/* the hover text: all of it */
+static void hover_text(const Ent* e, wchar_t* out, size_t n) {
     const char* who;
-    if (!strcmp(e->kind, "live")) who = "One player is enough";
-    else if (!strcmp(e->kind, "launch")) who = !strncmp(e->env, "DQIX_MOD_", 9) ? "All players, next start" : "Your PC only, next start";
-    else who = "All players, needs a rebuild";
-    snprintf(out, n, "%s%s%s%s%s", who, !strcmp(e->status, "untested") ? "  \xC2\xB7  untested" : "", !strcmp(e->mode, "once") ? "  \xC2\xB7  once" : "",
-             e->note[0] ? "  \xC2\xB7  " : "", e->note);
+    if (!strcmp(e->kind, "live")) who = "Works with friends: only ONE player needs it enabled. It is sent to every PC in the session.";
+    else if (!strcmp(e->kind, "launch")) who = !strncmp(e->env, "DQIX_MOD_", 9) ? "ALL players need it enabled (it changes the game's rules, same on every PC). Takes effect the next time the game starts."
+                                                                                  : "Only your own PC. Takes effect the next time the game starts.";
+    else who = "ALL players need it enabled (built into the game). Needs a rebuild: run Play with mods.bat.";
+    char b[2000];
+    snprintf(b, sizeof b, "%s\r\n\r\n%s%s%s%s%s%s", e->name, e->note, e->note[0] ? "\r\n\r\n" : "", who,
+             e->keys[0] ? "\r\nHold: " : "", e->keys, !strcmp(e->status, "untested") ? "\r\nUntested: save your game first." : "");
+    wchar_t* w = wide(b); if (w) { wcsncpy(out, w, n - 1); out[n - 1] = 0; free(w); }
 }
 
 static void dark(HWND h, const wchar_t* theme);
@@ -336,12 +354,15 @@ static void clear_rows(void) {
         HWND hs[5] = { g_rows[i].main, g_rows[i].sub, g_rows[i].right, g_rows[i].combo, g_rows[i].btn };
         for (int k = 0; k < 5; k++) if (hs[k]) DestroyWindow(hs[k]);
     }
+    for (int i = 0; i < g_nrows && g_tip; i++) { TOOLINFOW ti; memset(&ti, 0, sizeof ti); ti.cbSize = sizeof ti; ti.hwnd = g_host; ti.uId = (UINT_PTR)i; SendMessageW(g_tip, TTM_DELTOOLW, 0, (LPARAM)&ti); }
     free(g_rows); g_rows = NULL; g_nrows = 0;
 }
 
 static Row* add_row(int kind, int idx, int gi) {
     g_rows = (Row*)realloc(g_rows, (size_t)(g_nrows + 1) * sizeof *g_rows);
-    Row* r = &g_rows[g_nrows]; memset(r, 0, sizeof *r); r->kind = kind; r->idx = idx; r->gi = gi; g_nrows++; return r;
+    Row* r = &g_rows[g_nrows]; memset(r, 0, sizeof *r); r->kind = kind; r->idx = idx; r->gi = gi;
+    if (g_tip) { TOOLINFOW ti; memset(&ti, 0, sizeof ti); ti.cbSize = sizeof ti; ti.uFlags = 0; ti.hwnd = g_host; ti.uId = (UINT_PTR)g_nrows; ti.lpszText = LPSTR_TEXTCALLBACKW; SendMessageW(g_tip, TTM_ADDTOOLW, 0, (LPARAM)&ti); }
+    g_nrows++; return r;
 }
 
 static void update_count(void) {
@@ -351,7 +372,7 @@ static void update_count(void) {
         if (r->kind == R_CHECK) { cheats++; on += ent_on(&g_e[r->idx]); }
         else if (r->kind == R_GROUP) { cheats++; for (int k = 0; k < r->nm; k++) if (ent_on(&g_e[r->members[k]])) { on++; break; } }
     }
-    char b[80]; if (g_cur_page == g_keys_page) snprintf(b, sizeof b, "Hold these keys on the controller"); else snprintf(b, sizeof b, "%d of %d on", on, cheats);
+    char b[80]; if (g_cur_page == g_on_page) snprintf(b, sizeof b, on ? "%d switched on (all pages)" : "Nothing is switched on", on); else snprintf(b, sizeof b, "%d of %d on", on, cheats);
     wchar_t* w = wide(b); SetWindowTextW(g_count, w); free(w);
 }
 
@@ -385,6 +406,7 @@ static void lay_rows(void) {
         if (r->combo) dwp = defer(dwp, r->combo, W - PAD_X - rightw, top + (h - 24) / 2, rightw, 240);
         if (r->btn) dwp = defer(dwp, r->btn, W - PAD_X - rightw, top + (h - 26) / 2, rightw, 26);
         if (r->kind == R_KEY && r->right) dwp = defer(dwp, r->right, W - PAD_X - rightw, top + (h - rh) / 2, rightw, rh);
+        if (g_tip) { TOOLINFOW ti; memset(&ti, 0, sizeof ti); ti.cbSize = sizeof ti; ti.hwnd = g_host; ti.uId = (UINT_PTR)i; ti.rect.left = 0; ti.rect.right = W; ti.rect.top = top; ti.rect.bottom = top + h; SendMessageW(g_tip, TTM_NEWTOOLRECTW, 0, (LPARAM)&ti); }
         y += h;
     }
     ReleaseDC(g_host, dc);
@@ -392,7 +414,7 @@ static void lay_rows(void) {
     g_total = y + 8;
     SCROLLINFO si; memset(&si, 0, sizeof si); si.cbSize = sizeof si; si.fMask = SIF_RANGE | SIF_PAGE | SIF_POS; si.nMax = g_total; si.nPage = (UINT)cr.bottom; si.nPos = g_scroll;
     SetScrollInfo(g_host, SB_VERT, &si, TRUE);
-    RedrawWindow(g_host, NULL, NULL, RDW_INVALIDATE | RDW_ALLCHILDREN);
+    RedrawWindow(g_host, NULL, NULL, RDW_INVALIDATE | RDW_ERASE | RDW_ALLCHILDREN);
 }
 
 static void scroll_to(int pos) {
@@ -407,23 +429,16 @@ static void build_page(void) {
     int p = (int)SendMessageW(g_side, LB_GETITEMDATA, (WPARAM)sel, 0);
     clear_rows(); g_scroll = 0; g_cur_page = p;
     SetWindowTextW(g_note, L"");
-    wchar_t* tt = wide(p == g_keys_page ? "Keybinds" : g_pg[p]); SetWindowTextW(g_title, tt); free(tt);
-    if (p == g_keys_page) {
-        for (int i = 0; i < g_ne; i++) {
-            Ent* e = &g_e[i]; if (!strcmp(e->kind, "blocked") || !e->keys[0]) continue;
-            Row* r = add_row(R_KEY, i, -1); int id = IDC_ROW0 + g_nrows - 1;
-            r->main = mk(L"STATIC", e->name, SS_NOPREFIX | SS_ENDELLIPSIS, g_font, id);
-            char sub[300]; snprintf(sub, sizeof sub, "%s", e->cat); r->sub = mk(L"STATIC", sub, SS_NOPREFIX, g_small, id);
-            SetWindowLongPtrW(r->sub, GWLP_USERDATA, 1);
-            r->right = mk(L"STATIC", e->keys, SS_NOPREFIX | SS_RIGHT, g_mono, id);
-        }
-    } else {
+    wchar_t* tt = wide(p == g_on_page ? "Enabled" : g_pg[p]); SetWindowTextW(g_title, tt); free(tt);
+    {
+
         char* seen = (char*)calloc((size_t)g_ng + 1, 1);
         for (int i = 0; i < g_ne; i++) {
             Ent* e = &g_e[i];
             if (!strcmp(e->kind, "blocked")) continue;
-            if (strcmp(e->cat, g_pg[p]) && strcmp(e->also, g_pg[p])) continue;
-            if (e->group[0]) {
+            if (p == g_on_page) { if (!ent_on(e)) continue; }          /* the Enabled page: everything that is on, from every page */
+            else if (strcmp(e->cat, g_pg[p]) && strcmp(e->also, g_pg[p])) continue;
+            if (e->group[0] && p != g_on_page) {
                 int gi = -1; for (int k = 0; k < g_ng; k++) if (!strcmp(g_g[k].id, e->group)) gi = k;
                 if (gi >= 0) {
                     if (seen[gi]) continue;                      /* the whole choice is one row with a drop-down */
@@ -450,9 +465,9 @@ static void build_page(void) {
             }
             int once = !strcmp(e->mode, "once"), both = !strcmp(e->kind, "live") && (once || !strcmp(e->mode, "both"));
             Row* r = add_row(once ? R_ONCE : R_CHECK, i, -1); int id = IDC_ROW0 + g_nrows - 1;
-            if (once) r->main = mk(L"STATIC", label(e), SS_NOPREFIX | SS_ENDELLIPSIS, g_font, id);
+            if (once) r->main = mk(L"STATIC", p == g_on_page ? e->name : label(e), SS_NOPREFIX | SS_ENDELLIPSIS, g_font, id);
             else {
-                r->main = mk(L"BUTTON", label(e), BS_OWNERDRAW | WS_TABSTOP, g_font, id);
+                r->main = mk(L"BUTTON", p == g_on_page ? e->name : label(e), BS_OWNERDRAW | WS_TABSTOP, g_font, id);
                 r->on = ent_on(e);
             }
             char tag[700]; tag_text(e, tag, sizeof tag);
@@ -541,6 +556,22 @@ static LRESULT CALLBACK hostproc(HWND h, UINT m, WPARAM wp, LPARAM lp) {
         for (int i = 0; i < g_nrows; i++) { int y = g_rows[i].y + g_rows[i].h - 1 - g_scroll; MoveToEx(dc, PAD_X, y, NULL); LineTo(dc, cr.right - PAD_X, y); }
         SelectObject(dc, old); DeleteObject(pen); EndPaint(h, &ps); return 0;
     }
+    case WM_NOTIFY: {
+        NMTTDISPINFOW* di = (NMTTDISPINFOW*)lp;
+        if (di->hdr.hwndFrom == g_tip && di->hdr.code == TTN_GETDISPINFOW) {
+            Row* r = (Row*)NULL; int i = (int)di->hdr.idFrom; if (i >= 0 && i < g_nrows) r = &g_rows[i];
+            g_tiptext[0] = 0;
+            if (r && r->kind == R_GROUP) {
+                Ent* m0 = r->nm ? &g_e[r->members[0]] : NULL; wchar_t w[300];
+                if (m0) { hover_text(m0, g_tiptext, 2100); wchar_t* nl = wcsstr(g_tiptext, L"\r\n\r\n"); (void)nl; }
+                const Grp* g = &g_g[r->gi]; wchar_t* gt = wide(g->title); swprintf(w, 300, L"%ls\r\nChoose one: only one of the options can be on.\r\n\r\n", gt); free(gt);
+                wchar_t rest[2100]; hover_text(m0 ? m0 : &g_e[0], rest, 2100); wchar_t* who = wcsstr(rest, L"Works with"); if (!who) who = wcsstr(rest, L"ALL players"); if (!who) who = wcsstr(rest, L"Only your"); if (!who) who = rest;
+                swprintf(g_tiptext, 2100, L"%ls%ls", w, who);
+            } else if (r && r->idx >= 0) hover_text(&g_e[r->idx], g_tiptext, 2100);
+            di->lpszText = g_tiptext; return 0;
+        }
+        break;
+    }
     case WM_VSCROLL: {
         SCROLLINFO si; memset(&si, 0, sizeof si); si.cbSize = sizeof si; si.fMask = SIF_ALL; GetScrollInfo(h, SB_VERT, &si);
         int pos = g_scroll;
@@ -576,7 +607,7 @@ static void draw_side(DRAWITEMSTRUCT* d) {
     HDC dc = d->hDC; RECT r = d->rcItem;
     FillRect(dc, &r, g_gray);
     if (d->itemID == (UINT)-1) return;
-    if (data == g_keys_page) { HPEN pen = CreatePen(PS_SOLID, 1, COL_LINE); HGDIOBJ o = SelectObject(dc, pen); MoveToEx(dc, r.left + 16, r.top, NULL); LineTo(dc, r.right - 16, r.top); SelectObject(dc, o); DeleteObject(pen); }
+    if (data == g_on_page) { HPEN pen = CreatePen(PS_SOLID, 1, COL_LINE); HGDIOBJ o = SelectObject(dc, pen); MoveToEx(dc, r.left + 16, r.bottom - 1, NULL); LineTo(dc, r.right - 16, r.bottom - 1); SelectObject(dc, o); DeleteObject(pen); }
     if (sel) {
         RECT b = { r.left + 6, r.top + 2, r.right - 6, r.bottom - 2 }; HBRUSH hb = CreateSolidBrush(RGB(42, 44, 49)); FillRect(dc, &b, hb); DeleteObject(hb);
         RECT bar = { r.left + 6, r.top + 8, r.left + 9, r.bottom - 8 }; hb = CreateSolidBrush(COL_ACCENT); FillRect(dc, &bar, hb); DeleteObject(hb);
@@ -637,7 +668,7 @@ static void save_shot(HWND h, const char* path) {
 static void select_page_of(int idx) {
     for (int t = 0; t < (int)SendMessageW(g_side, LB_GETCOUNT, 0, 0); t++) {
         int p = (int)SendMessageW(g_side, LB_GETITEMDATA, (WPARAM)t, 0);
-        if (p != g_keys_page && !strcmp(g_e[idx].cat, g_pg[p])) { SendMessageW(g_side, LB_SETCURSEL, (WPARAM)t, 0); build_page(); return; }
+        if (p != g_on_page && !strcmp(g_e[idx].cat, g_pg[p])) { SendMessageW(g_side, LB_SETCURSEL, (WPARAM)t, 0); build_page(); return; }
     }
 }
 
@@ -696,7 +727,7 @@ static DWORD WINAPI ui_thread(LPVOID unused) {
     if (cc) {
         typedef BOOL (WINAPI* Fn)(const INITCOMMONCONTROLSEX*);
         Fn f = (Fn)GetProcAddress(cc, "InitCommonControlsEx");
-        INITCOMMONCONTROLSEX ic = { sizeof ic, ICC_STANDARD_CLASSES };
+        INITCOMMONCONTROLSEX ic = { sizeof ic, ICC_STANDARD_CLASSES | ICC_TAB_CLASSES };
         if (f) f(&ic);
     }
     g_font = mkfont(L"Segoe UI", 13, FW_NORMAL); g_small = mkfont(L"Segoe UI", 11, FW_NORMAL); g_bold = mkfont(L"Segoe UI", 13, FW_SEMIBOLD);
@@ -719,21 +750,27 @@ static DWORD WINAPI ui_thread(LPVOID unused) {
     SendMessageW(g_title, WM_SETFONT, (WPARAM)g_head, TRUE); SendMessageW(g_count, WM_SETFONT, (WPARAM)g_small, TRUE); SendMessageW(g_note, WM_SETFONT, (WPARAM)g_small, TRUE);
     SendMessageW(g_off, WM_SETFONT, (WPARAM)g_font, TRUE); SendMessageW(g_close, WM_SETFONT, (WPARAM)g_font, TRUE); SendMessageW(g_side, WM_SETFONT, (WPARAM)g_font, TRUE);
     SendMessageW(g_side, LB_SETITEMHEIGHT, 0, 32);
+    g_tip = CreateWindowExW(WS_EX_TOPMOST, L"tooltips_class32", NULL, WS_POPUP | 0x01 /*TTS_ALWAYSTIP*/ | 0x02 /*TTS_NOPREFIX*/, 0, 0, 0, 0, g_win, NULL, hi, NULL);
+    if (g_tip) { SendMessageW(g_tip, TTM_SETMAXTIPWIDTH, 0, 400); SendMessageW(g_tip, TTM_SETDELAYTIME, TTDT_INITIAL, 450); SendMessageW(g_tip, TTM_SETDELAYTIME, TTDT_AUTOPOP, 30000); SendMessageW(g_tip, WM_SETFONT, (WPARAM)g_font, TRUE); }
     dark_title(g_win); dark(g_off, L"DarkMode_Explorer"); dark(g_close, L"DarkMode_Explorer"); dark(g_host, L"DarkMode_Explorer");
-    g_keys_page = g_npg;                                          /* the Keybinds entry: a page number past the real ones */
+    g_on_page = g_npg;                                            /* the Enabled entry: a page number past the real ones */
+    { int at0 = (int)SendMessageW(g_side, LB_ADDSTRING, 0, (LPARAM)L"Enabled"); SendMessageW(g_side, LB_SETITEMDATA, (WPARAM)at0, g_on_page); }
     for (int i = 0; i < g_npg; i++) {
         int has = 0; for (int k = 0; k < g_ne && !has; k++) has = strcmp(g_e[k].kind, "blocked") && (!strcmp(g_e[k].cat, g_pg[i]) || !strcmp(g_e[k].also, g_pg[i]));
         if (!has) continue;
         wchar_t* w = wide(g_pg[i]); int at = (int)SendMessageW(g_side, LB_ADDSTRING, 0, (LPARAM)w); SendMessageW(g_side, LB_SETITEMDATA, (WPARAM)at, i); free(w);
     }
-    int at = (int)SendMessageW(g_side, LB_ADDSTRING, 0, (LPARAM)L"Keybinds"); SendMessageW(g_side, LB_SETITEMDATA, (WPARAM)at, g_keys_page);
-    SendMessageW(g_side, LB_SETCURSEL, 0, 0);
+    SendMessageW(g_side, LB_SETCURSEL, 1, 0);
     RECT r; GetClientRect(g_win, &r); layout(r.right, r.bottom);
     build_page();
     ShowWindow(g_win, SW_SHOWNORMAL); SetForegroundWindow(g_win);
     if (g_test_id[0]) { SetTimer(g_win, 1, 1500, NULL); SetTimer(g_win, 2, 4000, NULL); }
     MSG msg;
     while (GetMessageW(&msg, NULL, 0, 0) > 0) {
+        if (g_tip && (msg.message == WM_MOUSEMOVE || msg.message == WM_LBUTTONDOWN || msg.message == WM_MOUSELEAVE) && msg.hwnd && (msg.hwnd == g_host || IsChild(g_host, msg.hwnd))) {
+            MSG m2 = msg; POINT pt = msg.pt; ScreenToClient(g_host, &pt); m2.hwnd = g_host; m2.lParam = MAKELPARAM(pt.x, pt.y);
+            SendMessageW(g_tip, TTM_RELAYEVENT, 0, (LPARAM)&m2);
+        }
         if (msg.message == WM_MOUSEWHEEL) {                      /* the wheel scrolls the page, whatever has the focus (a drop-down must not change by it) */
             POINT pt = { (short)LOWORD(msg.lParam), (short)HIWORD(msg.lParam) }; HWND under = WindowFromPoint(pt);
             if (under == g_host || (under && IsChild(g_host, under))) { SendMessageW(g_host, WM_MOUSEWHEEL, msg.wParam, msg.lParam); continue; }

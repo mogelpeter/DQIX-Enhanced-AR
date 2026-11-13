@@ -50,7 +50,7 @@ What is in the mods folder (only these things are for you):
 THE CHEAT LIST
 --------------
 Cheats > Cheats... in the game. On the left the pages (Speed & comfort, Experience & gold, Party,
-Battle, Items...) and, last, "Keybinds": which buttons to hold for the cheats that use buttons.
+Battle, Items...), and first "Enabled": everything that is on now. Keys to hold are in the grey line; hover a row for the full info.
 Under each cheat a grey line says who needs it (one player, all players...), and its note.
 You can keep the window open while you play.
 
