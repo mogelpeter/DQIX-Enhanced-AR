@@ -19,7 +19,7 @@ shutil.copy(os.environ.get("TEST_SAVE") or os.path.join(root, "game", "dqix.sav"
 env = dict(os.environ)
 env.pop("NoDefaultCurrentDirectoryInExePath", None)
 inp = "700:DOWN:6;800:A:6;" + ";".join("%d:A:6" % f for f in range(900, FRAMES + 100, 90))
-env.update(DQIX_NOWINDOW="1", SDL_AUDIODRIVER="dummy", DQIX_NO_SETTINGS="1", DQIX_MODLOG="1", DQIX_MOD_FORCE="3", DQIX_INPUT=inp)
+env.update(DQIX_NOWINDOW="1", SDL_AUDIODRIVER="dummy", DQIX_CHEATWIN_OFF="1", DQIX_NO_SETTINGS="1", DQIX_MODLOG="1", DQIX_MOD_FORCE="3", DQIX_INPUT=inp)
 exe = os.environ.get("TEST_EXE") or os.path.join(root, "game", "dqix.exe")
 log = open(os.path.join(work, "run.log"), "wb")
 p = subprocess.Popen([exe, os.path.join(root, "game", "data", "dqix.nds"), os.path.join(root, "game", "data", "code"), str(FRAMES), "1", "test.sav"],

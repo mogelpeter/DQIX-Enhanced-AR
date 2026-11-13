@@ -258,6 +258,7 @@ static void all_off(void) {
 
 /* ---- program start ---- */
 void mod_cheatwin_boot(void) {
+    if (getenv("DQIX_CHEATWIN_OFF")) return;                /* tests: nothing is sent or set by itself */
     if (!g_cs_init) { InitializeCriticalSection(&g_cs); g_cs_init = 1; }
     load_catalog();
     if (!g_loaded) return;

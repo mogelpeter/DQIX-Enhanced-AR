@@ -13,7 +13,7 @@ shutil.copy(os.path.join(root, "game", "dqix.sav"), os.path.join(work, "test.sav
 env = dict(os.environ)
 env.pop("NoDefaultCurrentDirectoryInExePath", None)
 FRAMES = 1500
-env.update(DQIX_NOWINDOW="1", SDL_AUDIODRIVER="dummy", DQIX_NO_SETTINGS="1", DQIX_MODLOG="1",
+env.update(DQIX_NOWINDOW="1", SDL_AUDIODRIVER="dummy", DQIX_CHEATWIN_OFF="1", DQIX_NO_SETTINGS="1", DQIX_MODLOG="1",
            DQIX_INPUT="300:L+R+SELECT:6;700:L+R+SELECT:6;900:L+R+SELECT:30;1100:L+R+SELECT:6")
 exe = os.path.join(root, "game", "dqix.exe")
 log = open(os.path.join(work, "run.log"), "wb")

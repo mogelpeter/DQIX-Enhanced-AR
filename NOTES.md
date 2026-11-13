@@ -8,6 +8,7 @@ Newest first. One block per working session: what changed, why, how it was check
 - Security review fix: a peer's cheat message in a session could carry any instruction word to a live-patch site. `lp_set` now accepts only the words the catalog's code mods use at that site (compiled in via `mod_livepatch_tab.c`); `test_livepatch.py` step F sends `b .` and expects it ignored. The test now presses A on a timer to reach the field (at the boot menu no patched function runs).
 - Headless test games are silent now: every test sets `SDL_AUDIODRIVER=dummy` next to `DQIX_NOWINDOW=1` (the user asked for it).
 - `test_cheatwin.py` PASS in the scratch build: the window switched "Gold always 9,999,999" on through the tab and check box, the gold was in RAM, the state file had it; a new start sent it again by itself. Fixed from the picture: `&` in tab titles ("Speed & comfort") was eaten as an underline, now doubled.
+- `test_livepatch.py` A, B, D, E pass (3 functions ran patched in E); F failed only because the in-emulator window itself sent the default-on mods (Faster text) at every start. New `DQIX_CHEATWIN_OFF=1` (nothing is sent or set by itself) is set by every test except `test_cheatwin.py`; this also keeps the window's own messages out of `test_all`'s sent/carried-out count.
 - Not on main until the tests pass. The 288-launcher crash run is going (2000 frames each, 3 jobs).
 
 ## 2026-11-13 (25)  Labels: alchemy Always + movement speed confirmed; launcher run settings

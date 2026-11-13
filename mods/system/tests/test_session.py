@@ -13,7 +13,7 @@ for who, ses in (("host", f"host:{port}:2"), ("join", f"join:127.0.0.1:{port}"))
     shutil.copy(os.path.join(root, "game", "dqix.sav"), os.path.join(d, "test.sav"))
     env = dict(os.environ)
     env.pop("NoDefaultCurrentDirectoryInExePath", None)
-    env.update(DQIX_NOWINDOW="1", SDL_AUDIODRIVER="dummy", DQIX_NO_SETTINGS="1", DQIX_SESSION=ses, DQIX_PLAYER_NAME=who, DQIX_NO_UPNP="1", DQIX_NO_RELAY="1")
+    env.update(DQIX_NOWINDOW="1", SDL_AUDIODRIVER="dummy", DQIX_CHEATWIN_OFF="1", DQIX_NO_SETTINGS="1", DQIX_SESSION=ses, DQIX_PLAYER_NAME=who, DQIX_NO_UPNP="1", DQIX_NO_RELAY="1")
     if who == "host":
         env.update(extra)
     log = open(os.path.join(d, "run.log"), "wb")

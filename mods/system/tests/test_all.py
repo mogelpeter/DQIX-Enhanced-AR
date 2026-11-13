@@ -54,7 +54,7 @@ def start(who, extra):
     os.makedirs(d)
     shutil.copy(os.path.join(root, "game", "dqix.sav"), os.path.join(d, "test.sav"))
     env = dict(env_base)
-    env.update(DQIX_NOWINDOW="1", SDL_AUDIODRIVER="dummy", DQIX_NO_SETTINGS="1", DQIX_RAMDUMP=f".,{d1},{d2}", DQIX_NO_UPNP="1", DQIX_NO_RELAY="1", DQIX_PLAYER_NAME=who)
+    env.update(DQIX_NOWINDOW="1", SDL_AUDIODRIVER="dummy", DQIX_CHEATWIN_OFF="1", DQIX_NO_SETTINGS="1", DQIX_RAMDUMP=f".,{d1},{d2}", DQIX_NO_UPNP="1", DQIX_NO_RELAY="1", DQIX_PLAYER_NAME=who)
     env.update(extra)
     log = open(os.path.join(d, "run.log"), "wb")
     p = subprocess.Popen([exe, os.path.join(root, "game", "data", "dqix.nds"), os.path.join(root, "game", "data", "code"), str(frames), "1", "test.sav"],

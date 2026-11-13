@@ -126,7 +126,7 @@ dumps = [s[1] for s in slots]
 d = os.path.join(work, "effects"); shutil.rmtree(d, ignore_errors=True); os.makedirs(d)
 shutil.copy(os.path.join(root, "game", "dqix.sav"), os.path.join(d, "test.sav"))
 env = dict(os.environ); env.pop("NoDefaultCurrentDirectoryInExePath", None)
-env.update(DQIX_NOWINDOW="1", SDL_AUDIODRIVER="dummy", DQIX_NO_SETTINGS="1", DQIX_NO_UPNP="1", DQIX_NO_RELAY="1", DQIX_PLAYER_NAME="fx",
+env.update(DQIX_NOWINDOW="1", SDL_AUDIODRIVER="dummy", DQIX_CHEATWIN_OFF="1", DQIX_NO_SETTINGS="1", DQIX_NO_UPNP="1", DQIX_NO_RELAY="1", DQIX_PLAYER_NAME="fx",
            DQIX_RAMDUMP=".," + ",".join(map(str, [START - 5] + dumps)))
 if inp:
     env["DQIX_INPUT"] = inp
