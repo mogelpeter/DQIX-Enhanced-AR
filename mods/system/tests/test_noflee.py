@@ -15,7 +15,7 @@ os.makedirs(work, exist_ok=True)
 for f in os.listdir(work):
     if f.endswith((".bin", ".log")):
         os.remove(os.path.join(work, f))
-shutil.copy(os.path.join(root, "game", "dqix.sav"), os.path.join(work, "test.sav"))
+shutil.copy(os.environ.get("TEST_SAVE") or os.path.join(root, "game", "dqix.sav"), os.path.join(work, "test.sav"))   # TEST_SAVE: a save with the hero in a dungeon
 env = dict(os.environ)
 env.pop("NoDefaultCurrentDirectoryInExePath", None)
 inp = "700:DOWN:6;800:A:6;" + ";".join("%d:A:6" % f for f in range(900, FRAMES + 100, 90))
