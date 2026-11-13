@@ -9,8 +9,10 @@ updates itself.
 INSIDE THE GAME
 ---------------
 The installer also puts a "Cheats" tab into the game's own menu bar (next to Mods and Help).
-Cheats > Cheats enabled... closes the game and opens the cheat menu; its Play button starts the
-game again with your cheats. "Play with mods.bat" works as before.
+Cheats > Cheats... opens the cheat list in a window of the game itself: tick a cheat and it is on at
+once (no restart, no rebuild, code mods included). Cheats > Save editor... and Treasure maps... open the
+web tools in your browser. What you tick is saved in mods\system\menu-state.txt (the cheat menu program
+uses the same file) and sent again by itself when the game starts. "Play with mods.bat" works as before.
 When the game updates itself (Help > Check for updates) the tab is put back automatically; if you
 ever update by hand (new download), run Install mods.bat or Play with mods.bat once more.
 
@@ -65,9 +67,10 @@ The labels:
   TRIED OUT    tried in this version of the game.
   UNTESTED     from the R4 list, checked as far as a program can (below), but
                not tried here. Save first.
-  BUILT IN     it changes how the game works, so it is built into the game:
-               after you switch it, Play rebuilds the parts of the game that
-               changed (about half a minute to a few minutes), then starts it.
+  BUILT IN     the few code mods that can't switch while the game runs: after you
+               switch one, Play rebuilds the parts of the game that changed (about
+               half a minute to a few minutes), then starts it. Most code mods
+               switch live and don't carry this label.
   NEXT START   takes effect the next time the game starts from the menu
                ("Always fast forward", "Instant loading").
 

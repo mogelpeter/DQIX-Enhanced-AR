@@ -3,7 +3,7 @@
 A cheat menu and mods for [DQIX Enhanced](https://github.com/sackchief/dqix-enhanced) (Dragon Quest IX on PC), in the style of an R4 / Action Replay cheat menu: black and neon green, JetBrains Mono, a hover info on every cheat.
 
 - **170 live cheats and 50 built-in code mods**, all checked against your own ROM before they can run, so they cannot crash the game.
-- **A "Cheats" tab inside the game's own menu bar**: one click on *Cheats enabled...* restarts the game into the cheat menu. The tab is put back automatically after the game updates itself.
+- **A "Cheats" tab inside the game's own menu bar**: *Cheats...* opens the cheat list in a window of the game itself, and a switch works at once while you play: no restart, no rebuild (also the code mods, which used to need one). *Save editor...* and *Treasure maps...* open the web tools. The tab is put back automatically after the game updates itself.
 - **Works alone and in sessions with friends** (cheats travel with the buttons, so every PC stays in sync).
 - **Save editor** and **Treasure maps** tabs: opens the DQIX project's browser editor with your save already loaded (downloaded on first use, needs the internet once; not part of this repo).
 - **Five languages**: English, Deutsch, Francais, Espanol, Italiano (box at the top right of the cheat menu). Game words come from your own ROM's texts, also the item names in the save editor.
@@ -32,7 +32,7 @@ The ROM and the game itself are never part of this repo.
 
 1. Build DQIX Enhanced once (its installer, or its `BUILD.bat`, with your own ROM).
 2. Double-click **`Install mods.bat`** from this repo. It finds your DQIX Enhanced folder itself (it asks only if it can't), copies the mods in, puts a shortcut on your desktop, and builds the **Cheats** tab into the game (a few minutes the first time).
-3. Start the game with `game\dqix.exe` and open **Cheats > Cheats enabled...** in the menu bar, or start the desktop shortcut **"Dragon Quest IX (mods)"**, which opens the cheat menu first.
+3. Start the game with `game\dqix.exe` and open **Cheats > Cheats...** in the menu bar, or start the desktop shortcut **"Dragon Quest IX (mods)"**, which opens the cheat menu first.
 
 Trouble? `mods\system\dev.bat doctor` says what is missing and how to fix it.
 
@@ -78,14 +78,12 @@ Make sure the game is **closed** while installing. If it is still running the in
 
 ### Step 5: Play with cheats
 
-There are two ways, both do the same:
+There are two ways:
 
-- **From the game:** start the game (`game\dqix.exe`, or the usual shortcut). In the menu bar at the top of the window open **Cheats**, then click **Cheats enabled...**. Confirm. The game closes and the cheat menu opens.
-- **From the desktop:** double-click **"Dragon Quest IX (mods)"**. The cheat menu opens right away.
+- **In the game (new, no restart):** start the game (`game\dqix.exe`). In the menu bar at the top of the window open **Cheats > Cheats...**. A window opens (the game keeps running): pick a page, tick a cheat, and it is on at once. *Do it now* carries out a "once" cheat. Choices (experience x2, x4...) switch one at a time. What you tick is saved and sent again by itself the next time the game starts. *Cheats > Save editor...* and *Treasure maps...* open the editor / the map search in your browser (close the game before you export a save).
+- **The cheat menu program (as before):** double-click **"Dragon Quest IX (mods)"**. Same list and the same saved switches; its Play button starts the game. It also has the languages and the hover info.
 
-In the cheat menu tick the cheats you want (see below), then press **Play**. The game starts with them.
-
-The first time you tick a cheat marked *BUILT IN*, Play needs a few minutes to rebuild the game. That is normal.
+The very first time after an update of the mods the game is built once (a few minutes). After that, switching cheats, including the code mods, never needs a rebuild again. (Options for the *next start*, like "Battle any monster", are applied when the game starts.)
 
 ### If something goes wrong
 
@@ -113,7 +111,7 @@ The labels on the cards:
 | Label | Meaning |
 |---|---|
 | `UNTESTED` | From the R4 list and checked as far as a program can, but not tried here. **Save first.** |
-| `BUILT IN` | Changes how the game works, so it is built into the game: Play rebuilds the changed parts (half a minute to a few minutes). |
+| `BUILT IN` | Only the few code mods that can't switch live: Play rebuilds the changed parts (half a minute to a few minutes). Most code mods now switch live, without this label. |
 | `NEXT START` | Takes effect the next time the game starts from the menu ("Always fast forward", "Instant loading"). |
 | `ONE PLAYER` / `ALL PLAYERS` / `OWN PC` | How it behaves in a session with friends. |
 
@@ -123,7 +121,7 @@ The labels on the cards:
 
 ## How the Cheats tab works
 
-The game's menu bar (Game, Graphics, Screen, View, Wireless, Modern, Mods, **Cheats**, Help) gets one more entry. **Cheats > Cheats enabled...** asks, saves, closes the game and opens the cheat menu (`mods\Play with mods.bat`). Its Play button builds the cheats in if needed and starts the game again. It is refused while a session with friends is running.
+The game's menu bar (Game, Graphics, Screen, View, Wireless, Modern, Mods, **Cheats**, Help) gets one more entry with **Cheats...** (the window inside the game), **Save editor...** and **Treasure maps...**. Under the hood the window sends the cheats through the same mailbox as the cheat menu program, so they also work in a session with friends. Code mods work because the game is built once with a wrapper around every function a code mod touches; while a mod is on, that function runs in the game's ARM interpreter with the mod's instruction in it (`mods\system\src\livepatch.c`).
 
 ### Why it survives updates of the game
 
