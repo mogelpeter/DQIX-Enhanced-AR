@@ -194,7 +194,75 @@ def _tag(m):
 def clean(t):
     """the game's markup to plain Unicode text: <'e> -> e-acute, <1> -> apostrophe; German grammar tags [ges] etc. dropped"""
     t = re.sub(r"<([^>]*)>", _tag, t)
-    return re.sub(r"\[[a-z]+\]", "", t)
+    return re.sub(r"\[[a-z-]+\]", "", t)
+
+
+def nat_table(b):
+    """a string table: head word (count in the low 12 bits), then (number, offset) records, then the strings -> {number: text}"""
+    count = struct.unpack_from("<I", b, 0)[0] & 0xFFF
+    base = 4 + 8 * count
+    out = {}
+    for i in range(count):
+        num, off = struct.unpack_from("<II", b, 4 + 8 * i)
+        if base + off >= len(b):
+            continue
+        e = b.find(b"\0", base + off)
+        out[num] = clean(b[base + off:e if e >= 0 else None].decode("latin1"))
+    return out
+
+
+def glossary(nds):
+    """English text -> {lang: text}, from every message table the ROM holds in all five languages (same message number)"""
+    gl = {}
+    for name in nds.files:
+        if not name.endswith(".gp2"):
+            continue
+        d = nds.read(name)
+        if d[:4] != b"GPC2":
+            continue
+        try:
+            arc = gpc2(d)
+        except Exception:
+            continue
+        stems = {}
+        for m, b in arc.items():
+            mm = re.match(r"(.*)_(en|de|fr|es|it)\.nat$", m)
+            if mm:
+                stems.setdefault(mm.group(1), {})[mm.group(2)] = b
+        for st, v in stems.items():
+            if len(v) < 5 or st.startswith("itemexpl"):
+                continue
+            try:
+                t = {l: nat_table(b) for l, b in v.items()}
+            except Exception:
+                continue
+            for num, en in t["en"].items():
+                if 1 < len(en) <= 100 and "\n" not in en and all(num in t[l] for l in LANGS):
+                    row = gl.setdefault(en, {})
+                    for l in LANGS[1:]:
+                        row.setdefault(l, t[l][num])
+    # monster names: mon_list_<lang>.nat, 32-byte records, the name's offset at +8, strings after the records
+    try:
+        arc = gpc2(nds.read("data/prm/mon_list.gp2"))
+        names = {}
+        for l in LANGS:
+            b = arc["mon_list_%s.nat" % l]
+            count = struct.unpack_from("<I", b, 0)[0] & 0xFFF
+            base = 4 + 32 * count
+            lst = []
+            for i in range(count):
+                off = struct.unpack_from("<I", b, 4 + 32 * i + 8)[0]
+                e = b.find(b"\0", base + off)
+                lst.append(clean(b[base + off:e if e >= 0 else None].decode("latin1")))
+            names[l] = lst
+        for i, en in enumerate(names["en"]):
+            if en:
+                row = gl.setdefault(en, {})
+                for l in LANGS[1:]:
+                    row.setdefault(l, names[l][i])
+    except Exception:
+        pass
+    return gl
 
 
 def write_tables(rom_path, out):
@@ -212,6 +280,11 @@ def write_tables(rom_path, out):
             for iid in sorted(t):
                 f.write("%d\t%s\t%s\n" % (iid, clean(t[iid][0]), clean(t[iid][1])))
         done.append(lang)
+    gl = glossary(nds)
+    with open(os.path.join(out, "rom-glossary.tsv"), "w", encoding="utf-8", newline="\n") as f:
+        for en, row in sorted(gl.items()):
+            if all(l in row for l in LANGS[1:]) and "\t" not in en:
+                f.write("\t".join([en] + [row[l].replace("\t", " ") for l in LANGS[1:]]) + "\n")
     return done
 
 

@@ -2,6 +2,11 @@
 
 Newest first. One block per working session: what changed, why, how it was checked.
 
+## 2026-11-13 (12)  Save editor in German/French/Spanish/Italian
+- Editor texts are translated in the browser: `rom-glossary.tsv` (made by `rom_text.py` from every message table the ROM has in five languages, plus the 345 monster names: vocations, accolades, records, monsters, menu words...) and `mods/lang/editor.tsv` (the editor's own labels, buttons, hints, place and building words; hand-written) become one dictionary that a small script injected into the served page applies to text and placeholder/title attributes (also to text that appears later). Keys ignore case/punctuation except a trailing colon. Item names are swapped in the bundle as before. Tab jumping uses the tab index now (the tab labels are translated).
+- Not translated: places that are not in the ROM text (most town names), "canvased guests: (n/30)"-style composed labels, user data (names, messages).
+- Host self-test also checks that the German page carries the dictionary.
+
 ## 2026-11-13 (11)  Translations: German, French, Spanish, Italian, in the game's own words
 - `mods/tools/rom_text.py` reads the ROM's text: NitroFS, GPC2 archives, DS compression and the name/string tables (formats from the DQIX wiki, own implementation; the ROM is only read). `catalog.py` runs it and writes `mods/lang/rom-itemname-<lang>.tsv` (git-ignored, ROM text) for all five ROM languages.
 - Menu: language box in the header (default = Windows language, saved in `mods/menu-lang.txt`). `mods/lang/ui.tsv` has the German/French/Spanish/Italian text for every menu text and every cheat name/note (406). Game terms are the ROM's: Talentpunkte / points de compétence / puntos de destreza / punti abilità, Schatzkarte / carte au trésor, Grotte / antre / gruta / antro, Alchemirakel / alchimiracle / alquimilagro / alchemiracolo, Todesstoß / coup de grâce, Gästebuch, vocation names (str_dam/str_sli), Garderobe / armoire / armario / Guardaroba... `tools/lang_keys.py` lists texts without a full translation.

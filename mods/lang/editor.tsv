@@ -1,0 +1,188 @@
+# The save editor's own texts: English (case and punctuation do not matter)	Deutsch	Français	Español	Italiano
+party	Gruppe	Équipe	Grupo	Gruppo
+items	Gegenstände	Objets	Objetos	Oggetti
+inn	Herberge	Auberge	Posada	Locanda
+grottos	Grotten	Antres	Grutas	Antri
+records	Archiv	Résultats	Registros	Risultati
+dlc	DLC	DLC	DLC	DLC
+misc	Verschiedenes	Divers	Varios	Varie
+hex	Hex	Hex	Hex	Hex
+export	Exportieren	Exporter	Exportar	Esporta
+import	Importieren	Importer	Importar	Importa
+add	Hinzufügen	Ajouter	Añadir	Aggiungi
+now	Jetzt	Maintenant	Ahora	Adesso
+Choose a file	Datei auswählen	Choisir un fichier	Elegir un archivo	Scegli un file
+Load the demo file	Demo-Datei laden	Charger le fichier de démo	Cargar el archivo de demostración	Carica il file demo
+DQIX Editor	DQIX-Editor	Éditeur DQIX	Editor de DQIX	Editor DQIX
+To start, drag and drop your save file into the browser	Zum Start ziehe deinen Spielstand in den Browser	Pour commencer, glisse ta sauvegarde dans le navigateur	Para empezar, arrastra tu partida al navegador	Per iniziare, trascina il salvataggio nel browser
+The editor currently only supports raw save files (.sav ~66kb in size), always make backups	Der Editor unterstützt derzeit nur rohe Spielstände (.sav, ca. 66 KB); mache immer Sicherungen	L’éditeur ne gère pour l’instant que les sauvegardes brutes (.sav, ~66 Ko) ; fais toujours des copies de sauvegarde	El editor solo admite por ahora partidas sin procesar (.sav, ~66 KB); haz siempre copias de seguridad	L'editor supporta per ora solo salvataggi grezzi (.sav, ~66 KB); fai sempre dei backup
+WARNING:	ACHTUNG:	ATTENTION :	AVISO:	ATTENZIONE:
+this app is unstable at small screen sizes	Diese App ist bei kleinen Bildschirmen instabil	Cette application est instable sur les petits écrans	Esta aplicación es inestable en pantallas pequeñas	Questa app è instabile sugli schermi piccoli
+Don't bring a grotto	Keine Grotte mitbringen	Ne pas apporter d’antre	No traer una gruta	Non portare un antro
+Used for multiplayer things, probably don't touch this unless you really know what you're doing.	Wird für Mehrspieler-Dinge verwendet; fass das besser nicht an, wenn du nicht genau weißt, was du tust.	Utilisé pour le multijoueur ; n’y touche probablement pas à moins de savoir exactement ce que tu fais.	Se usa para cosas del multijugador; probablemente no lo toques salvo que sepas muy bien lo que haces.	Usato per le funzioni multigiocatore; probabilmente non toccarlo se non sai esattamente cosa fai.
+accessories:	Accessoires:	Accessoires :	Accesorios:	Accessori:
+accolade	Auszeichnung	Distinction	Galardón	Titolo
+allocated points:	Verteilte Punkte:	Points répartis :	Puntos asignados:	Punti distribuiti:
+also place quest critical items in the dqvc	Auch wichtige Missionsgegenstände im DQVC platzieren	Placer aussi les objets essentiels aux quêtes dans le DQVC	Colocar también en el DQVC los objetos clave de las misiones	Inserisci anche nel DQVC gli oggetti essenziali per le missioni
+annotation:	Anmerkung:	Annotation :	Anotación:	Annotazione:
+another person can import this string to have you as a guest.	Eine andere Person kann diese Zeichenfolge importieren, um dich als Gast zu haben.	Une autre personne peut importer cette chaîne pour t’avoir comme client.	Otra persona puede importar esta cadena para tenerte como huésped.	Un'altra persona può importare questa stringa per averti come ospite.
+area:	Gebiet:	Zone :	Zona:	Area:
+arm armour:	Armschutz:	Protège-bras :	Protección de brazos:	Protezione delle braccia:
+binary:	Binär:	Binaire :	Binario:	Binario:
+birthday:	Geburtstag:	Anniversaire :	Cumpleaños:	Compleanno:
+body type:	Körperbau:	Morphologie :	Complexión:	Corporatura:
+byte offset:	Byte-Offset:	Décalage en octets :	Desplazamiento en bytes:	Offset in byte:
+character colour:	Charakterfarbe:	Couleur du personnage :	Color del personaje:	Colore del personaggio:
+characters:	Charaktere:	Personnages :	Personajes:	Personaggi:
+check-in date:	Einzugsdatum:	Date d’arrivée :	Fecha de llegada:	Data di arrivo:
+clicking this will unlock all quests and special guests only available by dlc, it will also place quest critical items in the dqvc	Ein Klick schaltet alle Missionen und Ehrengäste frei, die es nur per DLC gibt, und legt wichtige Missionsgegenstände im DQVC ab	Un clic débloque toutes les quêtes et invités spéciaux uniquement disponibles par DLC et place aussi les objets essentiels aux quêtes dans le DQVC	Al pulsar esto se desbloquean todas las misiones e invitados especiales que solo hay por DLC, y también se colocan en el DQVC los objetos clave de las misiones	Un clic sblocca tutte le missioni e gli ospiti speciali disponibili solo tramite DLC e inserisce anche nel DQVC gli oggetti essenziali per le missioni
+common	Gewöhnlich	Commun	Común	Comune
+confessed save location:	Ort des Beichtspeicherstands:	Lieu de la sauvegarde de confession :	Lugar del guardado de confesión:	Luogo del salvataggio di confessione:
+copy grotto string:	Grotten-Zeichenfolge kopieren:	Copier la chaîne de l’antre :	Copiar la cadena de la gruta:	Copia la stringa dell'antro:
+copy guest string:	Gast-Zeichenfolge kopieren:	Copier la chaîne du client :	Copiar la cadena del huésped:	Copia la stringa dell'ospite:
+counts all medals given to Cap'n Max Meddlin'	Zählt alle Medaillen, die Cap'n Max Meddlin' gegeben wurden	Compte toutes les médailles remises au capitaine Zac Améda	Cuenta todas las medallas entregadas a Cap'n Max Meddlin'	Conta tutte le medaglie date a Cap'n Max Meddlin'
+counts for zoom and chimera wings	Zählt für Zoom und Chimärenflügel	Compte pour Zoom et les ailes de chimère	Cuenta para Zoom y las alas de quimera	Vale per Zoom e le ali della chimera
+decoded:	Dekodiert:	Décodé :	Decodificado:	Decodificato:
+defeated	Besiegt	Vaincus	Derrotados	Sconfitti
+dqix character:	DQIX-Zeichen:	Caractère DQIX :	Carácter de DQIX:	Carattere DQIX:
+dqvc message:	DQVC-Nachricht:	Message DQVC :	Mensaje del DQVC:	Messaggio DQVC:
+dqvc store:	DQVC-Laden:	Boutique DQVC :	Tienda del DQVC:	Negozio DQVC:
+drop a	Beute A	Butin A	Botín A	Bottino A
+drop b	Beute B	Butin B	Botín B	Bottino B
+editing here does not give hero skill accolades	Eine Änderung hier vergibt keine Talent-Auszeichnungen für den Helden	Modifier ici ne donne pas de distinctions de compétence au héros	Editar aquí no concede galardones de destreza al héroe	Modificare qui non assegna i titoli di abilità all'eroe
+egg on:	Eierei:	Œuf au plat :	Huevo encima:	Uovo in testa:
+expertise:	Fachwissen:	Expertise :	Pericia:	Competenza:
+expires:	Läuft ab:	Expire :	Caduca:	Scade:
+explorers:	Entdecker:	Explorateurs :	Exploradores:	Esploratori:
+export self as guest	Mich selbst als Gast exportieren	Exporter mon personnage comme client	Exportarme como huésped	Esporta me stesso come ospite
+eye colour:	Augenfarbe:	Couleur des yeux :	Color de ojos:	Colore degli occhi:
+eye for trouble	Blick für Ärger	Sens du danger	Ojo para los problemas	Occhio per i guai
+face:	Gesicht:	Visage :	Cara:	Viso:
+false	falsch	faux	falso	falso
+filter:	Filter:	Filtre :	Filtro:	Filtro:
+floors:	Etagen:	Étages :	Pisos:	Piani:
+footwear:	Schuhwerk:	Chaussures :	Calzado:	Calzature:
+found	Gefunden	Trouvé	Encontrado	Trovato
+gold:	Gold:	Or :	Oro:	Oro:
+guests canvased:	Geworbene Gäste:	Clients démarchés :	Huéspedes buscados:	Ospiti reclutati:
+hair:	Haare:	Cheveux :	Pelo:	Capelli:
+hairstyle:	Frisur:	Coiffure :	Peinado:	Acconciatura:
+headwear:	Kopfschutz:	Casque :	Casco:	Copricapo:
+height:	Größe:	Taille :	Altura:	Altezza:
+held grotto:	Mitgebrachte Grotte:	Antre apporté :	Gruta aportada:	Antro portato:
+held items:	Gehaltene Gegenstände:	Objets tenus :	Objetos en mano:	Oggetti in mano:
+hex:	Hex:	Hex :	Hex:	Hex:
+id:	ID:	ID :	ID:	ID:
+identifier:	Kennung:	Identifiant :	Identificador:	Identificatore:
+in bank:	Auf dem Konto:	À la banque :	En el banco:	In banca:
+in party:	In der Gruppe:	Dans l’équipe :	En el grupo:	Nel gruppo:
+info:	Info:	Infos :	Info:	Info:
+inn info:	Herbergs-Info:	Infos sur l’auberge :	Info de la posada:	Info sulla locanda:
+inspector:	Inspektor:	Inspecteur :	Inspector:	Ispettore:
+item	Gegenstand	Objet	Objeto	Oggetto
+item:	Gegenstand:	Objet :	Objeto:	Oggetto:
+learned	Gelernt	Appris	Aprendido	Appreso
+leg armour:	Beinschutz:	Protège-jambes :	Protección de piernas:	Protezione delle gambe:
+location:	Ort:	Lieu :	Lugar:	Luogo:
+lodgings:	Unterkünfte:	Chambres :	Alojamientos:	Alloggi:
+made	Hergestellt	Fabriqué	Hecho	Creato
+message:	Nachricht:	Message :	Mensaje:	Messaggio:
+mini medals:	Minimedaillen:	Mini médailles :	Minimedallas:	Minimedaglie:
+monster rank:	Monsterrang:	Rang des monstres :	Rango de monstruos:	Grado dei mostri:
+multiplayer:	Mehrspieler:	Multijoueur :	Multijugador:	Multigiocatore:
+name	Name	Nom	Nombre	Nome
+name:	Name:	Nom :	Nombre:	Nome:
+no grottos :(	Keine Grotten :(	Aucun antre :(	Ninguna gruta :(	Nessun antro :(
+no guests :(	Keine Gäste :(	Aucun client :(	Ningún huésped :(	Nessun ospite :(
+none found :(	Nichts gefunden :(	Rien trouvé :(	No se encontró nada :(	Nessun risultato :(
+normal:	Normal:	Normal :	Normal:	Normale:
+note that the bank can only be interacted with in units of 1000 in game.	Beachte: Im Spiel kann das Konto nur in Einheiten von 1000 bedient werden.	Remarque : en jeu, on ne peut utiliser la banque que par tranches de 1000.	Nota: en el juego solo se puede operar con el banco en unidades de 1000.	Nota: nel gioco la banca si usa solo a multipli di 1000.
+of	von	sur	de	di
+on hand:	Im Beutel:	En poche :	En la bolsa:	In tasca:
+party tricks:	Gesten:	Attitudes :	Expresiones:	Gesti:
+past listings:	Frühere Angebote:	Offres passées :	Ofertas anteriores:	Offerte precedenti:
+paste grotto string here:	Grotten-Zeichenfolge hier einfügen:	Colle la chaîne de l’antre ici :	Pega aquí la cadena de la gruta:	Incolla qui la stringa dell'antro:
+paste guest string here:	Gast-Zeichenfolge hier einfügen:	Colle la chaîne du client ici :	Pega aquí la cadena del huésped:	Incolla qui la stringa dell'ospite:
+paste...	Einfügen …	Coller…	Pegar…	Incolla…
+play time:	Spielzeit:	Temps de jeu :	Tiempo de juego:	Tempo di gioco:
+price	Preis	Prix	Precio	Prezzo
+profile:	Profil:	Profil :	Perfil:	Profilo:
+rare	Selten	Rare	Raro	Raro
+records:	Archiv:	Résultats :	Registros:	Risultati:
+render as model:	Als Modell darstellen:	Afficher comme modèle :	Mostrar como modelo:	Mostra come modello:
+results:	Ergebnisse:	Résultats :	Resultados:	Risultati:
+revocations:	Berufswechsel:	Changements de vocation :	Cambios de vocación:	Cambi di vocazione:
+search	Suche	Recherche	Búsqueda	Ricerca
+search grottos:	Grotten suchen:	Rechercher des antres :	Buscar grutas:	Cerca antri:
+secret:	Geheim:	Secret :	Secreto:	Segreto:
+select	Auswählen	Choisir	Elegir	Seleziona
+shields:	Schilde:	Boucliers :	Escudos:	Scudi:
+skills:	Talente:	Compétences :	Destrezas:	Abilità:
+skin & hair colours:	Haut- & Haarfarben:	Couleurs de peau et de cheveux :	Colores de piel y pelo:	Colori di pelle e capelli:
+skin:	Haut:	Peau :	Piel:	Pelle:
+special guests:	Ehrengäste:	Invités spéciaux :	Invitados especiales:	Ospiti speciali:
+speech style:	Sprechstil:	Style de parole :	Estilo de habla:	Stile di eloquio:
+stat bonuses (in points):	Wertebonus (in Punkten):	Bonus de stats (en points) :	Bonificaciones de estadísticas (en puntos):	Bonus alle statistiche (in punti):
+stock	Bestand	Stock	Existencias	Scorte
+time spent in multiplayer:	Zeit im Mehrspielermodus:	Temps passé en multijoueur :	Tiempo en multijugador:	Tempo in multigiocatore:
+time spent playing:	Spielzeit:	Temps de jeu :	Tiempo de juego:	Tempo di gioco:
+title:	Titel:	Titre :	Título:	Titolo:
+toggle all	Alle umschalten	Tout inverser	Alternar todo	Inverti tutto
+torso armour:	Oberkörperschutz:	Protège-torse :	Protección de torso:	Protezione del busto:
+total time:	Gesamtzeit:	Temps total :	Tiempo total:	Tempo totale:
+treasures plundered:	Geplünderte Schätze:	Trésors pillés :	Tesoros saqueados:	Tesori saccheggiati:
+try adding or importing one	Versuche, eine hinzuzufügen oder zu importieren	Essaie d’en ajouter ou d’en importer une	Prueba a añadir o importar una	Prova ad aggiungerne o importarne una
+turns:	Züge:	Tours :	Turnos:	Turni:
+type:	Typ:	Type :	Tipo:	Tipo:
+uncommon	Ungewöhnlich	Peu commun	Poco común	Non comune
+unlock all	Alle freischalten	Tout débloquer	Desbloquear todo	Sblocca tutto
+unlock:	Freischalten:	Débloquer :	Desbloquear:	Sblocca:
+unlocked	Freigeschaltet	Débloqué	Desbloqueado	Sbloccato
+unlocked vocations:	Freigeschaltete Berufungen:	Vocations débloquées :	Vocaciones desbloqueadas:	Vocazioni sbloccate:
+valid locations:	Gültige Orte:	Lieux valides :	Lugares válidos:	Luoghi validi:
+value:	Wert:	Valeur :	Valor:	Valore:
+values 50-53 are the dlc character hairstyles	Die Werte 50–53 sind die DLC-Frisuren	Les valeurs 50-53 sont les coiffures des personnages DLC	Los valores 50-53 son los peinados de los personajes DLC	I valori 50-53 sono le acconciature dei personaggi DLC
+values 70-73 are the dlc character faces	Die Werte 70–73 sind die DLC-Gesichter	Les valeurs 70-73 sont les visages des personnages DLC	Los valores 70-73 son las caras de los personajes DLC	I valori 70-73 sono i volti dei personaggi DLC
+visited locations:	Besuchte Orte:	Lieux visités :	Lugares visitados:	Luoghi visitati:
+vocation:	Berufung:	Vocation :	Vocación:	Vocazione:
+vocations:	Berufungen:	Vocations :	Vocaciones:	Vocazioni:
+waiting in the wings:	Wartet in den Kulissen:	Attend dans les coulisses :	Esperando entre bastidores:	In attesa dietro le quinte:
+weapons:	Waffen:	Armes :	Armas:	Armi:
+weird:	Seltsam:	Bizarre :	Raro:	Strano:
+width:	Breite:	Largeur :	Anchura:	Larghezza:
+yab's list	Yabs Liste	Liste de Yab	Lista de Yab	Elenco di Yab
+yab's tools	Yabs Werkzeuge	Outils de Yab	Herramientas de Yab	Strumenti di Yab
+zoom:	Zoom:	Zoom :	Zoom:	Zoom:
+(z is up)	(Z ist oben)	(Z est en haut)	(Z es arriba)	(Z è in alto)
+(values over 999 don't show in game)	(Werte über 999 werden im Spiel nicht angezeigt)	(les valeurs supérieures à 999 ne s’affichent pas en jeu)	(los valores superiores a 999 no se muestran en el juego)	(i valori superiori a 999 non vengono mostrati nel gioco)
+grottos completed:	Geschaffte Grotten:	Antres terminés :	Grutas completadas:	Antri completati:
+treasure maps:	Schatzkarten:	Cartes au trésor :	Mapas del tesoro:	Mappe del tesoro:
+level:	Stufe:	Niveau :	Nivel:	Livello:
+monsters	Monster	Monstres	Monstruos	Mostri
+wardrobe	Garderobe	Armoire	Armario	Guardaroba
+quests	Missionen	Quêtes	Misiones	Missioni
+accolades	Auszeichnungen	Distinctions	Galardones	Titoli
+Angel Falls	Engelsfälle	Chérubelle	Salto del Ángel	Cascate Angeliche
+church	Kirche	Église	Iglesia	Chiesa
+entrance	Eingang	Entrée	Entrada	Ingresso
+item shop	Gegenstandsladen	Boutique d’objets	Tienda de objetos	Negozio di oggetti
+weapon shop	Waffenladen	Armurerie	Tienda de armas	Negozio di armi
+armour shop	Rüstungsladen	Boutique d’armures	Tienda de armaduras	Negozio di armature
+stable	Stall	Écurie	Establo	Stalla
+well	Brunnen	Puits	Pozo	Pozzo
+house	Haus	Maison	Casa	Casa
+mayor's house	Haus des Bürgermeisters	Maison du maire	Casa del alcalde	Casa del sindaco
+guest room	Gästezimmer	Chambre d’hôte	Habitación de invitados	Stanza degli ospiti
+room	Zimmer	Chambre	Habitación	Stanza
+corridor	Flur	Couloir	Pasillo	Corridoio
+tent	Zelt	Tente	Tienda	Tenda
+yurt	Jurte	Yourte	Yurta	Yurta
+cave	Höhle	Grotte	Cueva	Caverna
+ship	Schiff	Bateau	Barco	Nave
+deck	Deck	Pont	Cubierta	Ponte
+tower	Turm	Tour	Torre	Torre
+opening	Anfang	Début	Inicio	Inizio
+ending	Ende	Fin	Final	Finale
+plateau	Plateau	Plateau	Meseta	Altopiano
+island	Insel	Île	Isla	Isola
+glitched area	Fehlerhafter Bereich	Zone buguée	Zona con fallos	Area difettosa

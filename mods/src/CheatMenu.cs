@@ -498,7 +498,7 @@ x.onerror=function(){note('The cheat menu is not reachable any more.',true);};x.
 return ac.apply(this,arguments);};
 var tab=((location.hash||'').match(/tab=([a-z]+)/)||[])[1],tries=0;
 function gotoTab(){if(!tab)return;var t=0;(function w(){var ul=document.querySelector('nav ul');
-if(ul&&getComputedStyle(ul).pointerEvents!=='none'){var li=ul.querySelectorAll('li');for(var i=0;i<li.length;i++)if(li[i].textContent.trim()===tab){li[i].click();return;}}
+if(ul&&getComputedStyle(ul).pointerEvents!=='none'){var li=ul.querySelectorAll('li'),ix=['party','items','inn','grottos','records','dlc','misc','hex'].indexOf(tab);if(ix>=0&&li[ix]){li[ix].click();return;}}
 if(++t<60)setTimeout(w,200);})();}
 function loadSave(){var inp=document.getElementById('file-input');if(!inp){if(++tries<100)setTimeout(loadSave,200);return;}
 var x=new XMLHttpRequest();x.open('GET','/__save');x.setRequestHeader('X-Token',T);x.responseType='blob';
@@ -691,6 +691,88 @@ loadSave();})();</script>";
             return done;
         }
 
+
+        /* ---- the editor's own texts in the chosen language: ROM glossary (monsters, vocations, accolades, menu words...) + mods\lang\editor.tsv ---- */
+        const string TranslatorJs = @"<script>(function(){var D=window.__DQIX_TR;if(!D)return;
+function nk(s){var a=s.toLowerCase().replace(/[^a-z0-9]/g,'');return a?a+(/:\s*$/.test(s)?':':''):'';}
+function one(s){var k=nk(s);if(!k)return null;if(Object.prototype.hasOwnProperty.call(D,k))return D[k];
+var m=s.match(/^(.*?)(\s+L?\d+)$/);if(m){k=nk(m[1]);if(k&&Object.prototype.hasOwnProperty.call(D,k))return D[k]+m[2];}return null;}
+function tr(s){var m=s.match(/^(\s*)([\s\S]*?)(\s*)$/),t=m[2];if(!t||!/[A-Za-z]{2}/.test(t))return s;var r=one(t);
+if(r===null&&/ - |\(/.test(t)){var p=t.split(/( - |\(|\)| \/ )/),ch=false;for(var i=0;i<p.length;i+=2){if(p[i]){var q=one(p[i]);if(q!==null){p[i]=q;ch=true;}}}if(ch)r=p.join('');}
+return r===null?s:m[1]+r+m[3];}
+var AT=['placeholder','title','alt','aria-label'];
+function walk(n){if(n.nodeType===3){var v=n.nodeValue;if(n.__t===v)return;var w=tr(v);if(w!==v)n.nodeValue=w;n.__t=n.nodeValue;return;}
+if(n.nodeType!==1)return;var g=n.tagName;if(g==='SCRIPT'||g==='STYLE'||g==='TEXTAREA')return;
+for(var i=0;i<AT.length;i++){var a=n.getAttribute(AT[i]);if(a){var b=tr(a);if(b!==a)n.setAttribute(AT[i],b);}}
+for(var c=n.firstChild;c;c=c.nextSibling)walk(c);}
+new MutationObserver(function(ms){for(var i=0;i<ms.length;i++){var m=ms[i];if(m.type==='characterData')walk(m.target);else for(var j=0;j<m.addedNodes.length;j++)walk(m.addedNodes[j]);}})
+.observe(document.documentElement,{childList:true,subtree:true,characterData:true});
+walk(document.documentElement);})();</script>";
+
+        readonly Dictionary<string, string> trJson = new Dictionary<string, string>();
+
+        static string NormKey(string s)
+        {
+            StringBuilder b = new StringBuilder();
+            foreach (char c in s.ToLowerInvariant()) if ((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9')) b.Append(c);
+            if (b.Length > 0 && s.TrimEnd().EndsWith(":")) b.Append(':');
+            return b.ToString();
+        }
+
+        static void JsonStr(StringBuilder sb, string s)
+        {
+            sb.Append('"');
+            foreach (char c in s)
+            {
+                if (c == '"') sb.Append("\\\"");
+                else if (c == '\\') sb.Append("\\\\");
+                else if (c < ' ' || c == (char)8232 || c == (char)8233) sb.Append("\\u" + ((int)c).ToString("x4"));
+                else if (c == '<') sb.Append("\\u003c");
+                else sb.Append(c);
+            }
+            sb.Append('"');
+        }
+
+        /* {"normalised english": "translation", ...} for the language; the editor's own file wins over the ROM glossary */
+        string TrScript(string lang)
+        {
+            if (lang == "en" || LangDir.Length == 0) return "";
+            int col = Array.IndexOf(Tr.Codes, lang);
+            if (col < 1) return "";
+            string json;
+            lock (trJson)
+            {
+                if (!trJson.TryGetValue(lang, out json))
+                {
+                    Dictionary<string, string> d = new Dictionary<string, string>();
+                    foreach (string name in new[] { "rom-glossary.tsv", "editor.tsv" })
+                    {
+                        string f = Path.Combine(LangDir, name);
+                        if (!File.Exists(f)) continue;
+                        foreach (string line in File.ReadAllLines(f, Encoding.UTF8))
+                        {
+                            if (line.Length == 0 || line[0] == '#') continue;
+                            string[] c = line.Split('\t');
+                            if (c.Length <= col || c[col].Length == 0) continue;
+                            string k = NormKey(c[0]);
+                            if (k.Length > 1) d[k] = c[col];
+                        }
+                    }
+                    StringBuilder sb = new StringBuilder("{");
+                    bool first = true;
+                    foreach (KeyValuePair<string, string> kv in d)
+                    {
+                        if (!first) sb.Append(','); first = false;
+                        JsonStr(sb, kv.Key); sb.Append(':'); JsonStr(sb, kv.Value);
+                    }
+                    sb.Append('}');
+                    json = sb.ToString();
+                    trJson[lang] = json;
+                }
+            }
+            return "<script>window.__DQIX_TR=" + json + ";</script>" + TranslatorJs;
+        }
+
         void Handle(HttpListenerContext c)
         {
             try
@@ -733,7 +815,7 @@ loadSave();})();</script>";
                     if (rel == "index.html")
                     {
                         string html = Encoding.UTF8.GetString(b);
-                        string inj = Inject.Replace("@T@", token);
+                        string inj = Inject.Replace("@T@", token) + TrScript(LangOf != null ? LangOf() : "en");
                         int at = html.LastIndexOf("</body>", StringComparison.OrdinalIgnoreCase);
                         html = at >= 0 ? html.Insert(at, inj) : html + inj;
                         b = Encoding.UTF8.GetBytes(html);
@@ -1952,6 +2034,8 @@ loadSave();})();</script>";
                         string js = Encoding.UTF8.GetString(Http("GET", h.Base + jm.Groups[1].Value, null, null, bad, 200));
                         if (de != null && !js.Contains("name:\"" + char.ToUpperInvariant(de[0]) + de.Substring(1) + "\"")) bad.Add("item names not in German: " + de);
                         if (js.Contains("name:\"Copper sword\"")) bad.Add("English item name left");
+                        string page2 = Encoding.UTF8.GetString(Http("GET", h.Base, null, null, bad, 200));
+                        if (!page2.Contains("window.__DQIX_TR=") || !page2.Contains("Exportieren")) bad.Add("editor texts not translated");
                     }
                     byte[] got = Http("GET", "http://127.0.0.1:" + h.Port + "/__save", h.Token, null, bad, 200);
                     if (got.Length != 65536) bad.Add("save length " + got.Length);
