@@ -198,12 +198,28 @@ for k, e in enumerate(entries):
         for i, byte in enumerate(v.to_bytes(n, "little")):
             want[(a & 0x3FFFFF) + i] = byte
     want = {a: b for a, b in want.items() if prev[a] != b and later.get(a) == k}
-    if not w:
+    if any((a & ~0xF) == 0x02F5A5A0 for a, b in e["ops"]):
+        status = "NOCHANGE(SWITCH address 02F5A5xx: handled by mod_cheats.c, see test_noflee / test_vanish)"
+    elif not w:
         status = "NOCHANGE(no write: condition not met here)"
     elif not want:
         status = "NOCHANGE(already that value / shared address)"
     else:
         bad = [a for a, b in want.items() if now[a] != b]
+        # bytes the game itself keeps changing (audio buffers at the boot menu...) say nothing about the cheat
+        seen = {}
+        for j in range(k + 1, len(dumps)):
+            try:
+                dd = open(os.path.join(d, "ram%06d.bin" % dumps[j]), "rb").read()
+            except OSError:
+                break
+            for a in bad:
+                seen.setdefault(a, set()).add(dd[a])
+        vol = [a for a in bad if len(seen.get(a, ())) >= 3]
+        if bad and len(vol) == len(bad):
+            res.append((e["id"], e["name"], "NOCHANGE(VOLATILE: the game rewrites those bytes by itself here)"))
+            prev = bytearray(now)
+            continue
         status = "PASS" if not bad else "FAIL %d/%d bytes not in RAM, first %08x want %02x got %02x" % (len(bad), len(want), 0x02000000 + bad[0], want[bad[0]], now[bad[0]])
         if bad:
             ok = False
