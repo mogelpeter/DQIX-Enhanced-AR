@@ -248,9 +248,21 @@ def t_menu_smoke(root, work):
     log = os.path.join(live, "bin", "menu-error.log")
     before = os.path.getmtime(log) if os.path.isfile(log) else 0
     bad = []
-    for page in ("Party", "on", "Not available", "All cheats"):
+    for page in ("Party", "on", "Not available", "All cheats", "tool:save", "tool:maps"):
         if not run_shot(root, exe, page, os.path.join(work, re.sub(r"\W", "", page) + ".png"), "1"):
             bad.append(page)
+    # the editor host: serves the cached editor, hands out / takes back a scratch save, refuses wrong tokens
+    res = os.path.join(work, "editor-selftest.txt")
+    try:
+        subprocess.run([exe, "--editor-selftest", res], capture_output=True, timeout=90)
+        txt = open(res, encoding="utf-8").read() if os.path.isfile(res) else "no result"
+    except subprocess.TimeoutExpired:
+        txt = "timeout"
+    print("editor host:", txt)
+    if txt.startswith("FAIL prepare"):
+        print("  (no internet for the first download: skipped)")
+    elif txt != "PASS":
+        bad.append("editor host")
     if os.path.isfile(log) and os.path.getmtime(log) > before:
         bad.append("menu-error.log was written")
     print("menu smoke: pages that failed:", bad or "none")

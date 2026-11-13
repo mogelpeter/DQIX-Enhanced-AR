@@ -5,6 +5,7 @@ in the style of an R4 cheat menu: black and neon green, JetBrains Mono, a hover 
 
 - 170 live cheats, 50 built-in code mods, all checked against your own ROM before they can run, so they cannot crash the game.
 - Works alone and in sessions with friends (cheats travel with the buttons).
+- **Save editor** and **Treasure maps** tabs: open the DQIX project's browser editor with your save already loaded (downloaded on first use, needs the internet once; not part of this repo).
 - Cheats that change the game's program say so on their card: *works only after a full rebuild and a restart of the game*.
 
 ## Install

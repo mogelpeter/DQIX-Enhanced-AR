@@ -24,6 +24,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.IO.MemoryMappedFiles;
+using System.Net;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -440,6 +441,215 @@ namespace DqixMenu
         public void ClearAll() { needSync = true; }
     }
 
+    /* ---- the save editor and treasure map tabs: the DQIX project's browser editor (https://github.com/dqix/editor),
+     * fetched from dqix.github.io on first use into mods\bin\editor-cache and served from here to the browser. Nothing of it is
+     * part of this repo. The host also hands the editor your game save and writes the exported one back (after a backup). ---- */
+    class EditorHost : IDisposable
+    {
+        const string Origin = "https://dqix.github.io";
+        readonly string cache, savePath, backupDir;
+        readonly Func<bool> gameRunning;
+        HttpListener http;
+        public int Port;
+        public string LastError = "";
+        readonly string token = Guid.NewGuid().ToString("N");
+
+        const string Inject = @"<script>(function(){var T='@T@',lastBlob=null,oc=URL.createObjectURL;
+URL.createObjectURL=function(b){lastBlob=b;return oc.call(URL,b);};
+function note(t,bad){var d=document.getElementById('dqix-note');if(!d){d=document.createElement('div');d.id='dqix-note';
+d.style.cssText='position:fixed;left:50%;top:12px;transform:translateX(-50%);z-index:99999;padding:9px 16px;border-radius:3px;font:13px sans-serif;color:#fff;box-shadow:0 2px 12px #0008;max-width:80%';document.body.appendChild(d);}
+d.style.background=bad?'#a5322d':'#2f6f3e';d.textContent=t;d.style.display='block';clearTimeout(d._t);d._t=setTimeout(function(){d.style.display='none';},bad?15000:7000);}
+var ac=HTMLAnchorElement.prototype.click;
+HTMLAnchorElement.prototype.click=function(){if(this.download&&lastBlob){var x=new XMLHttpRequest();x.open('POST','/__export');x.setRequestHeader('X-Token',T);
+x.onload=function(){note(x.status==200?'Saved into your game save. The old one is in mods/save-backups.':(x.responseText||'Could not save.'),x.status!=200);};
+x.onerror=function(){note('The cheat menu is not reachable any more.',true);};x.send(lastBlob);return;}
+return ac.apply(this,arguments);};
+var tab=((location.hash||'').match(/tab=([a-z]+)/)||[])[1],tries=0;
+function gotoTab(){if(!tab)return;var t=0;(function w(){var ul=document.querySelector('nav ul');
+if(ul&&getComputedStyle(ul).pointerEvents!=='none'){var li=ul.querySelectorAll('li');for(var i=0;i<li.length;i++)if(li[i].textContent.trim()===tab){li[i].click();return;}}
+if(++t<60)setTimeout(w,200);})();}
+function loadSave(){var inp=document.getElementById('file-input');if(!inp){if(++tries<100)setTimeout(loadSave,200);return;}
+var x=new XMLHttpRequest();x.open('GET','/__save');x.setRequestHeader('X-Token',T);x.responseType='blob';
+x.onload=function(){if(x.status!=200){note('No game save found: choose a file yourself.',true);return;}
+var dt=new DataTransfer();dt.items.add(new File([x.response],'dqix.sav'));inp.files=dt.files;inp.dispatchEvent(new Event('change',{bubbles:true}));gotoTab();};x.send();}
+loadSave();})();</script>";
+
+        public EditorHost(string cacheDir, string sav, string backups, Func<bool> running)
+        {
+            cache = cacheDir; savePath = sav; backupDir = backups; gameRunning = running;
+            try { ServicePointManager.SecurityProtocol = (SecurityProtocolType)3072 | (SecurityProtocolType)768 | SecurityProtocolType.Tls; } catch (Exception) { }
+        }
+
+        public string Base { get { return "http://127.0.0.1:" + Port + "/editor/"; } }
+
+        public bool Start()
+        {
+            if (http != null) return true;
+            for (int p = 47231; p < 47260 && http == null; p++)
+            {
+                HttpListener h = new HttpListener();
+                h.Prefixes.Add("http://127.0.0.1:" + p + "/");
+                try { h.Start(); http = h; Port = p; }
+                catch (Exception) { try { h.Close(); } catch (Exception) { } }
+            }
+            if (http == null) { LastError = "No free local port for the editor."; return false; }
+            Thread th = new Thread(Loop) { IsBackground = true };
+            th.Start();
+            return true;
+        }
+
+        public void Dispose() { try { if (http != null) http.Close(); } catch (Exception) { } http = null; }
+
+        void Loop()
+        {
+            while (http != null && http.IsListening)
+            {
+                HttpListenerContext c;
+                try { c = http.GetContext(); } catch (Exception) { return; }
+                ThreadPool.QueueUserWorkItem(delegate { Handle(c); });
+            }
+        }
+
+        static byte[] Get(string url)
+        {
+            HttpWebRequest r = (HttpWebRequest)WebRequest.Create(url);
+            r.Timeout = 15000; r.UserAgent = "dqix-cheat-menu";
+            using (WebResponse w = r.GetResponse())
+            using (Stream s = w.GetResponseStream())
+            using (MemoryStream m = new MemoryStream())
+            {
+                s.CopyTo(m);
+                return m.ToArray();
+            }
+        }
+
+        string CachePath(string rel) { return Path.Combine(cache, rel.Replace('/', '\\')); }
+
+        /* a file of the editor, from the cache; the start page is looked up fresh when the internet is there */
+        public byte[] FileOf(string rel, bool fresh)
+        {
+            string f = CachePath(rel);
+            if (File.Exists(f) && !fresh) return File.ReadAllBytes(f);
+            try
+            {
+                byte[] b = Get(Origin + "/editor/" + rel);
+                Directory.CreateDirectory(Path.GetDirectoryName(f));
+                File.WriteAllBytes(f, b);
+                return b;
+            }
+            catch (Exception ex)
+            {
+                if (File.Exists(f)) return File.ReadAllBytes(f);
+                LastError = "Couldn't download the editor (" + ex.Message + "). It needs the internet once.";
+                return null;
+            }
+        }
+
+        /* before the browser opens: the start page and the files it names */
+        public bool Prepare()
+        {
+            byte[] idx = FileOf("index.html", true);
+            if (idx == null) return false;
+            foreach (Match m in Regex.Matches(Encoding.UTF8.GetString(idx), "(?:src|href)=\"/editor/([^\"]+)\""))
+                if (FileOf(m.Groups[1].Value, false) == null) return false;
+            return true;
+        }
+
+        static string Mime(string rel)
+        {
+            switch (Path.GetExtension(rel).ToLowerInvariant())
+            {
+                case ".html": return "text/html; charset=utf-8";
+                case ".js": return "text/javascript; charset=utf-8";
+                case ".css": return "text/css; charset=utf-8";
+                case ".png": return "image/png";
+                case ".ico": return "image/x-icon";
+                case ".svg": return "image/svg+xml";
+                case ".json": case ".webmanifest": return "application/json";
+                case ".woff2": return "font/woff2";
+                case ".woff": return "font/woff";
+                default: return "application/octet-stream";
+            }
+        }
+
+        static void Reply(HttpListenerContext c, int code, string type, byte[] body)
+        {
+            try
+            {
+                c.Response.StatusCode = code; c.Response.ContentType = type;
+                c.Response.ContentLength64 = body.Length;
+                c.Response.OutputStream.Write(body, 0, body.Length);
+            }
+            catch (Exception) { }
+            try { c.Response.Close(); } catch (Exception) { }
+        }
+        static void Say(HttpListenerContext c, int code, string text) { Reply(c, code, "text/plain; charset=utf-8", Encoding.UTF8.GetBytes(text)); }
+
+        bool Allowed(HttpListenerContext c)
+        {
+            string o = c.Request.Headers["Origin"];
+            if (o != null && o != "http://127.0.0.1:" + Port) return false;
+            return c.Request.Headers["X-Token"] == token;
+        }
+
+        public string Token { get { return token; } }
+
+        void Handle(HttpListenerContext c)
+        {
+            try
+            {
+                string path = c.Request.Url.AbsolutePath;
+                if (path == "/") { c.Response.Redirect("/editor/"); c.Response.Close(); return; }
+                if (path == "/__save" && c.Request.HttpMethod == "GET")
+                {
+                    if (!Allowed(c)) { Say(c, 403, "No."); return; }
+                    if (!File.Exists(savePath)) { Say(c, 404, "No save."); return; }
+                    byte[] sav;
+                    using (FileStream fs = new FileStream(savePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+                    using (MemoryStream m = new MemoryStream()) { fs.CopyTo(m); sav = m.ToArray(); }
+                    Reply(c, 200, "application/octet-stream", sav);
+                    return;
+                }
+                if (path == "/__export" && c.Request.HttpMethod == "POST")
+                {
+                    if (!Allowed(c)) { Say(c, 403, "No."); return; }
+                    if (gameRunning()) { Say(c, 409, "The game is running. Close it first, then press export again: a save written under a running game is lost."); return; }
+                    byte[] body;
+                    using (MemoryStream m = new MemoryStream()) { c.Request.InputStream.CopyTo(m); body = m.ToArray(); }
+                    long want = File.Exists(savePath) ? new FileInfo(savePath).Length : 65536;
+                    if (body.Length != want) { Say(c, 400, "That isn't a save of this size (" + body.Length + " bytes, expected " + want + "). Nothing was written."); return; }
+                    Directory.CreateDirectory(backupDir);
+                    if (File.Exists(savePath)) File.Copy(savePath, Path.Combine(backupDir, "dqix-editor-" + DateTime.Now.ToString("yyyyMMdd-HHmmss") + ".sav"), true);
+                    string tmp = savePath + ".tmp";
+                    File.WriteAllBytes(tmp, body);
+                    if (File.Exists(savePath)) File.Delete(savePath);
+                    File.Move(tmp, savePath);
+                    Say(c, 200, "ok");
+                    return;
+                }
+                if (path.StartsWith("/editor/") && !path.Contains(".."))
+                {
+                    string rel = path.Substring(8);
+                    if (rel.Length == 0) rel = "index.html";
+                    byte[] b = FileOf(rel, false);
+                    if (b == null) { Say(c, 404, LastError.Length > 0 ? LastError : "Not found."); return; }
+                    if (rel == "index.html")
+                    {
+                        string html = Encoding.UTF8.GetString(b);
+                        string inj = Inject.Replace("@T@", token);
+                        int at = html.LastIndexOf("</body>", StringComparison.OrdinalIgnoreCase);
+                        html = at >= 0 ? html.Insert(at, inj) : html + inj;
+                        b = Encoding.UTF8.GetBytes(html);
+                    }
+                    Reply(c, 200, Mime(rel), b);
+                    return;
+                }
+                Say(c, 404, "Not found.");
+            }
+            catch (Exception ex) { try { Say(c, 500, ex.Message); } catch (Exception) { } }
+        }
+    }
+
     class MainWindow : Window
     {
         const string Xaml = @"
@@ -756,7 +966,7 @@ namespace DqixMenu
             timer.Interval = TimeSpan.FromMilliseconds(16);
             timer.Tick += delegate { link.Tick(); UpdatePill(); };
             timer.Start();
-            Closed += delegate { timer.Stop(); link.Dispose(); };
+            Closed += delegate { timer.Stop(); link.Dispose(); if (editor != null) editor.Dispose(); };
         }
 
         /* tests: DQIX_MENU_STATE points at another state file, so the user's own is never touched */
@@ -871,6 +1081,8 @@ namespace DqixMenu
             foreach (string p in pages) AddNav("page:" + p, p, RowCount(e => e.Cat == p && e.Kind != "blocked"));
             AddNav("all", "All cheats", RowCount(e => e.Kind != "blocked"));
             AddNav("blocked", "Not available", nNo);
+            AddNav("tool:save", "Save editor", 0);
+            AddNav("tool:maps", "Treasure maps", 0);
             foreach (ListBoxItem it in Nav.Items) if ((string)it.Tag == was) Nav.SelectedItem = it;
             if (Nav.SelectedIndex < 0 && Nav.Items.Count > 1) Nav.SelectedIndex = 1;
             building = false;
@@ -1059,12 +1271,106 @@ namespace DqixMenu
         /* ---------------------------------------------------------------- drawing */
         string CurrentTag() { return Nav.SelectedItem is ListBoxItem ? (string)((ListBoxItem)Nav.SelectedItem).Tag : "all"; }
 
+        /* ---------------------------------------------------------------- save editor and treasure maps */
+        class ToolSub
+        {
+            public string Title, Tab, Text, Url;
+            public ToolSub(string title, string tab, string text, string url) { Title = title; Tab = tab; Text = text; Url = url; }
+        }
+
+        static readonly Dictionary<string, ToolSub[]> Tools = new Dictionary<string, ToolSub[]>
+        {
+            { "tool:save", new[] {
+                new ToolSub("Party", "party", "Your party members: name, vocation, appearance and equipment.", null),
+                new ToolSub("Items", "items", "The items you own and how many.", null),
+                new ToolSub("Inn", "inn", "The guests staying at your inn.", null),
+                new ToolSub("Records", "records", "Your records and quests.", null),
+                new ToolSub("DLC", "dlc", "The downloadable content stored in the save.", null),
+                new ToolSub("Misc", "misc", "Other settings stored in the save.", null),
+                new ToolSub("Hex", "hex", "The raw bytes of the save, for experts.", null) } },
+            { "tool:maps", new[] {
+                new ToolSub("Your maps", "grottos", "The treasure maps (grottos) in your save: the list, their treasures and where they are. Adding, removing and the map preview are not finished in this editor yet, so check the result in the game and keep the backup.", null),
+                new ToolSub("Find a map", "", "Search every grotto by name, level, terrain, boss, number of chests and more. Opens the Grotto Searcher website (needs the internet).", "https://dqix.github.io/Grotto-Searcher/") } }
+        };
+        readonly Dictionary<string, int> toolSub = new Dictionary<string, int>();
+        EditorHost editor;
+
+        void ShowTool(string tag)
+        {
+            ToolSub[] subs = Tools[tag];
+            int cur;
+            if (!toolSub.TryGetValue(tag, out cur) || cur >= subs.Length) cur = 0;
+            StackPanel hp = new StackPanel { Margin = new Thickness(2, 2, 0, 8) };
+            hp.Children.Add(new TextBlock { Text = tag == "tool:save" ? "Save editor" : "Treasure maps", FontSize = 14, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 5) });
+            hp.Children.Add(new Border { Height = 1, Background = B("#8E2B27") });
+            Rows.Children.Add(hp);
+
+            WrapPanel strip = new WrapPanel { Margin = new Thickness(0, 0, 0, 10) };
+            for (int i = 0; i < subs.Length; i++)
+            {
+                int pick = i;
+                Border b = new Border
+                {
+                    Padding = new Thickness(10, 5, 10, 5), Margin = new Thickness(0, 0, 2, 0), Cursor = Cursors.Hand, Background = Brushes.Transparent,
+                    BorderThickness = new Thickness(0, 0, 0, 2), BorderBrush = i == cur ? Gold : Brushes.Transparent,
+                    Child = new TextBlock { Text = subs[i].Title, FontSize = 12, Foreground = i == cur ? Text : Dim, FontWeight = i == cur ? FontWeights.SemiBold : FontWeights.Normal }
+                };
+                b.MouseLeftButtonUp += delegate { toolSub[tag] = pick; ShowPage(); };
+                strip.Children.Add(b);
+            }
+            Rows.Children.Add(strip);
+
+            ToolSub s = subs[cur];
+            StackPanel body = new StackPanel();
+            body.Children.Add(new TextBlock { Text = s.Title, FontSize = 12, FontWeight = FontWeights.SemiBold });
+            body.Children.Add(new TextBlock { Text = s.Text, Foreground = Dim, FontSize = 10.5, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 4, 0, 12) });
+            TextBlock status = new TextBlock { Foreground = Dim, FontSize = 10.5, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 10, 0, 0) };
+            Button open = new Button { Content = s.Url != null ? "Open Grotto Searcher" : "Open in the editor", Style = (Style)ui.FindResource("Primary"), HorizontalAlignment = HorizontalAlignment.Left };
+            open.Click += delegate { OpenTool(s, status); };
+            body.Children.Add(open);
+            body.Children.Add(status);
+            Rows.Children.Add(new Border { Background = Card, BorderBrush = CardLine, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(2), Padding = new Thickness(14, 11, 14, 12), Margin = new Thickness(0, 0, 6, 8), Child = body });
+
+            string notes = s.Url != null
+                ? "The Grotto Searcher is a separate website by the DQIX project (CC BY-NC-SA). Nothing of it is part of this menu."
+                : "How it works: the editor opens in your browser with your game save already loaded. Press \"export\" in the editor to write the changes back; the old save is copied to mods\\save-backups first.\n"
+                + "Close the game before you export: a save written under a running game is lost.\n"
+                + "The editor is the DQIX project's (github.com/dqix/editor, no license given). It is downloaded from dqix.github.io once, kept in mods\\bin\\editor-cache, and not part of this repo.";
+            Rows.Children.Add(new TextBlock { Text = notes, Foreground = Grey, FontSize = 10, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(2, 0, 6, 0) });
+        }
+
+        void OpenTool(ToolSub s, TextBlock status)
+        {
+            if (s.Url != null)
+            {
+                try { Process.Start(s.Url); } catch (Exception ex) { status.Text = ex.Message; }
+                return;
+            }
+            if (editor == null)
+                editor = new EditorHost(Path.Combine(mods, "bin", "editor-cache"), Path.Combine(gameDir, "dqix.sav"), Path.Combine(mods, "save-backups"),
+                    delegate { return Process.GetProcessesByName("dqix").Length > 0; });
+            EditorHost host = editor;
+            string tab = s.Tab;
+            status.Text = "Getting the editor ready...";
+            ThreadPool.QueueUserWorkItem(delegate
+            {
+                bool ok = host.Start() && host.Prepare();
+                Dispatcher.BeginInvoke(new Action(delegate
+                {
+                    if (!ok) { status.Text = host.LastError; return; }
+                    status.Text = "Opened in your browser.";
+                    try { Process.Start(host.Base + "#tab=" + tab); } catch (Exception ex) { status.Text = ex.Message; }
+                }));
+            });
+        }
+
         void ShowPage()
         {
             if (building) return;
             building = true;
             Rows.Children.Clear();
             string tag = CurrentTag(), q = Search.Text.Trim().ToLowerInvariant();
+            if (q.Length == 0 && tag.StartsWith("tool:")) { ShowTool(tag); Scroll.ScrollToTop(); building = false; return; }
             Func<Entry, bool> fits;
             string heading, sub = "";
             if (q.Length > 0)
@@ -1518,6 +1824,63 @@ namespace DqixMenu
             try { File.AppendAllText(logPath, DateTime.Now + "\r\n" + ex + "\r\n\r\n"); } catch (Exception) { }
         }
 
+        /* tests: "--editor-selftest <result file>" starts the editor host on a scratch save and checks what it serves and refuses */
+        static int EditorSelfTest(string root, string result)
+        {
+            List<string> bad = new List<string>();
+            string dir = Path.Combine(Path.GetTempPath(), "dqix-editor-selftest-" + Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(dir);
+            string sav = Path.Combine(dir, "dqix.sav");
+            string real = Environment.GetEnvironmentVariable("DQIX_EDITOR_SAV");
+            if (!string.IsNullOrEmpty(real)) File.Copy(real, sav); else File.WriteAllBytes(sav, new byte[65536]);
+            EditorHost h = new EditorHost(Path.Combine(root, "mods", "bin", "editor-cache"), sav, Path.Combine(dir, "backups"), delegate { return false; });
+            try
+            {
+                if (!h.Start()) bad.Add("start: " + h.LastError);
+                else if (!h.Prepare()) bad.Add("prepare: " + h.LastError);
+                else
+                {
+                    string page = Encoding.UTF8.GetString(Http("GET", h.Base, null, null, bad, 200));
+                    if (!page.Contains("/__save") || !page.Contains(h.Token)) bad.Add("start page has no hook");
+                    byte[] got = Http("GET", "http://127.0.0.1:" + h.Port + "/__save", h.Token, null, bad, 200);
+                    if (got.Length != 65536) bad.Add("save length " + got.Length);
+                    Http("GET", "http://127.0.0.1:" + h.Port + "/__save", "wrong", null, bad, 403);
+                    Http("POST", "http://127.0.0.1:" + h.Port + "/__export", h.Token, new byte[100], bad, 400);
+                    Http("POST", "http://127.0.0.1:" + h.Port + "/__export", "wrong", new byte[65536], bad, 403);
+                    string hold = Environment.GetEnvironmentVariable("DQIX_EDITOR_HOLD");
+                    if (!string.IsNullOrEmpty(hold)) { File.WriteAllText(result + ".url", h.Base + "#tab=items"); Thread.Sleep(int.Parse(hold) * 1000); File.WriteAllBytes(sav + ".after", File.ReadAllBytes(sav)); }
+                    byte[] edited = new byte[65536]; edited[7] = 42;
+                    Http("POST", "http://127.0.0.1:" + h.Port + "/__export", h.Token, edited, bad, 200);
+                    if (File.ReadAllBytes(sav)[7] != 42) bad.Add("export did not write the save");
+                    if (!Directory.Exists(Path.Combine(dir, "backups")) || Directory.GetFiles(Path.Combine(dir, "backups")).Length != 1) bad.Add("no backup made");
+                }
+            }
+            catch (Exception ex) { bad.Add(ex.ToString()); }
+            h.Dispose();
+            try { Directory.Delete(dir, true); } catch (Exception) { }
+            File.WriteAllText(result, bad.Count == 0 ? "PASS" : "FAIL " + string.Join("; ", bad.ToArray()));
+            return bad.Count == 0 ? 0 : 1;
+        }
+
+        static byte[] Http(string method, string url, string token, byte[] body, List<string> bad, int want)
+        {
+            HttpWebRequest r = (HttpWebRequest)WebRequest.Create(url);
+            r.Method = method; r.Timeout = 15000;
+            if (token != null) r.Headers["X-Token"] = token;
+            if (body != null) { r.ContentLength = body.Length; using (Stream s = r.GetRequestStream()) s.Write(body, 0, body.Length); }
+            HttpWebResponse w;
+            try { w = (HttpWebResponse)r.GetResponse(); }
+            catch (WebException ex) { w = ex.Response as HttpWebResponse; if (w == null) { bad.Add(method + " " + url + ": " + ex.Message); return new byte[0]; } }
+            using (w)
+            using (Stream s = w.GetResponseStream())
+            using (MemoryStream m = new MemoryStream())
+            {
+                s.CopyTo(m);
+                if ((int)w.StatusCode != want) bad.Add(method + " " + url + " gave " + (int)w.StatusCode + ", wanted " + want);
+                return m.ToArray();
+            }
+        }
+
         [STAThread]
         static int Main(string[] args)
         {
@@ -1525,6 +1888,7 @@ namespace DqixMenu
             if (args.Length > 0 && !args[0].StartsWith("--")) root = args[0].Trim('"');
             else root = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location), "..", ".."));
             logPath = Path.Combine(root, "mods", "bin", "menu-error.log");
+            if (args.Length > 1 && args[0] == "--editor-selftest") return EditorSelfTest(root, args[1]);
 
             bool first;
             using (Mutex one = new Mutex(true, "dqix-cheat-menu-" + root.ToLowerInvariant().GetHashCode().ToString("x"), out first))
