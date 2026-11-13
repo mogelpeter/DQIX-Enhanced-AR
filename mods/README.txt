@@ -6,6 +6,15 @@ in a menu like the cheat menu of an R4 card, that keep working when the game
 updates itself.
 
 
+INSIDE THE GAME
+---------------
+The installer also puts a "Cheats" tab into the game's own menu bar (next to Mods and Help).
+Cheats > Cheats enabled... closes the game and opens the cheat menu; its Play button starts the
+game again with your cheats. "Play with mods.bat" works as before.
+When the game updates itself (Help > Check for updates) the tab is put back automatically; if you
+ever update by hand (new download), run Install mods.bat or Play with mods.bat once more.
+
+
 INSTALL
 -------
 Copy this "mods" folder into your DQIX Enhanced folder, next to BUILD.bat:

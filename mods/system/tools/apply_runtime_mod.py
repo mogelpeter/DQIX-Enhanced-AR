@@ -72,13 +72,59 @@ DATA_PATCHED = DATA_BEGIN + """\
         int dmas = 0;
 """ + END
 
+MENU_BEGIN = "    /* >>> mods: Cheats tab in the menu bar (mods/tools/apply_runtime_mod.py; an update removes this, Play with mods.bat puts it back) */\n"
+MENU_ORIGINAL = """\
+    HMENU help = sub(g_bar, L"&Help");
+"""
+MENU_PATCHED = MENU_BEGIN + """\
+    HMENU cheats = sub(g_bar, L"&Cheats");
+    item(cheats, 360, L"Cheats &enabled...");              /* 360, 361: handled in frontend_sdl.c, mod_menu.c */
+    sep(cheats);
+    item(cheats, 361, L"&What is this?");
+""" + MENU_ORIGINAL + END
+
+ACT_BEGIN = "    /* >>> mods: what the Cheats tab does (mods/tools/apply_runtime_mod.py; an update removes this, Play with mods.bat puts it back) */\n"
+ACT_ORIGINAL = """\
+    case MI_UPDATE: update_menu(); break;
+"""
+ACT_PATCHED = ACT_BEGIN + r"""
+    case 360: case 361: {
+        int mod_menu_available(void), mod_menu_launch(void);
+        if (id == 361) {
+            info_box(SDL_MESSAGEBOX_INFORMATION, "Cheats",
+                "Cheats enabled closes the game and opens the cheat menu: every cheat is a switch there, and its Play button "
+                "starts the game again with them (the first time it builds them in: a few minutes).\n\n"
+                "Your save is not touched (copies go to mods\\system\\save-backups). Updating the game from the Help menu keeps this tab.", g_win);
+            break;
+        }
+        if (session_requested()) { info_box(SDL_MESSAGEBOX_INFORMATION, "Cheats", "Not while playing with friends: leave the session first.", g_win); break; }
+        if (!mod_menu_available()) { info_box(SDL_MESSAGEBOX_ERROR, "Cheats", "The mods folder isn't next to the game. Run Install mods.bat first.", g_win); break; }
+        if (!ask_yes("Cheats", "The game closes and the cheat menu opens. Its Play button starts the game again with your cheats.\n\nSave your adventure first (in the game) if you haven't.", "Enable cheats")) break;
+        backup_flush(); settings_save();
+        if (mod_menu_launch()) exit(0);
+        info_box(SDL_MESSAGEBOX_ERROR, "Cheats", "The cheat menu couldn't be started. Use mods\\Play with mods.bat.", g_win);
+        break;
+    }
+""" + ACT_ORIGINAL + END
+ACT_PATCHED = ACT_PATCHED.replace(ACT_BEGIN + "\n", ACT_BEGIN, 1)
+
+UPD_BEGIN = "    /* >>> mods: put the mods back after an update (mods/tools/apply_runtime_mod.py; an update removes this, Play with mods.bat puts it back) */\n"
+UPD_ORIGINAL = r"""    "echo == Building the game again from your ROM (this can take a while)\r\n"
+"""
+UPD_PATCHED = UPD_BEGIN + UPD_ORIGINAL + r"""    "if exist \"mods\\Play with mods.bat\" call \"mods\\Play with mods.bat\" apply\r\n"
+""" + END
+
 # (file in runtime/, the lines as the game has them, with the mods, first marker line, what it is)
 SITES = [
     ("input.c", INPUT_ORIGINAL, INPUT_PATCHED, INPUT_BEGIN, "Cheats with friends"),
     ("card.c", CARD_ORIGINAL, CARD_PATCHED, CARD_BEGIN, "Instant loading only alone"),
     ("card.c", DATA_ORIGINAL, DATA_PATCHED, DATA_BEGIN, "Metal slimes only"),
+    ("menu_win32.c", MENU_ORIGINAL, MENU_PATCHED, MENU_BEGIN, "Cheats tab in the menu bar"),
+    ("frontend_sdl.c", ACT_ORIGINAL, ACT_PATCHED, ACT_BEGIN, "Cheats tab: what it does"),
+    ("update.c", UPD_ORIGINAL, UPD_PATCHED, UPD_BEGIN, "Cheats stay after an update of the game"),
 ]
 FILES = ["mod_cheats.c", "ar_engine.h", "mod_data.c"]       # belong to the first site
+MENU_FILES = ["mod_menu.c"]                                  # belong to the "what it does" site (frontend_sdl.c)
 
 
 def read(path):
@@ -171,23 +217,23 @@ def main():
     for i, (name, original, patched, begin, what) in enumerate(SITES):
         did, state = site(root, name, original, patched, begin, on)
         changed |= did
-        if i == 0:
-            # the cheats' own files go with the call in input.c: without it they would be dead weight
-            for f in FILES:
-                dst = os.path.join(root, "runtime", f)
-                if state == "on":
-                    src = read(os.path.join(root, "mods", "system", "src", f))
-                    if not os.path.isfile(dst) or read(dst) != src:
-                        write(dst, src)
-                        changed = True
-                elif os.path.isfile(dst):
-                    os.remove(dst)
+        files = FILES if i == 0 else MENU_FILES if name == "frontend_sdl.c" else []
+        for f in files:          # the mods' own files go with their call in the game: without it they would be dead weight
+            dst = os.path.join(root, "runtime", f)
+            if state == "on":
+                src = read(os.path.join(root, "mods", "system", "src", f))
+                if not os.path.isfile(dst) or read(dst) != src:
+                    write(dst, src)
                     changed = True
+            elif os.path.isfile(dst):
+                os.remove(dst)
+                changed = True
         if state == "on":
             print(f"   [on] {what}")
         elif state == "unknown":
             print(f"   [skipped] {what}: this version of the game has runtime\\{name} written differently."
-                  + ("  Cheats still work when you play alone." if i == 0 else "  \"Instant loading\" stays off."))
+                  + ("  Cheats still work when you play alone." if i == 0 else "  The cheat menu still starts with Play with mods.bat."
+                     if name in ("menu_win32.c", "frontend_sdl.c", "update.c") else "  \"Instant loading\" stays off."))
     if wrap_site(root, on):
         changed = True
     if on:

@@ -208,6 +208,9 @@ def t_static(root, work):
             py_compile.compile(f, cfile=os.path.join(work, "x.pyc"), doraise=True)
         except py_compile.PyCompileError as e:
             problems.append(str(e)[:200])
+    rp = subprocess.run([sys.executable, "-X", "utf8", os.path.join(live, "tests", "test_runtime_patch.py"), root], capture_output=True, text=True)
+    if rp.returncode != 0:                                  # the Cheats tab and the other marked places in the game's source
+        problems.append("test_runtime_patch.py: " + (rp.stdout + rp.stderr)[-300:])
     cs = open(os.path.join(live, "src", "CheatMenu.cs"), encoding="utf-8").read()
     for pat, why in ((r'\$"', 'string interpolation'), (r'\w\?\.\w', '?. operator'), (r'nameof\(', 'nameof'), (r'\bout var\b', 'out var')):
         if re.search(pat, cs):

@@ -36,11 +36,19 @@ robocopy "%~dp0mods" "%TARGET%\mods" /E /R:1 /W:1 /NFL /NDL /NJH /NJS /NP /XF me
 if errorlevel 8 ( echo Copy failed. Close the game and the menu, then try again. & pause & exit /b 1 )
 if not exist "%TARGET%\mods\settings.txt" copy "%~dp0mods\settings.txt" "%TARGET%\mods\settings.txt" >nul
 call "%TARGET%\mods\system\Make a desktop shortcut.bat" nopause >nul 2>&1
+rem ---- the Cheats tab into the game itself (menu bar: Cheats > Cheats enabled...), then built. Needs the built game.
+if exist "%TARGET%\game\dqix.exe" (
+  echo.
+  echo Putting the Cheats tab into the game ^(the first time this builds it again: a few minutes^)...
+  call "%TARGET%\mods\Play with mods.bat" apply
+  if errorlevel 3 ( echo The game is still running: close it, then run this installer again to get the Cheats tab. ) else if errorlevel 1 ( echo The Cheats tab could not be put in ^(see above^). The external menu still works. ) else echo The Cheats tab is in the game.
+)
 echo.
 echo Installed. A shortcut "Dragon Quest IX (mods)" is on your desktop.
+echo In the game: menu bar, Cheats, Cheats enabled... restarts into the cheat menu. Updates of the game keep the tab.
 if not exist "%TARGET%\game\dqix.exe" (
   echo.
-  echo The game itself is not built yet: run BUILD.bat in "%TARGET%" once first ^(you need your own ROM^).
+  echo The game itself is not built yet: run BUILD.bat in "%TARGET%" once first ^(you need your own ROM^), then run this installer again.
   if not defined DQIX_NOPAUSE pause
   exit /b 0
 )
