@@ -318,6 +318,10 @@ static void tag_text(const Ent* e, char* out, size_t n) {
 
 static HWND mk(const wchar_t* cls, const char* text, DWORD style, HFONT f, int id) {
     wchar_t* w = wide(text);
+    if (!wcscmp(cls, L"BUTTON") && w && wcschr(w, L'&')) {          /* a button shows "&" as an underline: double it */
+        size_t n = wcslen(w), k = 0; wchar_t* d = (wchar_t*)malloc((n * 2 + 1) * sizeof *d);
+        if (d) { for (size_t i = 0; i < n; i++) { d[k++] = w[i]; if (w[i] == L'&') d[k++] = L'&'; } d[k] = 0; free(w); w = d; }
+    }
     HWND h = CreateWindowExW(0, cls, w, WS_CHILD | WS_VISIBLE | style, 0, 0, 10, 10, g_host, (HMENU)(UINT_PTR)id, GetModuleHandleW(NULL), NULL);
     free(w); SendMessageW(h, WM_SETFONT, (WPARAM)f, TRUE); return h;
 }
@@ -346,9 +350,14 @@ static void update_count(void) {
     wchar_t* w = wide(b); SetWindowTextW(g_count, w); free(w);
 }
 
+static HDWP defer(HDWP d, HWND h, int x, int y, int w, int ht) {
+    return d ? DeferWindowPos(d, h, NULL, x, y, w, ht, SWP_NOZORDER | SWP_NOACTIVATE) : NULL;
+}
+
 static void lay_rows(void) {
     RECT cr; GetClientRect(g_host, &cr); int W = cr.right;
     HDC dc = GetDC(g_host); int y = 4;
+    HDWP dwp = BeginDeferWindowPos(g_nrows * 4 + 1);
     for (int i = 0; i < g_nrows; i++) {
         Row* r = &g_rows[i];
         int rightw = r->kind == R_GROUP ? 240 : r->kind == R_KEY ? (W - 2 * PAD_X) * 42 / 100 : r->btn ? 104 : 0;
@@ -366,18 +375,19 @@ static void lay_rows(void) {
         int h = 12 + 20 + (subh ? 3 + subh : 0) + 12; if (rh + 24 > h) h = rh + 24; if (h < 52 && r->kind != R_KEY) h = 52; if (h < 48) h = 48;
         r->y = y; r->h = h;
         int top = y - g_scroll;
-        MoveWindow(r->main, PAD_X, top + 12, textw, 20, FALSE);
-        if (r->sub) MoveWindow(r->sub, PAD_X + indent, top + 12 + 20 + 3, textw - indent, subh, FALSE);
-        if (r->combo) MoveWindow(r->combo, W - PAD_X - rightw, top + (h - 28) / 2, rightw, 240, FALSE);
-        if (r->btn) MoveWindow(r->btn, W - PAD_X - rightw, top + (h - 30) / 2, rightw, 30, FALSE);
-        if (r->kind == R_KEY && r->right) MoveWindow(r->right, W - PAD_X - rightw, top + (h - rh) / 2, rightw, rh, FALSE);
+        dwp = defer(dwp, r->main, PAD_X, top + 12, textw, 20);
+        if (r->sub) dwp = defer(dwp, r->sub, PAD_X + indent, top + 12 + 20 + 3, textw - indent, subh);
+        if (r->combo) dwp = defer(dwp, r->combo, W - PAD_X - rightw, top + (h - 28) / 2, rightw, 240);
+        if (r->btn) dwp = defer(dwp, r->btn, W - PAD_X - rightw, top + (h - 30) / 2, rightw, 30);
+        if (r->kind == R_KEY && r->right) dwp = defer(dwp, r->right, W - PAD_X - rightw, top + (h - rh) / 2, rightw, rh);
         y += h;
     }
     ReleaseDC(g_host, dc);
+    if (dwp) EndDeferWindowPos(dwp);
     g_total = y + 8;
     SCROLLINFO si; memset(&si, 0, sizeof si); si.cbSize = sizeof si; si.fMask = SIF_RANGE | SIF_PAGE | SIF_POS; si.nMax = g_total; si.nPage = (UINT)cr.bottom; si.nPos = g_scroll;
     SetScrollInfo(g_host, SB_VERT, &si, TRUE);
-    RedrawWindow(g_host, NULL, NULL, RDW_INVALIDATE | RDW_ERASE | RDW_ALLCHILDREN);
+    RedrawWindow(g_host, NULL, NULL, RDW_INVALIDATE | RDW_ALLCHILDREN);
 }
 
 static void scroll_to(int pos) {
@@ -558,7 +568,7 @@ static LRESULT CALLBACK wndproc(HWND h, UINT m, WPARAM wp, LPARAM lp) {
     case WM_TIMER: KillTimer(h, wp); test_step((int)wp); return 0;
     case WM_SIZE: if (g_side) layout(LOWORD(lp), HIWORD(lp)); return 0;
     case WM_GETMINMAXINFO: { MINMAXINFO* mm = (MINMAXINFO*)lp; mm->ptMinTrackSize.x = 640; mm->ptMinTrackSize.y = 420; return 0; }
-    case WM_SHOW_CHEATS: ShowWindow(h, SW_SHOWNORMAL); SetForegroundWindow(h); return 0;
+    case WM_SHOW_CHEATS: EnterCriticalSection(&g_cs); load_state(); LeaveCriticalSection(&g_cs); build_page(); ShowWindow(h, IsIconic(h) ? SW_RESTORE : SW_SHOWNORMAL); SetForegroundWindow(h); return 0;
     case WM_CLOSE: ShowWindow(h, SW_HIDE); return 0;                   /* hidden, not destroyed: the game goes on */
     case WM_CTLCOLORSTATIC: {
         HDC dc = (HDC)wp; HWND c = (HWND)lp; int id = GetDlgCtrlID(c);
@@ -571,7 +581,7 @@ static LRESULT CALLBACK wndproc(HWND h, UINT m, WPARAM wp, LPARAM lp) {
     case WM_COMMAND:
         switch (LOWORD(wp)) {
         case IDC_SIDE: if (HIWORD(wp) == LBN_SELCHANGE) build_page(); return 0;
-        case IDC_CLOSE: ShowWindow(h, SW_HIDE); return 0;
+        case IDC_CLOSE: case IDCANCEL: ShowWindow(h, SW_HIDE); return 0;
         case IDC_OFF:
             if (MessageBoxW(h, L"Switch every cheat off?", L"Cheats", MB_YESNO | MB_ICONQUESTION) == IDYES) { all_off(); build_page(); SetWindowTextW(g_note, L"Everything is off."); }
             return 0;
@@ -687,6 +697,10 @@ static DWORD WINAPI ui_thread(LPVOID unused) {
     if (g_test_id[0]) { SetTimer(g_win, 1, 1500, NULL); SetTimer(g_win, 2, 4000, NULL); }
     MSG msg;
     while (GetMessageW(&msg, NULL, 0, 0) > 0) {
+        if (msg.message == WM_MOUSEWHEEL) {                      /* the wheel scrolls the page, whatever has the focus (a drop-down must not change by it) */
+            POINT pt = { (short)LOWORD(msg.lParam), (short)HIWORD(msg.lParam) }; HWND under = WindowFromPoint(pt);
+            if (under == g_host || (under && IsChild(g_host, under))) { SendMessageW(g_host, WM_MOUSEWHEEL, msg.wParam, msg.lParam); continue; }
+        }
         if (!IsDialogMessageW(g_win, &msg)) { TranslateMessage(&msg); DispatchMessageW(&msg); }
     }
     return 0;
