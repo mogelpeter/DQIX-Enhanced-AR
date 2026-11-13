@@ -63,7 +63,7 @@ PAGES = [
     (r"backlight|wfc|wi-?fi", "System", ""),
 ]
 PAGE_ORDER = ["Speed & comfort", "Experience & gold", "Party", "Battle", "Items", "Alchemy", "World",
-              "Unlocks", "Records & quests", "Fun", "Miscellaneous", "My cheats"]
+              "Unlocks", "Records & quests", "Fun", "Miscellaneous", "Custom"]
 
 REASONS = {
     "hook": "It adds a routine of its own to the game's program. This compiled version can't check such a routine, so it stays off.",
@@ -86,7 +86,7 @@ LAUNCH = [
     ("launch:card", "Instant loading", "DQIX_CARD_INSTANT=1",
      "Skips the DS cartridge's reading delays. Only while you play alone: in a session with friends the game keeps the real delays by itself, so everyone stays in sync. Takes effect the next time the game starts.", "Speed & comfort", ""),
     ("launch:metal", "Metal slimes only, in the areas that have them", "DQIX_MOD_METAL=1",
-     "In every area where metal monsters live, only metal monsters appear. Areas without them stay as they are. The game reads this once when it starts.", "Battle", "My cheats"),
+     "In every area where metal monsters live, only metal monsters appear. Areas without them stay as they are. The game reads this once when it starts.", "Battle", "Custom"),
 ]
 
 
@@ -767,7 +767,7 @@ def build(root):
     # ---- the files no database code matched
     for e in files:
         if e["id"] not in used:
-            e["cat"] = e["cat"] or "My cheats"
+            e["cat"] = e["cat"] or "Custom"
             e["option"] = e["name"]
             entries.append(e)
 
@@ -835,12 +835,12 @@ def build(root):
         groups.append(dict(id=gid, cat="Battle", title="Battle any monster you want", note="", kind="launch"))
         for num, mname in mons:
             entries.append(dict(id=f"launch:monster:{num}", name=mname, note="", cat="Battle", group=gid, kind="launch", status="untested",
-                                mode="", ops=[], keys=[], reason="", file="", on=False, patch=[], env=f"DQIX_MOD_FORCE={num}", option=mname))
+                                mode="", ops=[], keys=[], reason="", file="", on=False, patch=[], env=f"DQIX_MOD_FORCE={num}", option=mname, also="Custom"))
 
     # ---- how the game is started
     for lid, name, env, note, cat, also in LAUNCH:
         entries.append(dict(id=lid, name=name, note=note, cat=cat, group="", kind="launch",
-                            status="untested" if env.startswith("DQIX_MOD_") else "tested",
+                            status="untested" if env.startswith("DQIX_MOD_") and not env.startswith("DQIX_MOD_METAL") else "tested",
                             mode="", ops=[], keys=[], reason="", file="", on=False, patch=[], env=env, option=name, also=also))
     return info, entries, groups
 

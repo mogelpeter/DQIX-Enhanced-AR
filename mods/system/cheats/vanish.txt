@@ -1,7 +1,7 @@
 # name: Vanish: walk through monsters until you vanish again
 # mode: always
 # category: World
-# also: My cheats
+# also: Custom
 # status: untested
 # about: Switch it on, then press L + R + SELECT together in the game to vanish and again to show up. While vanished, monsters can't start a battle by touching you.
 # The address is not memory: mods/system/src/mod_cheats.c takes it as the switch "Vanish is available"

@@ -195,7 +195,7 @@ data.
     # name: What the menu shows
     # mode: always          (a switch; or: once = a "Do it" button)
     # about: optional note
-    # category: Party       (the page; without it: "My cheats")
+    # category: Party       (the page; without it: "Custom")
     020F6D48 0098967F
 
 Code mod (mods\system\cheats\anything.txt, with "patch" lines):
