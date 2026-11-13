@@ -2,7 +2,7 @@
 """Reads the game's own texts out of your ROM: the five languages (en de fr es it) of the item names and
 the other name tables, so the cheat menu and the save editor can use the game's exact words.
 
-  rom_text.py <rom.nds> [--out DIR]     writes DIR\\rom-<table>-<lang>.tsv  (default: mods\\lang)
+  rom_text.py <rom.nds> [--out DIR]     writes DIR\\rom-<table>-<lang>.tsv  (default: mods\\system\\lang)
   rom_text.py <rom.nds> --find WORD     which tables/languages contain WORD (for translating by the game's terms)
 
 Formats (NitroFS, GPC2 archive, DS compression, name tables) are the ones documented by the DQIX project's wiki
@@ -211,6 +211,26 @@ def nat_table(b):
     return out
 
 
+def map_names(b):
+    """a tagged data table (header: records, string table offset, size, count; record: u16 tag, u8 count, 2-bit types, padded
+    to a word, then 4-byte values) -> {map id: name} from the tag 0x67 records of (id, string offset)"""
+    stab = struct.unpack_from("<I", b, 4)[0]
+    p, out = 16, {}
+    while p < stab:
+        if b[p:p + 4] == b"\xff\xff\xff\xff":
+            p += 4
+            continue
+        tag, cnt = struct.unpack_from("<HB", b, p)
+        tb = (cnt * 2 + 7) // 8
+        hdr = ((3 + tb + 3) // 4) * 4
+        vals = struct.unpack_from("<%dI" % cnt, b, p + hdr)
+        if tag == 0x67 and cnt == 2:
+            e = b.find(b"\0", stab + vals[1])
+            out[vals[0]] = clean(b[stab + vals[1]:e if e >= 0 else None].decode("latin1"))
+        p += hdr + 4 * cnt
+    return out
+
+
 def glossary(nds):
     """English text -> {lang: text}, from every message table the ROM holds in all five languages (same message number)"""
     gl = {}
@@ -241,6 +261,21 @@ def glossary(nds):
                     row = gl.setdefault(en, {})
                     for l in LANGS[1:]:
                         row.setdefault(l, t[l][num])
+    # place names: data/map/mapname.gp2, a tagged table (tag 0x67 = id + string offset); where one English name is used by
+    # several entries (a field region "Région de X" and the town "X") the shortest wording is the town's
+    try:
+        arc = gpc2(nds.read("data/map/mapname.gp2"))
+        maps = {l: map_names(arc["mapname_%s.bin" % l]) for l in LANGS}
+        for mid, en in maps["en"].items():
+            if len(en) < 2 or not en.isascii():
+                continue
+            row = gl.setdefault(en, {})
+            for l in LANGS[1:]:
+                t = maps[l].get(mid, "")
+                if t and (l not in row or len(t) < len(row[l])):
+                    row[l] = t
+    except Exception:
+        pass
     # monster names: mon_list_<lang>.nat, 32-byte records, the name's offset at +8, strings after the records
     try:
         arc = gpc2(nds.read("data/prm/mon_list.gp2"))

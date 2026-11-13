@@ -2,16 +2,16 @@
  *
  *   dqix-cheat-menu.exe [DQIX Enhanced folder]
  *
- * A window with every code of the cheat list (mods\bin\catalog.txt, made by
- * mods\tools\catalog.py from the R4 database for your ROM and your own files):
+ * A window with every code of the cheat list (mods\system\bin\catalog.txt, made by
+ * mods\system\tools\catalog.py from the R4 database for your ROM and your own files):
  * switches for the ones that are on or off, a choice for the ones of which
  * only one can be on (experience x2 / x4 / ...), "Once" for one-shot ones.
  *
  * It never touches the game's program. Live cheats go into the game's own
- * mailbox (mods\src\mod_cheats.c) and the game carries them out itself, at a
+ * mailbox (mods\system\src\mod_cheats.c) and the game carries them out itself, at a
  * safe point of each frame, the same on every PC of a session. Code mods are
- * only written down here (mods\menu-state.txt, the "enabled" line of a file
- * in mods\code); "Play with mods.bat apply" builds them in, after catalog.py
+ * only written down here (mods\system\menu-state.txt, the "enabled" line of a file
+ * in mods\system\code); "Play with mods.bat apply" builds them in, after catalog.py
  * found each instruction in your ROM. A game without the mailbox (built with
  * "sync_cheats = no") gets live cheats written into its DS memory from outside,
  * as the old cheat window did.
@@ -441,7 +441,7 @@ namespace DqixMenu
         public void ClearAll() { needSync = true; }
     }
 
-    /* ---- translations: mods\lang\ui.tsv has one line per English text and a column per language (de fr es it) ---- */
+    /* ---- translations: mods\system\lang\ui.tsv has one line per English text and a column per language (de fr es it) ---- */
     static class Tr
     {
         public static string Lang = "en";
@@ -474,7 +474,7 @@ namespace DqixMenu
     }
 
     /* ---- the save editor and treasure map tabs: the DQIX project's browser editor (https://github.com/dqix/editor),
-     * fetched from dqix.github.io on first use into mods\bin\editor-cache and served from here to the browser. Nothing of it is
+     * fetched from dqix.github.io on first use into mods\system\bin\editor-cache and served from here to the browser. Nothing of it is
      * part of this repo. The host also hands the editor your game save and writes the exported one back (after a backup). ---- */
     class EditorHost : IDisposable
     {
@@ -493,7 +493,7 @@ d.style.cssText='position:fixed;left:50%;top:12px;transform:translateX(-50%);z-i
 d.style.background=bad?'#a5322d':'#2f6f3e';d.textContent=t;d.style.display='block';clearTimeout(d._t);d._t=setTimeout(function(){d.style.display='none';},bad?15000:7000);}
 var ac=HTMLAnchorElement.prototype.click;
 HTMLAnchorElement.prototype.click=function(){if(this.download&&lastBlob){var x=new XMLHttpRequest();x.open('POST','/__export');x.setRequestHeader('X-Token',T);
-x.onload=function(){note(x.status==200?'Saved into your game save. The old one is in mods/save-backups.':(x.responseText||'Could not save.'),x.status!=200);};
+x.onload=function(){note(x.status==200?'Saved into your game save. The old one is in mods/system/save-backups.':(x.responseText||'Could not save.'),x.status!=200);};
 x.onerror=function(){note('The cheat menu is not reachable any more.',true);};x.send(lastBlob);return;}
 return ac.apply(this,arguments);};
 var tab=((location.hash||'').match(/tab=([a-z]+)/)||[])[1],tries=0;
@@ -634,7 +634,7 @@ loadSave();})();</script>";
 
         public string Token { get { return token; } }
 
-        /* the editor's item names in the game's own words (read from the ROM into mods/lang/rom-itemname-<lang>.tsv) */
+        /* the editor's item names in the game's own words (read from the ROM into mods/system/lang/rom-itemname-<lang>.tsv) */
         public Func<string> LangOf;
         public string LangDir = "";
         readonly Dictionary<string, Dictionary<int, string>> romNames = new Dictionary<string, Dictionary<int, string>>();
@@ -692,7 +692,7 @@ loadSave();})();</script>";
         }
 
 
-        /* ---- the editor's own texts in the chosen language: ROM glossary (monsters, vocations, accolades, menu words...) + mods\lang\editor.tsv ---- */
+        /* ---- the editor's own texts in the chosen language: ROM glossary (monsters, vocations, accolades, menu words...) + mods\system\lang\editor.tsv ---- */
         const string TranslatorJs = @"<script>(function(){var D=window.__DQIX_TR;if(!D)return;
 function nk(s){var a=s.toLowerCase().replace(/[^a-z0-9]/g,'');return a?a+(/:\s*$/.test(s)?':':''):'';}
 function one(s){var k=nk(s);if(!k)return null;if(Object.prototype.hasOwnProperty.call(D,k))return D[k];
@@ -1123,7 +1123,7 @@ walk(document.documentElement);})();</script>";
             catch (Exception) { }
 
             /* JetBrains Mono from modsonts (falls back to Consolas / symbols if the files are missing) */
-            string fontDir = Path.Combine(mods, "fonts");
+            string fontDir = Path.Combine(mods, "system", "fonts");
             string fontName = File.Exists(Path.Combine(fontDir, "JetBrainsMono-Regular.ttf"))
                 ? new Uri(fontDir.TrimEnd('\\') + "\\").AbsoluteUri + "#JetBrains Mono, Consolas, Segoe UI Symbol"
                 : "Consolas, Segoe UI Symbol";
@@ -1137,16 +1137,16 @@ walk(document.documentElement);})();</script>";
             ApplyBtn = F<Button>("ApplyBtn"); OffBtn = F<Button>("OffBtn"); ReloadBtn = F<Button>("ReloadBtn"); PlayBtn = F<Button>("PlayBtn"); OverClose = F<Button>("OverClose");
             Overlay = F<Grid>("Overlay"); OverBar = F<ProgressBar>("OverBar");
             LangBox = F<ComboBox>("LangBox"); TitleSub = ui.FindName("TitleSub") as Run;
-            string langFile = Path.Combine(mods, "menu-lang.txt");
+            string langFile = Path.Combine(mods, "system", "menu-lang.txt");
             string lang = Tr.Detect();
             try { if (File.Exists(langFile)) { string l = File.ReadAllText(langFile).Trim(); if (Array.IndexOf(Tr.Codes, l) >= 0) lang = l; } } catch (Exception) { }
-            Tr.Load(Path.Combine(mods, "lang"), lang);
+            Tr.Load(Path.Combine(mods, "system", "lang"), lang);
             for (int li = 0; li < Tr.Codes.Length; li++) { ComboBoxItem ci = new ComboBoxItem { Content = Tr.Names[li], Tag = Tr.Codes[li] }; LangBox.Items.Add(ci); if (Tr.Codes[li] == lang) LangBox.SelectedItem = ci; }
             LangBox.SelectionChanged += delegate
             {
                 ComboBoxItem it = LangBox.SelectedItem as ComboBoxItem;
                 if (it == null || (string)it.Tag == Tr.Lang) return;
-                Tr.Load(Path.Combine(mods, "lang"), (string)it.Tag);
+                Tr.Load(Path.Combine(mods, "system", "lang"), (string)it.Tag);
                 try { File.WriteAllText(langFile, (string)it.Tag); } catch (Exception) { }
                 ApplyLang();
                 LoadAll();
@@ -1181,7 +1181,7 @@ walk(document.documentElement);})();</script>";
         }
 
         /* tests: DQIX_MENU_STATE points at another state file, so the user's own is never touched */
-        string StatePath() { string o = Environment.GetEnvironmentVariable("DQIX_MENU_STATE"); return !string.IsNullOrEmpty(o) ? o : Path.Combine(mods, "menu-state.txt"); }
+        string StatePath() { string o = Environment.GetEnvironmentVariable("DQIX_MENU_STATE"); return !string.IsNullOrEmpty(o) ? o : Path.Combine(mods, "system", "menu-state.txt"); }
 
         T F<T>(string name) where T : class { return ui.FindName(name) as T; }
 
@@ -1203,7 +1203,7 @@ walk(document.documentElement);})();</script>";
         void LoadAll()
         {
             entries = new List<Entry>(); groups = new List<Group>(); pages = new List<string>();
-            string path = Path.Combine(mods, "bin", "catalog.txt");
+            string path = Path.Combine(mods, "system", "bin", "catalog.txt");
             if (File.Exists(path))
                 foreach (string line in File.ReadAllLines(path, Encoding.UTF8))
                 {
@@ -1347,7 +1347,7 @@ walk(document.documentElement);})();</script>";
         void ReadBuilt()
         {
             built = new HashSet<string>(); builtKnown = false;
-            string p = Path.Combine(mods, "bin", "built.txt");
+            string p = Path.Combine(mods, "system", "bin", "built.txt");
             if (!File.Exists(p)) return;
             builtKnown = true;
             foreach (string line in File.ReadAllLines(p))
@@ -1388,7 +1388,7 @@ walk(document.documentElement);})();</script>";
                 if (e.File.Length == 0) { if (on) codeOn.Add(e.Id); else codeOn.Remove(e.Id); }
                 else
                 {
-                    /* a file in mods\code says itself whether it is on */
+                    /* a file in mods\system\code says itself whether it is on */
                     try
                     {
                         string path = Path.Combine(mods, e.File.Replace('/', Path.DirectorySeparatorChar));
@@ -1411,7 +1411,7 @@ walk(document.documentElement);})();</script>";
             SaveState();
             MessageBox.Show(this,
                 Tr.F("\"{0}\" comes from the R4 cheat list and hasn't been tried in this version of the game.", Tr.T(e.Name)) + "\n\n" +
-                Tr.T("Such codes were checked as far as a program can check them, but a code that changes the wrong data can still spoil a save. A copy of your save is kept each time you press Play here (mods\\save-backups).") + "\n\n" + Tr.T("This is only said once."),
+                Tr.T("Such codes were checked as far as a program can check them, but a code that changes the wrong data can still spoil a save. A copy of your save is kept each time you press Play here (mods\\system\\save-backups).") + "\n\n" + Tr.T("This is only said once."),
                 Tr.T("Untested cheats"), MessageBoxButton.OK, MessageBoxImage.Information);
         }
 
@@ -1516,8 +1516,8 @@ walk(document.documentElement);})();</script>";
             body.Children.Add(status);
             Rows.Children.Add(new Border { Background = Card, BorderBrush = CardLine, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(2), Padding = new Thickness(14, 11, 14, 12), Margin = new Thickness(0, 0, 6, 8), Child = body });
 
-            string notes = Tr.T("How it works: press \"export\" in the editor to write the changes back; the old save is copied to mods\\save-backups first. Close the game before you export: a save written under a running game is lost.")
-                + "\n" + Tr.T("The editor is the DQIX project's (github.com/dqix/editor, no license given). It is downloaded from dqix.github.io once, kept in mods\\bin\\editor-cache, and not part of this repo.")
+            string notes = Tr.T("How it works: press \"export\" in the editor to write the changes back; the old save is copied to mods\\system\\save-backups first. Close the game before you export: a save written under a running game is lost.")
+                + "\n" + Tr.T("The editor is the DQIX project's (github.com/dqix/editor, no license given). It is downloaded from dqix.github.io once, kept in mods\\system\\bin\\editor-cache, and not part of this repo.")
                 + (save ? "" : "\n" + Tr.T("The map search is the DQIX project's Grotto Searcher (CC BY-NC-SA), a separate website."));
             Rows.Children.Add(new TextBlock { Text = notes, Foreground = Grey, FontSize = 10, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(2, 0, 6, 0) });
         }
@@ -1530,10 +1530,10 @@ walk(document.documentElement);})();</script>";
                 return;
             }
             if (editor == null)
-                editor = new EditorHost(Path.Combine(mods, "bin", "editor-cache"), Path.Combine(gameDir, "dqix.sav"), Path.Combine(mods, "save-backups"),
+                editor = new EditorHost(Path.Combine(mods, "system", "bin", "editor-cache"), Path.Combine(gameDir, "dqix.sav"), Path.Combine(mods, "system", "save-backups"),
                     delegate { return Process.GetProcessesByName("dqix").Length > 0; });
             EditorHost host = editor;
-            host.LangDir = Path.Combine(mods, "lang"); host.LangOf = delegate { return Tr.Lang; };
+            host.LangDir = Path.Combine(mods, "system", "lang"); host.LangOf = delegate { return Tr.Lang; };
             status.Text = Tr.T("Getting the editor ready...");
             ThreadPool.QueueUserWorkItem(delegate
             {
@@ -1984,7 +1984,7 @@ walk(document.documentElement);})();</script>";
             {
                 string sav = Path.Combine(gameDir, "dqix.sav");
                 if (!File.Exists(sav)) return;
-                string dir = Path.Combine(mods, "save-backups");
+                string dir = Path.Combine(mods, "system", "save-backups");
                 Directory.CreateDirectory(dir);
                 string[] old = Directory.GetFiles(dir, "dqix-*.sav").OrderBy(f => f).ToArray();
                 if (old.Length > 0 && File.ReadAllBytes(old[old.Length - 1]).SequenceEqual(File.ReadAllBytes(sav))) return;
@@ -2015,7 +2015,7 @@ walk(document.documentElement);})();</script>";
             string sav = Path.Combine(dir, "dqix.sav");
             string real = Environment.GetEnvironmentVariable("DQIX_EDITOR_SAV");
             if (!string.IsNullOrEmpty(real)) File.Copy(real, sav); else File.WriteAllBytes(sav, new byte[65536]);
-            EditorHost h = new EditorHost(Path.Combine(root, "mods", "bin", "editor-cache"), sav, Path.Combine(dir, "backups"), delegate { return false; });
+            EditorHost h = new EditorHost(Path.Combine(root, "mods", "system", "bin", "editor-cache"), sav, Path.Combine(dir, "backups"), delegate { return false; });
             try
             {
                 if (!h.Start()) bad.Add("start: " + h.LastError);
@@ -2027,9 +2027,9 @@ walk(document.documentElement);})();</script>";
                     /* the item names of the editor come out in the game's own German */
                     Match jm = Regex.Match(page, @"/editor/(assets/[^""]+\.js)");
                     string de = null;
-                    if (jm.Success && File.Exists(Path.Combine(root, "mods", "lang", "rom-itemname-de.tsv")))
+                    if (jm.Success && File.Exists(Path.Combine(root, "mods", "system", "lang", "rom-itemname-de.tsv")))
                     {
-                        h.LangDir = Path.Combine(root, "mods", "lang"); h.LangOf = delegate { return "de"; };
+                        h.LangDir = Path.Combine(root, "mods", "system", "lang"); h.LangOf = delegate { return "de"; };
                         foreach (string line in File.ReadAllLines(Path.Combine(h.LangDir, "rom-itemname-de.tsv"), Encoding.UTF8)) if (line.StartsWith("20004	")) de = line.Split('	')[1];
                         string js = Encoding.UTF8.GetString(Http("GET", h.Base + jm.Groups[1].Value, null, null, bad, 200));
                         if (de != null && !js.Contains("name:\"" + char.ToUpperInvariant(de[0]) + de.Substring(1) + "\"")) bad.Add("item names not in German: " + de);
@@ -2084,7 +2084,7 @@ walk(document.documentElement);})();</script>";
             string root;
             if (args.Length > 0 && !args[0].StartsWith("--")) root = args[0].Trim('"');
             else root = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location), "..", ".."));
-            logPath = Path.Combine(root, "mods", "bin", "menu-error.log");
+            logPath = Path.Combine(root, "mods", "system", "bin", "menu-error.log");
             if (args.Length > 1 && args[0] == "--editor-selftest") return EditorSelfTest(root, args[1]);
 
             bool first;
@@ -2128,7 +2128,7 @@ walk(document.documentElement);})();</script>";
                 catch (Exception ex)
                 {
                     Fail(ex);
-                    MessageBox.Show("The cheat menu couldn't open: " + ex.Message + "\n\nThe game itself is fine: start it with game\\play.bat.\n(Details: mods\\bin\\menu-error.log)", "Dragon Quest IX - cheat menu");
+                    MessageBox.Show("The cheat menu couldn't open: " + ex.Message + "\n\nThe game itself is fine: start it with game\\play.bat.\n(Details: mods\\system\\bin\\menu-error.log)", "Dragon Quest IX - cheat menu");
                     return 1;
                 }
             }

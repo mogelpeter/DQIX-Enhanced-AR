@@ -1,7 +1,7 @@
 # Working faster on the mods
 
 One rule: **do the cheapest check that can catch the mistake, and never repeat a check whose inputs did not change.**
-`mods\dev.bat` (or `python mods\tools\dev.py`) does all of it.
+`mods\system\dev.bat` (or `python mods\system\tools\dev.py`) does all of it.
 
 ## The loop
 
@@ -24,7 +24,7 @@ One rule: **do the cheapest check that can catch the mistake, and never repeat a
 ## Why it is fast
 
 - **Tiers**: `fast` = static + short live + short session + 12-cheat run + menu smoke. `full` adds the long runs and the two menu tests.
-- **Cache**: `mods\bin\test-cache.json` keeps a hash of every input (sources, catalog, cheats, `dqix.exe`, `dqixcore.dll`). A test that passed with the same hash is skipped; failures always rerun. `--force` ignores it.
+- **Cache**: `mods\system\bin\test-cache.json` keeps a hash of every input (sources, catalog, cheats, `dqix.exe`, `dqixcore.dll`). A test that passed with the same hash is skipped; failures always rerun. `--force` ignores it.
 - **Parallel**: tests that only need a headless game run together on their own ports and work folders (`--jobs`, default 3).
 - **Alone at the end**: the menu tests. The menu attaches to *any* running `dqix.exe`, so it must never overlap a game test (or your own game: `dev` refuses to run while `dqix.exe` runs).
 - **Sized by message length**: cheat messages travel 16 bits per frame, so `test_all.py` computes its frame budget from the data instead of a fixed guess.
@@ -45,8 +45,8 @@ One rule: **do the cheapest check that can catch the mistake, and never repeat a
 1. Install Python 3.8+ (or just build the game once: the MSYS2 tools bring their own).
 2. Build the game once with the project's `BUILD.bat` (needs your own ROM in `rom\`).
 3. Run `Install mods.bat` from this repo (it asks for the folder, or takes it as an argument).
-4. `mods\dev.bat doctor` lists anything still missing and how to fix it.
-5. Working from the repo on that PC: `mods\dev-root.txt` (one line, the game folder) or `set DQIX_ROOT=...`.
+4. `mods\system\dev.bat doctor` lists anything still missing and how to fix it.
+5. Working from the repo on that PC: `mods\system\dev-root.txt` (one line, the game folder) or `set DQIX_ROOT=...`.
 
 Nothing in the tools is tied to one PC: the game folder is found, the temp folder is the system's, MSYS2 is looked up
-from `mods\msys2-root.txt`, the fonts travel in `mods\fonts`.
+from `mods\system\msys2-root.txt`, the fonts travel in `mods\system\fonts`.

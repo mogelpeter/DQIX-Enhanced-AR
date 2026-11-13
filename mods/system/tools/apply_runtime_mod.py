@@ -114,7 +114,7 @@ def wrap_site(root, on):
         write(path, new)
         changed = True
     if on:
-        src = read(os.path.join(root, "mods", "src", "lowexp.c"))
+        src = read(os.path.join(root, "mods", "system", "src", "lowexp.c"))
         if not os.path.isfile(dst) or read(dst) != src:
             write(dst, src)
             changed = True
@@ -146,7 +146,7 @@ def site(root, name, original, patched, begin, on):
 
 
 def main():
-    root = os.path.abspath(sys.argv[1] if len(sys.argv) > 1 else os.path.join(os.path.dirname(__file__), "..", ".."))
+    root = os.path.abspath(sys.argv[1] if len(sys.argv) > 1 else os.path.join(os.path.dirname(__file__), "..", "..", ".."))
     if not os.path.isfile(os.path.join(root, "runtime", "input.c")):
         print("   No runtime\\input.c here: is this the DQIX Enhanced folder?", root)
         return 1
@@ -160,7 +160,7 @@ def main():
             for f in FILES:
                 dst = os.path.join(root, "runtime", f)
                 if state == "on":
-                    src = read(os.path.join(root, "mods", "src", f))
+                    src = read(os.path.join(root, "mods", "system", "src", f))
                     if not os.path.isfile(dst) or read(dst) != src:
                         write(dst, src)
                         changed = True

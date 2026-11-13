@@ -14,12 +14,21 @@ Copy this "mods" folder into your DQIX Enhanced folder, next to BUILD.bat:
         BUILD.bat
         game\
         mods\          <- here
-            Play with mods.bat
-            ...
 
 Build the game once the normal way first (if you haven't already).
-Then start with "mods\Play with mods.bat". "Make a desktop shortcut.bat"
-puts a shortcut to it on your desktop.
+Then start with "mods\Play with mods.bat" (the installer also puts a shortcut
+to it on your desktop).
+
+What is in the mods folder (only these four things are for you):
+
+    Play with mods.bat    start here
+    README.txt            this file
+    settings.txt          a few switches (yes / no), explained inside
+    cheats\               your own cheat files (one text file per cheat)
+    system\               everything the mods run on: the menu, the cheat
+                          lists, translations, your saved switches and the
+                          save backups (system\save-backups). You never need
+                          to open it.
 
 
 THE CHEAT MENU
@@ -28,7 +37,7 @@ THE CHEAT MENU
 comfort, Experience & gold, Party, Battle, Items...), a search box, and
 "Switched on" with everything that is on now. Press Play to start the game;
 keep the menu open while you play.
-The menu is black with neon green text, set in JetBrains Mono (mods/fonts, SIL Open
+The menu is black with neon green text, set in JetBrains Mono (mods/system/fonts, SIL Open
 Font License); without those font files it falls back to Consolas.
 
 Each cheat is one of these:
@@ -55,20 +64,20 @@ The labels:
                ("Always fast forward", "Instant loading").
 
 "Everything off" switches all of it off. Each time you press Play a copy of
-your save goes to mods\save-backups (the last 30).
+your save goes to mods\system\save-backups (the last 30).
 
 
 WHERE THE CHEATS COME FROM, AND WHY THEY CAN'T BREAK THE GAME
 -------------------------------------------------------------
-mods\database\YDQP.txt (Europe) and YDQE.txt (USA) hold the whole list for the
+mods\system\database\YDQP.txt (Europe) and YDQE.txt (USA) hold the whole list for the
 game from the community's R4 cheat database (DeadSkullzJr's NDS(i) Cheat
 Databases): 216 codes for the European version, 271 for the USA one. To them
-come the files in mods\cheats and mods\code (made and tried by hand; yours go
+come the files in mods\cheats and mods\system\code (made and tried by hand; yours go
 there too).
 
 An Action Replay code is written for a DS, where it may change anything at any
 moment. Here the game's program is compiled PC code. So before the menu shows
-a code, mods\tools\catalog.py runs it against a copy of your own ROM's program
+a code, mods\system\tools\catalog.py runs it against a copy of your own ROM's program
 and sorts it:
 
 - It only changes the game's data: a live cheat. The game carries it out
@@ -93,8 +102,8 @@ What a program can't check is what a data cheat does to your save: "Max
 everything" codes can make a save odd. That is what UNTESTED warns about, and
 what the save copies are for.
 
-A newer usrcheat.dat? "mods\tools\r4_to_text.py usrcheat.dat YDQP
-mods\database\YDQP.txt" brings the list up to date; "Reload list" in the menu
+A newer usrcheat.dat? "mods\system\tools\r4_to_text.py usrcheat.dat YDQP
+mods\system\database\YDQP.txt" brings the list up to date; "Reload list" in the menu
 reads it.
 
 
@@ -115,18 +124,18 @@ developer changes in the PC side of the game.
 - Built-in mods go into the game's patches.txt (the project's own way to
   change instructions when it rebuilds the game) between two marker lines. An
   update replaces patches.txt and rebuilds without them. The next Play
-  notices (mods\bin\built.txt remembers what the built game has in it), puts
+  notices (mods\system\bin\built.txt remembers what the built game has in it), puts
   them back and rebuilds. After an update the game starts by itself WITHOUT
   them: close it and press Play in the menu once.
 
 - The update never deletes the mods folder (it only copies new files over the
-  project), so what you switched on stays (mods\menu-state.txt).
+  project), so what you switched on stays (mods\system\menu-state.txt).
 
 
 USA AND EUROPEAN ROMS
 ---------------------
 Both work. The menu takes the list for your ROM (its game code, YDQP or YDQE).
-The files in mods\cheats and mods\code serve both: the European ROM is the
+The files in mods\cheats and mods\system\code serve both: the European ROM is the
 same program with the main code moved by 16 bytes (8 for a little near the
 start); the data, where the cheats write, and the overlays, where most code
 mods are, are in the same place.
@@ -150,7 +159,7 @@ must all compute exactly the same. So a cheat can't just be written into your
 PC's memory. It travels with your button presses instead: the menu hands it
 to your game, your game sends it to the others like a button, and every PC
 carries it out for your DS in the same frame. For that, a small part of the
-mods is built into the game (mods\src\mod_cheats.c).
+mods is built into the game (mods\system\src\mod_cheats.c).
 
 What to do:
 1. Give every player this mods folder. Each presses Play in the menu once.
@@ -190,7 +199,7 @@ data.
     # category: Party       (the page; without it: "My cheats")
     020F6D48 0098967F
 
-Code mod (mods\code\anything.txt):
+Code mod (mods\system\code\anything.txt):
 
     # name: What it's called
     # enabled: no           (the menu's switch changes this line)
@@ -210,7 +219,7 @@ WITHOUT THE MENU
 ----------------
 "cheat_window = no" in settings.txt: "Play with mods.bat" builds the code mods
 whose files say "enabled: yes" (and the database codes named in
-mods\menu-state.txt) into the game and starts it, without the menu. Live
+mods\system\menu-state.txt) into the game and starts it, without the menu. Live
 cheats need the menu.
 
 

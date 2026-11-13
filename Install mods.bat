@@ -18,10 +18,18 @@ if not defined TARGET (
 if not defined TARGET ( echo No folder chosen. Run this again and pick the folder. & pause & exit /b 1 )
 if not exist "%TARGET%\BUILD.bat" ( echo That folder has no BUILD.bat, so it is not DQIX Enhanced. Run this again and pick the right folder. & pause & exit /b 1 )
 echo Installing into "%TARGET%\mods" ...
-robocopy "%~dp0mods" "%TARGET%\mods" /E /R:1 /W:1 /NFL /NDL /NJH /NJS /NP /XF menu-state.txt msys2-root.txt settings.txt dev-root.txt /XD bin save-backups __pycache__ >nul
+rem ---- older layout (everything loose in mods\): keep your own files, move them into mods\system, remove the old loose folders
+if exist "%TARGET%\mods\tools\dev.py" (
+  if not exist "%TARGET%\mods\system" mkdir "%TARGET%\mods\system"
+  for %%F in (menu-state.txt msys2-root.txt dev-root.txt) do if exist "%TARGET%\mods\%%F" move /y "%TARGET%\mods\%%F" "%TARGET%\mods\system\" >nul
+  for %%D in (save-backups code bin) do if exist "%TARGET%\mods\%%D" if not exist "%TARGET%\mods\system\%%D" move "%TARGET%\mods\%%D" "%TARGET%\mods\system\" >nul
+  for %%D in (src tools tests lang fonts database) do if exist "%TARGET%\mods\%%D" rmdir /s /q "%TARGET%\mods\%%D"
+  del /q "%TARGET%\mods\dev.bat" "%TARGET%\mods\Make a desktop shortcut.bat" "%TARGET%\mods\AR-codes-*.txt" 2>nul
+)
+robocopy "%~dp0mods" "%TARGET%\mods" /E /R:1 /W:1 /NFL /NDL /NJH /NJS /NP /XF menu-state.txt menu-lang.txt msys2-root.txt settings.txt dev-root.txt AR-codes-EU.txt AR-codes-USA.txt /XD bin save-backups __pycache__ >nul
 if errorlevel 8 ( echo Copy failed. Close the game and the menu, then try again. & pause & exit /b 1 )
 if not exist "%TARGET%\mods\settings.txt" copy "%~dp0mods\settings.txt" "%TARGET%\mods\settings.txt" >nul
-call "%TARGET%\mods\Make a desktop shortcut.bat" nopause >nul 2>&1
+call "%TARGET%\mods\system\Make a desktop shortcut.bat" nopause >nul 2>&1
 echo.
 echo Installed. A shortcut "Dragon Quest IX (mods)" is on your desktop.
 if not exist "%TARGET%\game\dqix.exe" (

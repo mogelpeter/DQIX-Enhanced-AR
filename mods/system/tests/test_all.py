@@ -17,7 +17,7 @@ os.makedirs(work, exist_ok=True)
 
 def catalog():
     out, n = [], 0
-    for line in open(os.path.join(root, "mods", "bin", "catalog.txt"), encoding="utf-8"):
+    for line in open(os.path.join(root, "mods", "system", "bin", "catalog.txt"), encoding="utf-8"):
         if not line.startswith("entry\t"):
             continue
         d = dict(p.split("=", 1) for p in line.rstrip("\n").split("\t")[1:] if "=" in p)

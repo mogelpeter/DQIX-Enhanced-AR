@@ -10,7 +10,7 @@
 
 Where things are (nothing is hard-coded to one PC):
   the game folder = the one with BUILD.bat. Found from, in this order: --root, the DQIX_ROOT environment variable,
-  mods\\dev-root.txt (one line: the path), or the parent of the mods\\ folder this file is in.
+  mods\\system\\dev-root.txt (one line: the path), or the parent of the mods\\ folder this file is in.
   Work on the repo copy of mods\\ and deploy: every command deploys first when this file is not in the game folder.
 
 Why it is fast (see WORKFLOW.md): tests are tiered (fast ~2 min, full ~8 min), results are cached by a hash of every
@@ -20,8 +20,8 @@ input so unchanged work is skipped, independent game tests run in parallel on th
 import argparse, concurrent.futures as cf, glob, hashlib, json, os, py_compile, re, shutil, subprocess, sys, tempfile, time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-SRC_MODS = os.path.dirname(HERE)                         # the mods\ this file lives in (repo or game folder)
-USER_FILES = {"menu-state.txt", "msys2-root.txt", "settings.txt", "dev-root.txt", "built.txt"}
+SRC_MODS = os.path.dirname(os.path.dirname(HERE))                       # the mods\ this file lives in (repo or game folder)
+USER_FILES = {"menu-state.txt", "menu-lang.txt", "msys2-root.txt", "settings.txt", "dev-root.txt", "built.txt"}
 SKIP_DIRS = {"bin", "save-backups", "__pycache__", ".cache"}
 TMP = os.path.join(tempfile.gettempdir(), "dqix-mods-tests")
 
@@ -38,7 +38,7 @@ def is_root(p):
 
 
 def find_root(arg=None):
-    for c in (arg, os.environ.get("DQIX_ROOT"), read(os.path.join(SRC_MODS, "dev-root.txt")), os.path.dirname(SRC_MODS)):
+    for c in (arg, os.environ.get("DQIX_ROOT"), read(os.path.join(SRC_MODS, "system", "dev-root.txt")), os.path.dirname(SRC_MODS)):
         if is_root(c):
             return os.path.abspath(c)
     return None
@@ -48,7 +48,7 @@ def need_root(arg):
     r = find_root(arg)
     if not r:
         sys.exit("Can't find the DQIX Enhanced folder (the one with BUILD.bat).\n"
-                 "Give it once:  dev.py --root \"C:\\path\\to\\DQIX Enhanced\" doctor   or write the path into mods\\dev-root.txt")
+                 "Give it once:  dev.py --root \"C:\\path\\to\\DQIX Enhanced\" doctor   or write the path into mods\\system\\dev-root.txt")
     return r
 
 
@@ -115,7 +115,7 @@ def csc_path():
 
 
 def build_menu(root, out=None):
-    live = os.path.join(root, "mods")
+    live = os.path.join(root, "mods", "system")
     src = os.path.join(live, "src", "CheatMenu.cs")
     exe = out or os.path.join(live, "bin", "dqix-cheat-menu.exe")
     if os.path.isfile(exe) and os.path.getmtime(exe) >= os.path.getmtime(src):
@@ -171,8 +171,8 @@ def game_running():
 def input_key(root):
     """a hash of everything a test result depends on: the mods' sources, the catalog, the built game"""
     h = hashlib.sha1()
-    live = os.path.join(root, "mods")
-    for pat in ("src/*", "tools/*.py", "tools/*.sh", "tests/*.py", "cheats/*", "code/*", "bin/catalog.txt", "database/*"):
+    live = os.path.join(root, "mods", "system")
+    for pat in ("src/*", "tools/*.py", "tools/*.sh", "tests/*.py", "../cheats/*", "code/*", "bin/catalog.txt", "database/*"):
         for f in sorted(glob.glob(os.path.join(live, pat))):
             h.update(f.encode() + digest(f).encode())
     for f in ("dqix.exe", "dqixcore.dll"):
@@ -184,7 +184,7 @@ def input_key(root):
 
 def t_static(root, work):
     """in seconds, no game: python compiles, the C# 5 rule, the catalog is readable, nothing blocked can be switched on"""
-    live = os.path.join(root, "mods"); problems = []
+    live = os.path.join(root, "mods", "system"); problems = []
     for f in glob.glob(os.path.join(live, "tools", "*.py")) + glob.glob(os.path.join(live, "tests", "*.py")):
         try:
             py_compile.compile(f, cfile=os.path.join(work, "x.pyc"), doraise=True)
@@ -196,7 +196,7 @@ def t_static(root, work):
             problems.append("CheatMenu.cs uses " + why + " (Windows' csc is C# 5)")
     cat = os.path.join(live, "bin", "catalog.txt")
     if not os.path.isfile(cat):
-        problems.append("no mods\\bin\\catalog.txt: run Play with mods.bat catalog")
+        problems.append("no mods\\system\\bin\\catalog.txt: run Play with mods.bat catalog")
         entries = {}
     else:
         entries = {}
@@ -227,7 +227,7 @@ def t_static(root, work):
 
 
 def py_test(root, script, args, env=None):
-    live = os.path.join(root, "mods")
+    live = os.path.join(root, "mods", "system")
     e = dict(os.environ); e.pop("NoDefaultCurrentDirectoryInExePath", None)
     e["PYTHONIOENCODING"] = "utf-8"; e.update(env or {})
     return subprocess.run([sys.executable, "-u", os.path.join(live, "tests", script), root] + args, cwd=root, env=e, capture_output=True, text=True, errors="replace")
@@ -243,7 +243,7 @@ def judge(name, r):
 
 
 def t_menu_smoke(root, work):
-    live = os.path.join(root, "mods")
+    live = os.path.join(root, "mods", "system")
     exe, _ = build_menu(root)
     log = os.path.join(live, "bin", "menu-error.log")
     before = os.path.getmtime(log) if os.path.isfile(log) else 0
@@ -325,7 +325,7 @@ def cmd_test(a):
     if built:
         print("menu compiled")
     key = input_key(root)
-    cache_file = os.path.join(root, "mods", "bin", "test-cache.json")
+    cache_file = os.path.join(root, "mods", "system", "bin", "test-cache.json")
     try:
         cache = json.load(open(cache_file))
     except (OSError, ValueError):
@@ -378,17 +378,17 @@ def cmd_doctor(a):
     line(sys.platform == "win32", "Windows", "the menu is a Windows (WPF) program")
     line(bool(csc_path()), "C# compiler (csc.exe, .NET Framework 4)", "it is part of Windows 10/11: enable .NET Framework 4.x in Windows features")
     line(sys.version_info >= (3, 8), f"Python {sys.version.split()[0]}", "install Python 3.8+ (python.org), or run through MSYS2's python3")
-    line(bool(root), "DQIX Enhanced folder (with BUILD.bat)" + (": " + root if root else ""), "run:  dev.py --root \"<folder>\" doctor   (or put the path in mods\\dev-root.txt)")
+    line(bool(root), "DQIX Enhanced folder (with BUILD.bat)" + (": " + root if root else ""), "run:  dev.py --root \"<folder>\" doctor   (or put the path in mods\\system\\dev-root.txt)")
     if root:
-        mods = os.path.join(root, "mods")
+        mods = os.path.join(root, "mods", "system")
         line(os.path.isdir(mods), "mods\\ folder in it", "run:  dev.py deploy")
         line(any(f.lower().endswith(".nds") for f in os.listdir(os.path.join(root, "rom"))) if os.path.isdir(os.path.join(root, "rom")) else False, "ROM in rom\\", "put your own Dragon Quest IX .nds in the rom folder")
         line(os.path.isfile(os.path.join(root, "game", "dqix.exe")), "game built (game\\dqix.exe)", "run BUILD.bat once (needs internet the first time for MSYS2)")
         line(os.path.isfile(os.path.join(root, "build", "recomp", "dispatch_table.c")), "build\\recomp (the mods are checked against it)", "run BUILD.bat")
         msys = read(os.path.join(mods, "msys2-root.txt")) or r"C:\msys64"
         line(os.path.isfile(os.path.join(msys, "usr", "bin", "bash.exe")), "MSYS2 build tools: " + msys, "BUILD.bat installs them; Play with mods.bat finds them")
-        line(os.path.isfile(os.path.join(mods, "fonts", "JetBrainsMono-Regular.ttf")), "JetBrains Mono in mods\\fonts", "copy mods\\fonts from the repo (the menu falls back to Consolas without it)")
-        line(os.path.isfile(os.path.join(mods, "bin", "catalog.txt")), "cheat list (mods\\bin\\catalog.txt)", "run  Play with mods.bat catalog")
+        line(os.path.isfile(os.path.join(mods, "fonts", "JetBrainsMono-Regular.ttf")), "JetBrains Mono in mods\\system\\fonts", "copy mods\\system\\fonts from the repo (the menu falls back to Consolas without it)")
+        line(os.path.isfile(os.path.join(mods, "bin", "catalog.txt")), "cheat list (mods\\system\\bin\\catalog.txt)", "run  Play with mods.bat catalog")
         line(not game_running(), "no game running right now", "close dqix.exe before tests")
     print("\nAll good." if not bad else f"\n{bad} thing(s) to fix.")
     return 1 if bad else 0
@@ -397,7 +397,7 @@ def cmd_doctor(a):
 # ------------------------------------------------------------------ scratch build of every code mod
 def cmd_scratch(a):
     root = need_root(a.root); ensure_deployed(root)
-    msys = read(os.path.join(root, "mods", "msys2-root.txt")) or r"C:\msys64"
+    msys = read(os.path.join(root, "mods", "system", "msys2-root.txt")) or r"C:\msys64"
     bash = os.path.join(msys, "usr", "bin", "bash.exe")
     if not os.path.isfile(bash):
         sys.exit("MSYS2 not found: " + msys)
@@ -412,7 +412,7 @@ def cmd_scratch(a):
     os.makedirs(os.path.join(proj, "game"), exist_ok=True)
     subprocess.run(["robocopy", os.path.join(root, "game", "data"), os.path.join(proj, "game", "data"), "/E", "/R:1", "/W:1", "/NFL", "/NDL", "/NJH", "/NJS", "/NP"], capture_output=True)
     shutil.copy2(os.path.join(root, "game", "dqix.sav"), os.path.join(proj, "game", "dqix.sav"))
-    sys.path.insert(0, os.path.join(proj, "mods", "tools"))
+    sys.path.insert(0, os.path.join(proj, "mods", "system", "tools"))
     import catalog
     _, entries, _ = catalog.build(proj)
     rounds = []
@@ -432,20 +432,20 @@ def cmd_scratch(a):
     for i, r in enumerate(todo):
         ids = [e["id"] for e in r["e"] if not e["file"]]
         files = {e["file"] for e in r["e"] if e["file"]}
-        open(os.path.join(proj, "mods", "menu-state.txt"), "w").write("\n".join(["code " + x for x in ids]) + "\nflag warned\n")
-        for f in glob.glob(os.path.join(proj, "mods", "code", "*.txt")):
+        open(os.path.join(proj, "mods", "system", "menu-state.txt"), "w").write("\n".join(["code " + x for x in ids]) + "\nflag warned\n")
+        for f in glob.glob(os.path.join(proj, "mods", "system", "code", "*.txt")):
             s = open(f, encoding="utf-8-sig").read()
             on = any(n.replace("\\", "/").endswith("/" + os.path.basename(f)) or n == os.path.basename(f) for n in files)
             open(f, "w", encoding="utf-8").write(re.sub(r"(?m)^#\s*enabled\s*:.*$", "# enabled: " + ("yes" if on else "no"), s))
         print(f"round {i}: {len(r['e'])} code mods: " + ", ".join(e["name"] for e in r["e"][:6]) + (" ..." if len(r["e"]) > 6 else ""), flush=True)
-        sh = f"cd '{proj.replace(chr(92), '/')}' && python3 mods/tools/catalog.py . >/dev/null; sh mods/tools/put_in.sh >/dev/null; ./tools/build-game.sh '{rom}' >/dev/null 2>&1; echo build=$?"
+        sh = f"cd '{proj.replace(chr(92), '/')}' && python3 mods/system/tools/catalog.py . >/dev/null; sh mods/system/tools/put_in.sh >/dev/null; ./tools/build-game.sh '{rom}' >/dev/null 2>&1; echo build=$?"
         out = subprocess.run([bash, "-lc", sh], env=env, capture_output=True, text=True, errors="replace").stdout.strip()
         print("  ", out)
         if "build=0" not in out:
             print("  BUILD FAILED"); return 1
         e2 = dict(env, TEST_EXE=os.path.join(proj, "game", "dqix.exe"))
         for script, args in (("test_session.py", [os.path.join(TMP, f"s{i}"), str(47300 + i)]), ("test_live.py", [os.path.join(TMP, f"l{i}"), "3000"])):
-            o = subprocess.run([sys.executable, "-u", os.path.join(proj, "mods", "tests", script), proj] + args, cwd=proj, env=e2, capture_output=True, text=True, errors="replace").stdout
+            o = subprocess.run([sys.executable, "-u", os.path.join(proj, "mods", "system", "tests", script), proj] + args, cwd=proj, env=e2, capture_output=True, text=True, errors="replace").stdout
             keep = [l.strip() for l in o.splitlines() if "RESULT" in l or "different" in l or "FAIL" in l]
             print("  ", script, "|", " ; ".join(keep))
     return 0

@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """Everything the cheat menu offers, sorted and checked against your ROM.
 
-  catalog.py [project folder]            writes mods/bin/catalog.txt (the menu reads it)
+  catalog.py [project folder]            writes mods/system/bin/catalog.txt (the menu reads it)
   catalog.py [project folder] --report   also says why each code ended up where it did
 
 Where the codes come from:
-  mods/database/<game code>.txt   the whole R4 cheat list for your ROM (r4_to_text.py)
+  mods/system/database/<game code>.txt   the whole R4 cheat list for your ROM (r4_to_text.py)
   mods/cheats/*.txt               live cheats made by hand (tried out)
-  mods/code/*.txt                 code mods made by hand (tried out)
+  mods/system/code/*.txt                 code mods made by hand (tried out)
 
 An Action Replay code is written for a DS, where it can change anything at any
 moment. Here the game's program is compiled PC code, so every code is worked
@@ -664,14 +664,14 @@ def build(root):
             e.update(kind="blocked", status="blocked", reason=REASONS["long"])
         files.append(e)
         by_sig.setdefault(("live", tuple(ops)), e)
-    for f in sorted(glob.glob(os.path.join(root, "mods", "code", "*.txt"))):
+    for f in sorted(glob.glob(os.path.join(root, "mods", "system", "code", "*.txt"))):
         base = os.path.basename(f)
         if base.startswith("_"):
             continue
         name, on, checks, patches, errors = acm.parse_mod(f)
         e = dict(id="file:code/" + base, name=name, note=file_header(f, "about"), cat=file_header(f, "category"),
                  group="", kind="code", status="tested", mode="", ops=[], keys=[], reason="",
-                 file="code/" + base, on=on, patch=[], env="")
+                 file="system/code/" + base, on=on, patch=[], env="")
         fit = None if errors else fit_code_file(rom, checks, patches)
         if errors:
             e.update(kind="blocked", status="blocked", reason="The file has a mistake: " + "; ".join(errors))
@@ -685,7 +685,7 @@ def build(root):
 
     # ---- the database for this ROM
     info = dict(game=rom.game, region=rom.region, title="", database="", exact="0")
-    db = os.path.join(root, "mods", "database", rom.game + ".txt")
+    db = os.path.join(root, "mods", "system", "database", rom.game + ".txt")
     folders = []
     if os.path.isfile(db):
         game, crc, title, folders = read_database(db)
@@ -820,10 +820,10 @@ def build(root):
 
 
 def read_state(root):
-    """What is switched on in the cheat menu: mods/menu-state.txt, lines of "<live|code|launch> <id>"."""
+    """What is switched on in the cheat menu: mods/system/menu-state.txt, lines of "<live|code|launch> <id>"."""
     state = {"live": set(), "code": set(), "launch": set()}
     try:
-        for line in open(os.path.join(root, "mods", "menu-state.txt"), encoding="utf-8-sig"):
+        for line in open(os.path.join(root, "mods", "system", "menu-state.txt"), encoding="utf-8-sig"):
             p = line.split(None, 1)
             if len(p) == 2 and p[0] in state:
                 state[p[0]].add(p[1].strip())
@@ -852,7 +852,7 @@ def write(root, info, entries, groups):
             file=e["file"], on="1" if e["on"] else "", env=e["env"],
             ops=",".join(f"{a:08X}:{b:08X}" for a, b in e["ops"]),
             patch=",".join(f"{n}:{a:08x}:{w:08x}" for n, a, w in e["patch"])))
-    out = os.path.join(root, "mods", "bin", "catalog.txt")
+    out = os.path.join(root, "mods", "system", "bin", "catalog.txt")
     os.makedirs(os.path.dirname(out), exist_ok=True)
     text = "\n".join(lines) + "\n"
     try:
@@ -867,7 +867,7 @@ def write(root, info, entries, groups):
 
 def main():
     args = [a for a in sys.argv[1:] if not a.startswith("--")]
-    root = os.path.abspath(args[0] if args else os.path.join(os.path.dirname(__file__), "..", ".."))
+    root = os.path.abspath(args[0] if args else os.path.join(os.path.dirname(__file__), "..", "..", ".."))
     if not os.path.isfile(os.path.join(root, "build", "recomp", "dispatch_table.c")):
         print("   The game hasn't been built yet (no build\\recomp): build it once, then run this again.")
         return 1
@@ -875,13 +875,13 @@ def main():
     write(root, info, entries, groups)
     n = {k: sum(1 for e in entries if e["kind"] == k) for k in ("live", "code", "blocked", "launch")}
     print(f"   Cheat list: {n['live']} live, {n['code']} built into the game, {n['blocked']} that can't work here"
-          + ("" if info["database"] else f"  (no mods\\database\\{info['game']}.txt: only your own files)"))
+          + ("" if info["database"] else f"  (no mods\\system\\database\\{info['game']}.txt: only your own files)"))
     # the game's own item names in all five languages (for the save editor), read from the ROM
     try:
         sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
         import rom_text
         rom = os.path.join(root, "game", "data", "dqix.nds")
-        langdir = os.path.join(root, "mods", "lang")
+        langdir = os.path.join(root, "mods", "system", "lang")
         stamp = os.path.join(langdir, "rom-itemname-de.tsv")
         if os.path.isfile(rom) and (not os.path.isfile(stamp) or os.path.getmtime(stamp) < os.path.getmtime(rom)):
             rom_text.write_tables(rom, langdir)

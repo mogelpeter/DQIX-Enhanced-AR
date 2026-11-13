@@ -2,7 +2,7 @@
  *
  * The Action Replay cheat for this writes a routine of its own into RAM, which a
  * recompiled game can't run. Here the same thing is done around the game's own code
- * (wrap.txt lines, added by mods/tools/apply_runtime_mod.py):
+ * (wrap.txt lines, added by mods/system/tools/apply_runtime_mod.py):
  *
  *   ov023 021f4098  the experience share of one party member (r1 = member). It asks
  *                   func_0202053c (the member's level) for every member present, turns

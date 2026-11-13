@@ -23,7 +23,7 @@ if how == "outside":
     menv["DQIX_CHEATS_OUTSIDE"] = "1"
 time.sleep(4)
 shot = os.path.join(work, "menu.png")
-menu = subprocess.Popen([os.path.join(root, "mods", "bin", "dqix-cheat-menu.exe"), root, "--shot", shot, "on", "90"], env=menv)
+menu = subprocess.Popen([os.path.join(root, "mods", "system", "bin", "dqix-cheat-menu.exe"), root, "--shot", shot, "on", "90"], env=menv)
 game.wait(timeout=600)
 menu.wait(timeout=200)
 log.close()

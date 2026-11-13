@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Put the code mods that are on (mods/code/*.txt) into the game's build.
+"""Put the code mods that are on (mods/system/code/*.txt) into the game's build.
 
   apply_code_mods.py [project folder]
 
@@ -10,8 +10,8 @@ out the ones that are off. An update of the game brings a fresh patches.txt
 without them; running this again (Play with mods.bat does, every time) puts
 them back.
 
-Which mods: the files in mods/code that say "enabled: yes", and the codes from
-the cheat database that are switched on in the cheat menu (mods/menu-state.txt).
+Which mods: the files in mods/system/code that say "enabled: yes", and the codes from
+the cheat database that are switched on in the cheat menu (mods/system/menu-state.txt).
 catalog.py works every one of them out against your ROM's code (build/extract,
 written by the last build), so a mod that doesn't fit your ROM, or that can't be
 checked, is left out rather than breaking the game.
@@ -122,7 +122,7 @@ def parse_mod(path):
 
 
 def main():
-    root = os.path.abspath(sys.argv[1] if len(sys.argv) > 1 else os.path.join(os.path.dirname(__file__), "..", ".."))
+    root = os.path.abspath(sys.argv[1] if len(sys.argv) > 1 else os.path.join(os.path.dirname(__file__), "..", "..", ".."))
     patches_txt = os.path.join(root, "patches.txt")
     if not os.path.isfile(patches_txt):
         print("   No patches.txt here: is this the DQIX Enhanced folder?", root)
@@ -130,8 +130,8 @@ def main():
     if not os.path.isfile(os.path.join(root, "build", "recomp", "dispatch_table.c")):
         print("   The game hasn't been built yet (no build\\recomp): build it once, then run this again.")
         return 1
-    # Which mods are on: a file in mods\code says so itself ("enabled: yes"); a code from the
-    # database is on when the cheat menu's list (mods\menu-state.txt) names it. catalog.py has
+    # Which mods are on: a file in mods\system\code says so itself ("enabled: yes"); a code from the
+    # database is on when the cheat menu's list (mods\system\menu-state.txt) names it. catalog.py has
     # worked each one out against this ROM: only instructions it found there get this far.
     import catalog
     rom = catalog.Rom(root)

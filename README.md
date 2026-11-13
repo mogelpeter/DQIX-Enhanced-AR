@@ -14,7 +14,7 @@ in the style of an R4 cheat menu: black and neon green, JetBrains Mono, a hover 
 1. Build DQIX Enhanced once with its `BUILD.bat` (your own ROM in `rom\`).
 2. Double-click **`Install mods.bat`**. It finds your folder itself, installs, and puts a desktop shortcut on your desktop.
 3. Start the shortcut "Dragon Quest IX (mods)".
-4. Trouble? `mods\dev.bat doctor` says what is missing and how to fix it.
+4. Trouble? `mods\system\dev.bat doctor` says what is missing and how to fix it.
 
 The ROM and the game are never part of this repo.
 

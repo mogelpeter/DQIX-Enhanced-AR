@@ -6,7 +6,7 @@
 
 What goes into a build from the mods: the code mods' lines in patches.txt and
 the mods' own part of the game (runtime/mod_cheats.c, ar_engine.h and the call
-in input.c). mods/bin/built.txt keeps a checksum of those, and which code mods
+in input.c). mods/system/bin/built.txt keeps a checksum of those, and which code mods
 they were (the cheat menu shows "needs a rebuild" from it). Without this, a
 build that failed half-way would be taken for done the next time.
 """
@@ -49,8 +49,8 @@ def now(root):
 def main():
     args = sys.argv[1:]
     what = args[-1] if args else "check"
-    root = os.path.abspath(args[0] if len(args) > 1 else os.path.join(os.path.dirname(__file__), "..", ".."))
-    path = os.path.join(root, "mods", "bin", "built.txt")
+    root = os.path.abspath(args[0] if len(args) > 1 else os.path.join(os.path.dirname(__file__), "..", "..", ".."))
+    path = os.path.join(root, "mods", "system", "bin", "built.txt")
     stamp, ids = now(root)
     if what == "write":
         os.makedirs(os.path.dirname(path), exist_ok=True)

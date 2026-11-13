@@ -2,6 +2,11 @@
 
 Newest first. One block per working session: what changed, why, how it was checked.
 
+## 2026-11-13 (13)  Tidy mods folder, town names
+- `mods\` now shows only `Play with mods.bat`, `README.txt`, `settings.txt`, `cheats\` (your own cheat files) and `system\` (menu, cheat lists, translations, tools, tests, fonts, saved switches, save backups). Everything that was loose moved into `mods\system\`; scripts, menu, installer, tests and docs use the new paths (code mods are `system/code/...` in the catalog). `Install mods.bat` migrates an old layout (keeps menu-state, save backups, code flags, msys2-root) and no longer ships generated files. dev.py `SRC_MODS` is the mods dir; `live` for tools/tests is `mods\system`.
+- Town and region names come from the ROM now (`data/map/mapname.gp2`, a tagged table; `rom_text.map_names`): Stornway = Stinsbruck / Ablithia / Pedranía / Stornland, Angel Falls = Engelsfälle / Chérubelle / ...; where the field region has an extra "Région de" the shorter town name wins. The editor's place labels use them; the cheats that mention Stornway use them too.
+- Checked: `dev test fast` 5/5, `dev scratch` (all code mods built through the new put_in.sh paths) PASS, installer migration of an old layout.
+
 ## 2026-11-13 (12)  Save editor in German/French/Spanish/Italian
 - Editor texts are translated in the browser: `rom-glossary.tsv` (made by `rom_text.py` from every message table the ROM has in five languages, plus the 345 monster names: vocations, accolades, records, monsters, menu words...) and `mods/lang/editor.tsv` (the editor's own labels, buttons, hints, place and building words; hand-written) become one dictionary that a small script injected into the served page applies to text and placeholder/title attributes (also to text that appears later). Keys ignore case/punctuation except a trailing colon. Item names are swapped in the bundle as before. Tab jumping uses the tab index now (the tab labels are translated).
 - Not translated: places that are not in the ROM text (most town names), "canvased guests: (n/30)"-style composed labels, user data (names, messages).

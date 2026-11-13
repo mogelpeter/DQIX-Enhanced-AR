@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """Write every mod and cheat in this folder as Action Replay DS codes for the
-ROM the game was built from: mods/AR-codes-EU.txt (European ROM, YDQP) or
-mods/AR-codes-USA.txt (YDQE).
+ROM the game was built from: mods/system/AR-codes-EU.txt (European ROM, YDQP) or
+mods/system/AR-codes-USA.txt (YDQE).
 
   make_ar_list.py [project folder]
 
 The live cheats (mods/cheats) are Action Replay codes already and change
 data, which is at the same addresses in both versions: they are copied as
-they are. The code mods (mods/code) change instructions. Those in an overlay
+they are. The code mods (mods/system/code) change instructions. Those in an overlay
 are at the same address in both versions; those in the main program are 16
 bytes further on in the European ROM (8 for a few near the start). Each is
 written for this ROM, with the instruction that is there now read from the
@@ -23,7 +23,7 @@ import apply_code_mods as acm
 
 
 def main():
-    root = os.path.abspath(sys.argv[1] if len(sys.argv) > 1 else os.path.join(os.path.dirname(__file__), "..", ".."))
+    root = os.path.abspath(sys.argv[1] if len(sys.argv) > 1 else os.path.join(os.path.dirname(__file__), "..", "..", ".."))
     extract = os.path.join(root, "build", "extract")
     if not os.path.isfile(os.path.join(extract, "arm9", "arm9.bin")):
         print("   The game hasn't been built yet (no build\\extract).")
@@ -48,16 +48,16 @@ def main():
     w(f"Dragon Quest IX: Sentinels of the Starry Skies ({'Europe, YDQP' if eur else 'USA, YDQE'})")
     w("Action Replay DS codes for everything in this mods folder")
     w("=" * 60)
-    w("Made by mods\\tools\\make_ar_list.py from your own ROM's code: every code that")
+    w("Made by mods\\system\\tools\\make_ar_list.py from your own ROM's code: every code that")
     w("changes an instruction was checked against it. In DQIX Enhanced you don't type")
-    w("these in: use the files in mods\\cheats and mods\\code. This list is for a real")
+    w("these in: use the files in mods\\cheats and mods\\system\\code. This list is for a real")
     w("Action Replay, or an emulator's cheat list.")
     w("")
     w("")
-    w("CODES THAT CHANGE THE GAME'S CODE  (mods\\code)")
+    w("CODES THAT CHANGE THE GAME'S CODE  (mods\\system\\code)")
     w("-" * 60)
     left_out, n_entries = [], 0
-    for f in sorted(glob.glob(os.path.join(root, "mods", "code", "*.txt"))):
+    for f in sorted(glob.glob(os.path.join(root, "mods", "system", "code", "*.txt"))):
         name, _, checks, patches, errors = acm.parse_mod(f)
         if errors:
             left_out.append((name, "; ".join(errors)))
@@ -115,7 +115,7 @@ def main():
         w("-" * 60)
         for name, why in left_out:
             w(f"{name}: {why}")
-    path = os.path.join(root, "mods", f"AR-codes-{'EU' if eur else 'USA'}.txt")
+    path = os.path.join(root, "mods", "system", f"AR-codes-{'EU' if eur else 'USA'}.txt")
     text = "\r\n".join(out) + "\r\n"
     old = None
     try:
