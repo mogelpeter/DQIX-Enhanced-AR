@@ -2,6 +2,11 @@
 
 Newest first. One block per working session: what changed, why, how it was checked.
 
+## 2026-11-13 (22)  RE helper, per-cheat effect test (in progress)
+- Research: no public DQIX RAM map or symbols exist (only AR address lists); Ghidra/NTRGhidra/DeSmuME not needed because the recompiled C already carries the ROM's function names. Playbook added to `WORKFLOW.md`.
+- `mods/system/tools/dqre.py`: `func`, `names`, `ar`, `ram`, `diff` over `dispatch_table.c` and `DQIX_RAMDUMP` files. (Not named `re.py`: it shadows Python's `re` and broke dev.py.)
+- `mods/system/tests/test_effects.py`: fires each live cheat alone, compares RAM with a Python port of the AR engine. Not yet run; the UNTESTED labels are unchanged.
+
 ## 2026-11-13 (21)  Monsters can't flee: fixed at the source
 - **Cause found** by watching a headless fight (Guarantomb, `DQIX_MOD_FORCE=3` = every roamer a metal slime, frame dumps + a scratch build that logged function entries and the battle's command list): the monster's turn is built by ov000 `0215767c`, which asks `func_0208a92c` (main, USA `0208a91c`) for the action number; **225 and 917 are the two actions named "Flee"** (action table: 618 records of 60 bytes, id in the low 12 bits of the word at +4, name pointer at +0; found by dumping RAM at the battle). The AI picks them at random from the monster's list. The old code mod (ov024 `021F418C`, the "who can I aim at" query 112) was never on this path: the run with it was frame-identical to the run without it.
 - **Fix**: `src/noflee.c` wraps `0208a91c` (wrap.txt line, `WRAP_LINES`): while the cheat is on, a Flee answer is thrown away and the AI asked again (up to 200 times). The cheat is now a *live* cheat (`02F5A5A8` switch in `mod_cheats.c`, like lowexp/vanish), so it works in sessions too (same on every PC) and the code mod in ov024 is gone. 9000 frames of fighting metal slimes: no Flee command any more (before: flees at about frame 4900 and 6000).
