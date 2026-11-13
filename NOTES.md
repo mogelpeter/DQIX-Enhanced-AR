@@ -2,6 +2,13 @@
 
 Newest first. One block per working session: what changed, why, how it was checked.
 
+## 2026-11-13 (11)  Translations: German, French, Spanish, Italian, in the game's own words
+- `mods/tools/rom_text.py` reads the ROM's text: NitroFS, GPC2 archives, DS compression and the name/string tables (formats from the DQIX wiki, own implementation; the ROM is only read). `catalog.py` runs it and writes `mods/lang/rom-itemname-<lang>.tsv` (git-ignored, ROM text) for all five ROM languages.
+- Menu: language box in the header (default = Windows language, saved in `mods/menu-lang.txt`). `mods/lang/ui.tsv` has the German/French/Spanish/Italian text for every menu text and every cheat name/note (406). Game terms are the ROM's: Talentpunkte / points de compétence / puntos de destreza / punti abilità, Schatzkarte / carte au trésor, Grotte / antre / gruta / antro, Alchemirakel / alchimiracle / alquimilagro / alchemiracolo, Todesstoß / coup de grâce, Gästebuch, vocation names (str_dam/str_sli), Garderobe / armoire / armario / Guardaroba... `tools/lang_keys.py` lists texts without a full translation.
+- Save editor: its item names are swapped for the ROM's names in the chosen language when the page is served (only where the ROM's English name for that item id matches the editor's name). The host self-test checks it (German copper sword).
+- Not translated: the cheat codes' key names ([A], START...), error texts of the build scripts (batch/py), the editor's own UI (party, items... tab names, buttons) which is not part of the ROM. "Zoom" is kept: the ROM text tables don't hold the spell's name in an aligned table.
+- Static guard: the regex `$"` also hits a regex ending; the cache path regex uses `\A...\z`.
+
 ## 2026-11-13 (10)  One button per editor page, cache path hardening
 - Save editor / Treasure maps pages have no subtabs now: one button opens the editor (treasure maps: also the Grotto Searcher website).
 - Security review finding fixed: editor cache paths are limited to `[A-Za-z0-9_-./]`, resolved and confined to `modsin\editor-cache` (a `C:/...` path could have left the folder). The host self-test sends five attack paths and expects 404. menu-smoke PASS.

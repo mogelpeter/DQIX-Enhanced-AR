@@ -6,3 +6,5 @@ mods/menu-state.txt
 mods/msys2-root.txt
 mods/dev-root.txt
 mods/AR-codes-*.txt
+mods/lang/rom-*.tsv
+mods/menu-lang.txt

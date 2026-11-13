@@ -1,0 +1,246 @@
+#!/usr/bin/env python3
+"""Reads the game's own texts out of your ROM: the five languages (en de fr es it) of the item names and
+the other name tables, so the cheat menu and the save editor can use the game's exact words.
+
+  rom_text.py <rom.nds> [--out DIR]     writes DIR\\rom-<table>-<lang>.tsv  (default: mods\\lang)
+  rom_text.py <rom.nds> --find WORD     which tables/languages contain WORD (for translating by the game's terms)
+
+Formats (NitroFS, GPC2 archive, DS compression, name tables) are the ones documented by the DQIX project's wiki
+(github.com/DQIX/wiki); this is an own implementation. The ROM is only read."""
+import os, re, struct, sys, unicodedata
+
+LANGS = ("en", "de", "fr", "es", "it")
+
+
+# ------------------------------------------------------------------ NitroFS
+class Nds:
+    def __init__(self, path):
+        self.rom = open(path, "rb").read()
+        r = self.rom
+        fnt, fnt_sz, fat, fat_sz = struct.unpack_from("<4I", r, 0x40)
+        self.fnt, self.fat = fnt, [struct.unpack_from("<2I", r, fat + i * 8) for i in range(fat_sz // 8)]
+        self.files = {}
+        self._dir(0xF000, "")
+
+    def _dir(self, did, path):
+        r = self.rom
+        sub, fid, _ = struct.unpack_from("<IHH", r, self.fnt + (did & 0xFFF) * 8)
+        p = self.fnt + sub
+        while True:
+            b = r[p]; p += 1
+            if b == 0:
+                return
+            n = b & 0x7F
+            name = r[p:p + n].decode("latin1"); p += n
+            if b & 0x80:
+                cid = struct.unpack_from("<H", r, p)[0]; p += 2
+                self._dir(cid, path + name + "/")
+            else:
+                self.files[path + name] = fid; fid += 1
+
+    def read(self, name):
+        a, b = self.fat[self.files[name]]
+        return self.rom[a:b]
+
+
+# ------------------------------------------------------------------ DS compression (payload without BIOS header)
+def lz10(d, p, size):
+    out = bytearray()
+    while len(out) < size:
+        flags = d[p]; p += 1
+        for i in range(8):
+            if len(out) >= size:
+                break
+            if flags & (0x80 >> i):
+                b0, b1 = d[p], d[p + 1]; p += 2
+                n, disp = (b0 >> 4) + 3, ((b0 & 15) << 8 | b1) + 1
+                for _ in range(n):
+                    out.append(out[-disp])
+            else:
+                out.append(d[p]); p += 1
+    return bytes(out[:size])
+
+
+def rle(d, p, size):
+    out = bytearray()
+    while len(out) < size:
+        f = d[p]; p += 1
+        if f & 0x80:
+            out += bytes([d[p]]) * ((f & 0x7F) + 3); p += 1
+        else:
+            n = (f & 0x7F) + 1; out += d[p:p + n]; p += n
+    return bytes(out[:size])
+
+
+def huff(d, p, size, bits):
+    tree = p + 1
+    stream = p + (d[p] + 1) * 2
+    out = bytearray(); cur = 0xFF; word = 0; nbits = 0
+    node = tree  # root
+    nib_lo = None
+    sp = stream
+    while len(out) < size:
+        if nbits == 0:
+            word = struct.unpack_from("<I", d, sp)[0]; sp += 4; nbits = 32
+        bit = (word >> (nbits - 1)) & 1; nbits -= 1
+        nd = d[node]
+        child = (node & ~1) + (nd & 0x3F) * 2 + 2 + bit
+        is_data = (nd >> (7 - bit)) & 1
+        if is_data:
+            v = d[child]
+            if bits == 8:
+                out.append(v)
+            elif nib_lo is None:
+                nib_lo = v
+            else:
+                out.append(nib_lo | v << 4); nib_lo = None
+            node = tree
+        else:
+            node = child
+    return bytes(out[:size])
+
+
+def region(d, p):
+    """a region: u32 (codec | size << 3), then the payload"""
+    pre = struct.unpack_from("<I", d, p)[0]
+    codec, size = pre & 7, pre >> 3
+    p += 4
+    if codec == 0:
+        return d[p:p + size]
+    if codec == 1:
+        return lz10(d, p, size)
+    if codec == 2:
+        return huff(d, p, size, 4)
+    if codec == 3:
+        return huff(d, p, size, 8)
+    if codec == 4:
+        return rle(d, p, size)
+    raise ValueError("codec %d" % codec)
+
+
+def bios(d, p, size):
+    """the entry table when compressed: tried as each codec, the first sane one wins (the header doesn't say)"""
+    for fn in (lambda: lz10(d, p, size), lambda: huff(d, p, size, 4), lambda: huff(d, p, size, 8), lambda: rle(d, p, size)):
+        try:
+            t = fn()
+            hashes = [struct.unpack_from("<I", t, i * 12)[0] for i in range(size // 12)]
+            if all(a < b for a, b in zip(hashes, hashes[1:])):
+                return t
+        except Exception:
+            pass
+    raise ValueError("entry table")
+
+
+# ------------------------------------------------------------------ GPC2
+def gpc2(d):
+    """-> {member name: bytes}"""
+    assert d[:4] == b"GPC2", "not a GPC2 archive"
+    count = d[4] | (d[5] & 0x0F) << 8
+    name_off, data_off, _ = struct.unpack_from("<3H", d, 8)
+    name_off *= 4; data_off *= 4
+    etab = None
+    if name_off - 0x18 == 12 * count:
+        etab = d[0x18:0x18 + 12 * count]
+    else:
+        # compressed entry table: try with and without a 4-byte BIOS-style header
+        for skip in (0, 4):
+            try:
+                etab = bios(d, 0x18 + skip, 12 * count); break
+            except Exception:
+                pass
+    names = region(d, name_off).split(b"\0")
+    out = {}
+    nbytes = region(d, name_off)
+    for i in range(count):
+        crc, w1, w2 = struct.unpack_from("<3I", etab, i * 12)
+        off = (w1 & 0xFFFFFF) * 4
+        noff = ((w2 >> 24) << 8) | (w1 >> 24)
+        end = nbytes.index(b"\0", noff)
+        nm = nbytes[noff:end].decode("latin1")
+        out[nm] = region(d, data_off + off)
+    return out
+
+
+# ------------------------------------------------------------------ name tables
+def item_names(nat):
+    """itemname_<lang>.nat -> {item id: (singular, plural)}"""
+    count = struct.unpack_from("<I", nat, 0)[0] & 0xFFF
+    base = 4 + 16 * count
+    res = {}
+    for i in range(count):
+        o1, o2, _, iid = struct.unpack_from("<4I", nat, 4 + i * 16)
+        def s(o):
+            e = nat.find(b"\0", base + o)
+            if e < 0:
+                e = len(nat)
+            return nat[base + o:e].decode("latin1")
+        res[iid & 0xFFFF] = (s(o1), s(o2))
+    return res
+
+
+_MARK = {"'": "́", "`": "̀", "^": "̂", ":": "̈", "~": "̃", ",": "̧"}
+_FIXED = {"1": "’", "6": "“", "9": "”", "66": "“", "99": "”", "oe": "œ", "OE": "Œ", "ss": "ß", ",": ","}
+
+
+def _tag(m):
+    t = m.group(1)
+    if t in _FIXED:
+        return _FIXED[t]
+    if len(t) == 2 and t[0] in _MARK and t[1].isalpha():
+        return unicodedata.normalize("NFC", t[1] + _MARK[t[0]])
+    return ""
+
+
+def clean(t):
+    """the game's markup to plain Unicode text: <'e> -> e-acute, <1> -> apostrophe; German grammar tags [ges] etc. dropped"""
+    t = re.sub(r"<([^>]*)>", _tag, t)
+    return re.sub(r"\[[a-z]+\]", "", t)
+
+
+def write_tables(rom_path, out):
+    """writes <out>/rom-itemname-<lang>.tsv for every language in the ROM"""
+    nds = Nds(rom_path)
+    arc = gpc2(nds.read("data/prm/itemname.gp2"))
+    os.makedirs(out, exist_ok=True)
+    done = []
+    for lang in LANGS:
+        k = "itemname_%s.nat" % lang
+        if k not in arc:
+            continue
+        t = item_names(arc[k])
+        with open(os.path.join(out, "rom-itemname-%s.tsv" % lang), "w", encoding="utf-8", newline="\n") as f:
+            for iid in sorted(t):
+                f.write("%d\t%s\t%s\n" % (iid, clean(t[iid][0]), clean(t[iid][1])))
+        done.append(lang)
+    return done
+
+
+def main():
+    a = sys.argv[1:]
+    if not a:
+        sys.exit(__doc__)
+    nds = Nds(a[0])
+    out = a[a.index("--out") + 1] if "--out" in a else os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "lang")
+    arc = gpc2(nds.read("data/prm/itemname.gp2"))
+    tables = {}
+    for lang in LANGS:
+        k = "itemname_%s.nat" % lang
+        if k in arc:
+            tables[lang] = item_names(arc[k])
+    if "--find" in a:
+        w = a[a.index("--find") + 1].lower()
+        for lang, t in tables.items():
+            for iid, (s, p) in t.items():
+                if w in s.lower():
+                    print(lang, "%04X" % iid, s)
+        return
+    os.makedirs(out, exist_ok=True)
+    for lang, t in tables.items():
+        with open(os.path.join(out, "rom-itemname-%s.tsv" % lang), "w", encoding="utf-8", newline="\n") as f:
+            for iid in sorted(t):
+                f.write("%d\t%s\t%s\n" % (iid, clean(t[iid][0]), clean(t[iid][1])))
+    print("wrote", ", ".join("%s: %d" % (l, len(t)) for l, t in tables.items()), "->", os.path.abspath(out))
+
+
+if __name__ == "__main__":
+    main()

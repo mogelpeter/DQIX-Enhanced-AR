@@ -441,6 +441,38 @@ namespace DqixMenu
         public void ClearAll() { needSync = true; }
     }
 
+    /* ---- translations: mods\lang\ui.tsv has one line per English text and a column per language (de fr es it) ---- */
+    static class Tr
+    {
+        public static string Lang = "en";
+        static readonly Dictionary<string, string> map = new Dictionary<string, string>();
+        public static readonly string[] Codes = { "en", "de", "fr", "es", "it" };
+        public static readonly string[] Names = { "English", "Deutsch", "Fran\u00e7ais", "Espa\u00f1ol", "Italiano" };
+
+        public static string Detect()
+        {
+            string two = System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName;
+            return Array.IndexOf(Codes, two) >= 0 ? two : "en";
+        }
+
+        public static void Load(string dir, string lang)
+        {
+            Lang = lang; map.Clear();
+            int col = Array.IndexOf(Codes, lang);
+            string f = Path.Combine(dir, "ui.tsv");
+            if (col < 1 || !File.Exists(f)) return;
+            foreach (string line in File.ReadAllLines(f, Encoding.UTF8))
+            {
+                if (line.Length == 0 || line[0] == '#') continue;
+                string[] c = line.Split('\t');
+                if (c.Length > col && c[col].Length > 0) map[Un(c[0])] = Un(c[col]);
+            }
+        }
+        static string Un(string s) { return s.Replace("\\n", "\n"); }
+        public static string T(string s) { string v; return s != null && map.TryGetValue(s, out v) ? v : s; }
+        public static string F(string fmt, params object[] a) { return string.Format(T(fmt), a); }
+    }
+
     /* ---- the save editor and treasure map tabs: the DQIX project's browser editor (https://github.com/dqix/editor),
      * fetched from dqix.github.io on first use into mods\bin\editor-cache and served from here to the browser. Nothing of it is
      * part of this repo. The host also hands the editor your game save and writes the exported one back (after a backup). ---- */
@@ -526,7 +558,7 @@ loadSave();})();</script>";
         /* only plain relative names, and only inside the cache folder (no drive letters, no .., no streams) */
         string CachePath(string rel)
         {
-            if (rel.Length == 0 || rel.Length > 200 || !Regex.IsMatch(rel, @"^[A-Za-z0-9_\-][A-Za-z0-9_\-./]*$") || rel.Contains("..") || rel.Contains("//")) return null;
+            if (rel.Length == 0 || rel.Length > 200 || !Regex.IsMatch(rel, @"\A[A-Za-z0-9_\-][A-Za-z0-9_\-./]*\z") || rel.Contains("..") || rel.Contains("//")) return null;
             string root = Path.GetFullPath(cache).TrimEnd('\\') + "\\";
             string full = Path.GetFullPath(Path.Combine(root, rel.Replace('/', '\\')));
             return full.StartsWith(root, StringComparison.OrdinalIgnoreCase) ? full : null;
@@ -602,6 +634,63 @@ loadSave();})();</script>";
 
         public string Token { get { return token; } }
 
+        /* the editor's item names in the game's own words (read from the ROM into mods/lang/rom-itemname-<lang>.tsv) */
+        public Func<string> LangOf;
+        public string LangDir = "";
+        readonly Dictionary<string, Dictionary<int, string>> romNames = new Dictionary<string, Dictionary<int, string>>();
+        readonly Dictionary<string, byte[]> localized = new Dictionary<string, byte[]>();
+
+        Dictionary<int, string> RomNames(string lang)
+        {
+            Dictionary<int, string> d;
+            if (romNames.TryGetValue(lang, out d)) return d;
+            string f = Path.Combine(LangDir, "rom-itemname-" + lang + ".tsv");
+            if (File.Exists(f))
+            {
+                d = new Dictionary<int, string>();
+                foreach (string line in File.ReadAllLines(f, Encoding.UTF8))
+                {
+                    string[] c = line.Split('\t');
+                    int id;
+                    if (c.Length >= 2 && int.TryParse(c[0], out id)) d[id] = c[1];
+                }
+            }
+            romNames[lang] = d;
+            return d;
+        }
+
+        static string Norm(string s)
+        {
+            return Regex.Replace(s.ToLowerInvariant(), "[^a-z0-9]", "");
+        }
+
+        /* the editor's own item list has English names; a name is swapped only where the ROM's English name for that id is the same one */
+        byte[] Localize(byte[] js, string rel)
+        {
+            string lang = LangOf != null ? LangOf() : "en";
+            if (lang == "en" || LangDir.Length == 0) return js;
+            Dictionary<int, string> en = RomNames("en"), loc = RomNames(lang);
+            if (en == null || loc == null) return js;
+            byte[] done;
+            lock (localized) { if (localized.TryGetValue(lang + "|" + rel, out done)) return done; }
+            string text = Encoding.UTF8.GetString(js);
+            text = Regex.Replace(text, @"\{id:([0-9]+(?:\.[0-9]+)?(?:e[0-9]+)?),([^{}]*?)name:""((?:[^""\\]|\\.)*)""", delegate (Match m)
+            {
+                double dv;
+                if (!double.TryParse(m.Groups[1].Value, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out dv)) return m.Value;
+                int id = (int)dv;
+                string e, l;
+                if (!en.TryGetValue(id, out e) || !loc.TryGetValue(id, out l) || l.Length == 0) return m.Value;
+                if (Norm(m.Groups[3].Value) != Norm(e)) return m.Value;
+                string name = char.ToUpperInvariant(l[0]) + l.Substring(1);
+                name = name.Replace("\\", "\\\\").Replace("\"", "\\\"");
+                return "{id:" + m.Groups[1].Value + "," + m.Groups[2].Value + "name:\"" + name + "\"";
+            });
+            done = Encoding.UTF8.GetBytes(text);
+            lock (localized) { localized[lang + "|" + rel] = done; }
+            return done;
+        }
+
         void Handle(HttpListenerContext c)
         {
             try
@@ -649,6 +738,7 @@ loadSave();})();</script>";
                         html = at >= 0 ? html.Insert(at, inj) : html + inj;
                         b = Encoding.UTF8.GetBytes(html);
                     }
+                    if (rel.EndsWith(".js")) b = Localize(b, rel);
                     Reply(c, 200, Mime(rel), b);
                     return;
                 }
@@ -830,16 +920,19 @@ loadSave();})();</script>";
 
   <Border Grid.Row='0' Padding='16,9,16,8' BorderBrush='#26262B' BorderThickness='0,0,0,1'>
     <Grid>
-      <StackPanel Margin='0,0,190,0'>
-        <TextBlock FontSize='14' FontWeight='SemiBold'><Run Text='Dragon Quest IX'/><Run Foreground='#8C8C92' FontWeight='Normal' Text='  /  cheats'/></TextBlock>
+      <StackPanel Margin='0,0,330,0'>
+        <TextBlock FontSize='14' FontWeight='SemiBold'><Run Text='Dragon Quest IX'/><Run x:Name='TitleSub' Foreground='#8C8C92' FontWeight='Normal' Text='  /  cheats'/></TextBlock>
         <TextBlock x:Name='Sub' Visibility='Collapsed' Margin='0,3,0,0' FontSize='10' Foreground='{StaticResource Dim}' TextTrimming='CharacterEllipsis'/>
       </StackPanel>
-      <Border x:Name='Pill' HorizontalAlignment='Right' VerticalAlignment='Center' CornerRadius='0' Padding='0'>
+      <StackPanel Orientation='Horizontal' HorizontalAlignment='Right' VerticalAlignment='Center'>
+      <Border x:Name='Pill' VerticalAlignment='Center' CornerRadius='0' Padding='0' Margin='0,0,14,0'>
         <StackPanel Orientation='Horizontal'>
           <Ellipse x:Name='Dot' Width='9' Height='9' Fill='#6E6E75' VerticalAlignment='Center' Margin='0,0,8,0'/>
           <TextBlock x:Name='PillText' FontSize='10.5' Text='The game is not running'/>
         </StackPanel>
       </Border>
+      <ComboBox x:Name='LangBox' Width='112' Height='26' FontSize='10.5' VerticalAlignment='Center'/>
+      </StackPanel>
     </Grid>
   </Border>
 
@@ -913,6 +1006,8 @@ loadSave();})();</script>";
         string lastPill = "";
         const int MaxLive = 120;
 
+        ComboBox LangBox;
+        Run TitleSub;
         TextBlock Sub, PillText, Status, BannerText, SearchHint, OverTitle, OverSub, OverLog;
         System.Windows.Shapes.Ellipse Dot;
         TextBox Search;
@@ -959,6 +1054,22 @@ loadSave();})();</script>";
             Rows = F<StackPanel>("Rows"); Scroll = F<ScrollViewer>("Scroll"); OverScroll = F<ScrollViewer>("OverScroll");
             ApplyBtn = F<Button>("ApplyBtn"); OffBtn = F<Button>("OffBtn"); ReloadBtn = F<Button>("ReloadBtn"); PlayBtn = F<Button>("PlayBtn"); OverClose = F<Button>("OverClose");
             Overlay = F<Grid>("Overlay"); OverBar = F<ProgressBar>("OverBar");
+            LangBox = F<ComboBox>("LangBox"); TitleSub = ui.FindName("TitleSub") as Run;
+            string langFile = Path.Combine(mods, "menu-lang.txt");
+            string lang = Tr.Detect();
+            try { if (File.Exists(langFile)) { string l = File.ReadAllText(langFile).Trim(); if (Array.IndexOf(Tr.Codes, l) >= 0) lang = l; } } catch (Exception) { }
+            Tr.Load(Path.Combine(mods, "lang"), lang);
+            for (int li = 0; li < Tr.Codes.Length; li++) { ComboBoxItem ci = new ComboBoxItem { Content = Tr.Names[li], Tag = Tr.Codes[li] }; LangBox.Items.Add(ci); if (Tr.Codes[li] == lang) LangBox.SelectedItem = ci; }
+            LangBox.SelectionChanged += delegate
+            {
+                ComboBoxItem it = LangBox.SelectedItem as ComboBoxItem;
+                if (it == null || (string)it.Tag == Tr.Lang) return;
+                Tr.Load(Path.Combine(mods, "lang"), (string)it.Tag);
+                try { File.WriteAllText(langFile, (string)it.Tag); } catch (Exception) { }
+                ApplyLang();
+                LoadAll();
+            };
+            ApplyLang();
 
             Search.TextChanged += delegate { SearchHint.Visibility = Search.Text.Length > 0 ? Visibility.Collapsed : Visibility.Visible; ShowPage(); };
             Nav.SelectionChanged += delegate { if (!building) { if (Search.Text.Length > 0 && Nav.SelectedIndex >= 0) { building = true; Search.Text = ""; building = false; SearchHint.Visibility = Visibility.Visible; } ShowPage(); } };
@@ -975,6 +1086,16 @@ loadSave();})();</script>";
             timer.Tick += delegate { link.Tick(); UpdatePill(); };
             timer.Start();
             Closed += delegate { timer.Stop(); link.Dispose(); if (editor != null) editor.Dispose(); };
+        }
+
+        void ApplyLang()
+        {
+            Title = "Dragon Quest IX - " + Tr.T("cheat menu");
+            if (TitleSub != null) TitleSub.Text = "  /  " + Tr.T("cheats");
+            SearchHint.Text = Tr.T("Search all cheats");
+            OffBtn.Content = Tr.T("Everything off"); ReloadBtn.Content = Tr.T("Reload list"); ApplyBtn.Content = Tr.T("Rebuild now"); OverClose.Content = Tr.T("Close");
+            PlayBtn.Content = Tr.T(link.Running ? "Game is running" : "Play");
+            lastPill = "";
         }
 
         /* tests: DQIX_MENU_STATE points at another state file, so the user's own is never touched */
@@ -1080,17 +1201,17 @@ loadSave();})();</script>";
 
             int nNo = entries.Count(e => e.Kind == "blocked");
             ShowSub();
-            if (entries.Count == 0) Say("No cheat list yet: start with \"Play with mods.bat\" (it makes the list from your ROM).");
+            if (entries.Count == 0) Say(Tr.T("No cheat list yet: start with \"Play with mods.bat\" (it makes the list from your ROM)."));
 
             building = true;
             string was = Nav.SelectedItem is ListBoxItem ? (string)((ListBoxItem)Nav.SelectedItem).Tag : "page:" + (pages.Count > 0 ? pages[0] : "");
             Nav.Items.Clear();
-            AddNav("on", "Switched on", 0);
+            AddNav("on", Tr.T("Switched on"), 0);
             foreach (string p in pages) AddNav("page:" + p, p, RowCount(e => e.Cat == p && e.Kind != "blocked"));
-            AddNav("all", "All cheats", RowCount(e => e.Kind != "blocked"));
-            AddNav("blocked", "Not available", nNo);
-            AddNav("tool:save", "Save editor", 0);
-            AddNav("tool:maps", "Treasure maps", 0);
+            AddNav("all", Tr.T("All cheats"), RowCount(e => e.Kind != "blocked"));
+            AddNav("blocked", Tr.T("Not available"), nNo);
+            AddNav("tool:save", Tr.T("Save editor"), 0);
+            AddNav("tool:maps", Tr.T("Treasure maps"), 0);
             foreach (ListBoxItem it in Nav.Items) if ((string)it.Tag == was) Nav.SelectedItem = it;
             if (Nav.SelectedIndex < 0 && Nav.Items.Count > 1) Nav.SelectedIndex = 1;
             building = false;
@@ -1114,7 +1235,7 @@ loadSave();})();</script>";
                 DockPanel.SetDock(c, Dock.Right);
                 d.Children.Add(c);
             }
-            d.Children.Add(new TextBlock { Text = title, FontSize = 11, TextTrimming = TextTrimming.CharacterEllipsis, Foreground = tag == "on" ? Gold : Text });
+            d.Children.Add(new TextBlock { Text = Tr.T(title), FontSize = 11, TextTrimming = TextTrimming.CharacterEllipsis, Foreground = tag == "on" ? Gold : Text });
             Nav.Items.Add(new ListBoxItem { Content = d, Tag = tag });
         }
 
@@ -1164,7 +1285,7 @@ loadSave();})();</script>";
                 File.WriteAllText(tmp, sb.ToString(), new UTF8Encoding(false));
                 if (File.Exists(path)) File.Replace(tmp, path, null); else File.Move(tmp, path);
             }
-            catch (Exception ex) { Say("Couldn't save what is on: " + ex.Message); }
+            catch (Exception ex) { Say(Tr.F("Couldn't save what is on: {0}", ex.Message)); }
         }
 
         bool IsOn(Entry e)
@@ -1195,7 +1316,7 @@ loadSave();})();</script>";
                         if (now != text) File.WriteAllText(path, now, new UTF8Encoding(false));
                         e.FileOn = on;
                     }
-                    catch (Exception ex) { Say("Couldn't change " + e.File + ": " + ex.Message); return false; }
+                    catch (Exception ex) { Say(Tr.F("Couldn't change {0}: {1}", e.File, ex.Message)); return false; }
                 }
             }
             return true;
@@ -1207,17 +1328,16 @@ loadSave();})();</script>";
             flags.Add("warned");
             SaveState();
             MessageBox.Show(this,
-                "\"" + e.Name + "\" comes from the R4 cheat list and hasn't been tried in this version of the game.\n\n" +
-                "Such codes were checked as far as a program can check them, but a code that changes the wrong data can still spoil a save. " +
-                "A copy of your save is kept each time you press Play here (mods\\save-backups).\n\nThis is only said once.",
-                "Untested cheats", MessageBoxButton.OK, MessageBoxImage.Information);
+                Tr.F("\"{0}\" comes from the R4 cheat list and hasn't been tried in this version of the game.", Tr.T(e.Name)) + "\n\n" +
+                Tr.T("Such codes were checked as far as a program can check them, but a code that changes the wrong data can still spoil a save. A copy of your save is kept each time you press Play here (mods\\save-backups).") + "\n\n" + Tr.T("This is only said once."),
+                Tr.T("Untested cheats"), MessageBoxButton.OK, MessageBoxImage.Information);
         }
 
         /* a switch was flipped */
         void Turn(Entry e, bool on)
         {
             if (IsOn(e) == on) return;
-            if (on && e.Kind == "live" && liveOn.Count >= MaxLive) { Say("That is the most live cheats that can be on at once (" + MaxLive + "). Switch one off first."); ShowPage(); return; }
+            if (on && e.Kind == "live" && liveOn.Count >= MaxLive) { Say(Tr.F("That is the most live cheats that can be on at once ({0}). Switch one off first.", MaxLive)); ShowPage(); return; }
             if (on) WarnOnce(e);
             bool redraw = false;
             if (on && e.Kind == "code")
@@ -1230,7 +1350,7 @@ loadSave();})();</script>";
                     foreach (KeyValuePair<string, uint> a in e.Patch)
                         foreach (KeyValuePair<string, uint> b in o.Patch)
                             if (a.Key == b.Key && a.Value != b.Value) clash = true;
-                    if (clash) { Store(o, false); redraw = true; Say("\"" + o.Name + "\" was switched off: it changes the same place in the game as \"" + e.Name + "\"."); }
+                    if (clash) { Store(o, false); redraw = true; Say(Tr.F("\"{0}\" was switched off: it changes the same place in the game as \"{1}\".", Tr.T(o.Name), Tr.T(e.Name))); }
                 }
             }
             if (!Store(e, on)) { ShowPage(); return; }
@@ -1239,9 +1359,9 @@ loadSave();})();</script>";
             UpdateBanner();
             if (!redraw)
             {
-                if (e.Kind == "live") Say(e.Name + ": " + (on ? (link.Connected ? "on" : "on (starts with the game)") : "off"));
-                else if (e.Kind == "launch") Say(e.Name + ": " + (on ? "on" : "off") + " from the next time the game starts.");
-                else Say(e.Name + ": " + (on ? "on" : "off") + " once the game is rebuilt.");
+                if (e.Kind == "live") Say(Tr.T(e.Name) + ": " + Tr.T(on ? (link.Connected ? "on" : "on (starts with the game)") : "off"));
+                else if (e.Kind == "launch") Say(Tr.F("{0}: {1} from the next time the game starts.", Tr.T(e.Name), Tr.T(on ? "on" : "off")));
+                else Say(Tr.F("{0}: {1} once the game is rebuilt.", Tr.T(e.Name), Tr.T(on ? "on" : "off")));
             }
             if (redraw || CurrentTag() == "on") ShowPage();
         }
@@ -1249,16 +1369,16 @@ loadSave();})();</script>";
         void EverythingOff()
         {
             int n = entries.Count(e => IsOn(e));
-            if (n == 0) { Say("Nothing is on."); return; }
+            if (n == 0) { Say(Tr.T("Nothing is on.")); return; }
             bool hasCode = entries.Any(e => e.Kind == "code" && IsOn(e));
-            if (MessageBox.Show(this, "Switch all " + n + " off?" + (hasCode ? "\n\nThe ones built into the game go away with the next rebuild." : ""), "Everything off",
+            if (MessageBox.Show(this, Tr.F("Switch all {0} off?", n) + (hasCode ? "\n\n" + Tr.T("The ones built into the game go away with the next rebuild.") : ""), Tr.T("Everything off"),
                     MessageBoxButton.OKCancel, MessageBoxImage.Question) != MessageBoxResult.OK) return;
             foreach (Entry e in entries) if (IsOn(e)) Store(e, false);
             link.ClearAll();
             SaveState();
             ShowPage();
             UpdateBanner();
-            Say("Everything is off.");
+            Say(Tr.T("Everything is off."));
         }
 
         HashSet<string> WantedCode() { return new HashSet<string>(entries.Where(e => e.Kind == "code" && IsOn(e)).Select(e => e.Id)); }
@@ -1270,9 +1390,9 @@ loadSave();})();</script>";
             HashSet<string> want = WantedCode();
             int add = want.Count(id => !built.Contains(id)), del = built.Count(id => !want.Contains(id));
             BannerText.Inlines.Clear();
-            BannerText.Inlines.Add(new Run("The game has to be rebuilt") { FontWeight = FontWeights.SemiBold, Foreground = Gold });
-            BannerText.Inlines.Add(new Run("  (a few minutes)  —  " + (add > 0 ? add + " to put in" : "") + (add > 0 && del > 0 ? ", " : "") + (del > 0 ? del + " to take out" : "")
-                + ". Play does it by itself." + (link.Running ? "  Save and close the game first." : "")));
+            BannerText.Inlines.Add(new Run(Tr.T("The game has to be rebuilt")) { FontWeight = FontWeights.SemiBold, Foreground = Gold });
+            BannerText.Inlines.Add(new Run("  " + Tr.T("(a few minutes)") + "  —  " + (add > 0 ? Tr.F("{0} to put in", add) : "") + (add > 0 && del > 0 ? ", " : "") + (del > 0 ? Tr.F("{0} to take out", del) : "")
+                + ". " + Tr.T("Play does it by itself.") + (link.Running ? "  " + Tr.T("Save and close the game first.") : "")));
             Banner.Visibility = Visibility.Visible;
         }
 
@@ -1286,7 +1406,7 @@ loadSave();})();</script>";
         {
             bool save = tag == "tool:save";
             StackPanel hp = new StackPanel { Margin = new Thickness(2, 2, 0, 10) };
-            hp.Children.Add(new TextBlock { Text = save ? "Save editor" : "Treasure maps", FontSize = 14, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 5) });
+            hp.Children.Add(new TextBlock { Text = save ? Tr.T("Save editor") : Tr.T("Treasure maps"), FontSize = 14, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 5) });
             hp.Children.Add(new Border { Height = 1, Background = B("#8E2B27") });
             Rows.Children.Add(hp);
 
@@ -1294,19 +1414,19 @@ loadSave();})();</script>";
             body.Children.Add(new TextBlock
             {
                 Text = save
-                    ? "Edit your save: party, items, inn, records, DLC and more. The editor opens in your browser with your game save already loaded."
-                    : "The treasure maps (grottos) in your save: the list, their treasures and where they are. Adding, removing and the map preview are not finished in this editor yet, so check the result in the game and keep the backup.",
+                    ? Tr.T("Edit your save: party, items, inn, records, DLC and more. The editor opens in your browser with your game save already loaded.")
+                    : Tr.T("The treasure maps (grottos) in your save: the list, their treasures and where they are. Adding, removing and the map preview are not finished in this editor yet, so check the result in the game and keep the backup."),
                 Foreground = Dim, FontSize = 10.5, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 12)
             });
             TextBlock status = new TextBlock { Foreground = Dim, FontSize = 10.5, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 10, 0, 0) };
             StackPanel buttons = new StackPanel { Orientation = Orientation.Horizontal };
-            Button open = new Button { Content = save ? "Open the save editor" : "Open the treasure map editor", Style = (Style)ui.FindResource("Primary") };
+            Button open = new Button { Content = save ? Tr.T("Open the save editor") : Tr.T("Open the treasure map editor"), Style = (Style)ui.FindResource("Primary") };
             string tab = save ? "party" : "grottos";
             open.Click += delegate { OpenTool(tab, null, status); };
             buttons.Children.Add(open);
             if (!save)
             {
-                Button find = new Button { Content = "Search all maps (website)", Style = (Style)ui.FindResource("Btn"), Margin = new Thickness(10, 0, 0, 0) };
+                Button find = new Button { Content = Tr.T("Search all maps (website)"), Style = (Style)ui.FindResource("Btn"), Margin = new Thickness(10, 0, 0, 0) };
                 find.Click += delegate { OpenTool(null, "https://dqix.github.io/Grotto-Searcher/", status); };
                 buttons.Children.Add(find);
             }
@@ -1314,10 +1434,9 @@ loadSave();})();</script>";
             body.Children.Add(status);
             Rows.Children.Add(new Border { Background = Card, BorderBrush = CardLine, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(2), Padding = new Thickness(14, 11, 14, 12), Margin = new Thickness(0, 0, 6, 8), Child = body });
 
-            string notes = "How it works: press \"export\" in the editor to write the changes back; the old save is copied to mods\\save-backups first. "
-                + "Close the game before you export: a save written under a running game is lost.\n"
-                + "The editor is the DQIX project's (github.com/dqix/editor, no license given). It is downloaded from dqix.github.io once, kept in mods\\bin\\editor-cache, and not part of this repo."
-                + (save ? "" : "\nThe map search is the DQIX project's Grotto Searcher (CC BY-NC-SA), a separate website.");
+            string notes = Tr.T("How it works: press \"export\" in the editor to write the changes back; the old save is copied to mods\\save-backups first. Close the game before you export: a save written under a running game is lost.")
+                + "\n" + Tr.T("The editor is the DQIX project's (github.com/dqix/editor, no license given). It is downloaded from dqix.github.io once, kept in mods\\bin\\editor-cache, and not part of this repo.")
+                + (save ? "" : "\n" + Tr.T("The map search is the DQIX project's Grotto Searcher (CC BY-NC-SA), a separate website."));
             Rows.Children.Add(new TextBlock { Text = notes, Foreground = Grey, FontSize = 10, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(2, 0, 6, 0) });
         }
 
@@ -1332,14 +1451,15 @@ loadSave();})();</script>";
                 editor = new EditorHost(Path.Combine(mods, "bin", "editor-cache"), Path.Combine(gameDir, "dqix.sav"), Path.Combine(mods, "save-backups"),
                     delegate { return Process.GetProcessesByName("dqix").Length > 0; });
             EditorHost host = editor;
-            status.Text = "Getting the editor ready...";
+            host.LangDir = Path.Combine(mods, "lang"); host.LangOf = delegate { return Tr.Lang; };
+            status.Text = Tr.T("Getting the editor ready...");
             ThreadPool.QueueUserWorkItem(delegate
             {
                 bool ok = host.Start() && host.Prepare();
                 Dispatcher.BeginInvoke(new Action(delegate
                 {
                     if (!ok) { status.Text = host.LastError; return; }
-                    status.Text = "Opened in your browser.";
+                    status.Text = Tr.T("Opened in your browser.");
                     try { Process.Start(host.Base + "#tab=" + tab); } catch (Exception ex) { status.Text = ex.Message; }
                 }));
             });
@@ -1360,21 +1480,21 @@ loadSave();})();</script>";
                 fits = delegate (Entry e)
                 {
                     Group g = groups.FirstOrDefault(x => x.Id == e.Group);
-                    string hay = (e.Name + " " + e.Note + " " + e.Cat + " " + e.Keys + " " + e.Option + " " + (g != null ? g.Title : "")).ToLowerInvariant();
+                    string hay = (Tr.T(e.Name) + " " + e.Name + " " + e.Note + " " + e.Cat + " " + e.Keys + " " + e.Option + " " + (g != null ? g.Title : "")).ToLowerInvariant();
                     return words.All(w => hay.Contains(w));
                 };
-                heading = "Search: " + Search.Text.Trim();
+                heading = Tr.T("Search") + ": " + Search.Text.Trim();
             }
-            else if (tag == "on") { fits = e => IsOn(e); heading = "Switched on"; sub = "Everything that is on now."; }
-            else if (tag == "blocked") { fits = e => e.Kind == "blocked"; heading = "Not available"; sub = "Codes of the list that can't work in this version of the game, or can't be checked. They stay off, so they can't break anything."; }
-            else if (tag == "all") { fits = e => e.Kind != "blocked"; heading = "All cheats"; }
+            else if (tag == "on") { fits = e => IsOn(e); heading = Tr.T("Switched on"); sub = Tr.T("Everything that is on now."); }
+            else if (tag == "blocked") { fits = e => e.Kind == "blocked"; heading = Tr.T("Not available"); sub = Tr.T("Codes of the list that can't work in this version of the game, or can't be checked. They stay off, so they can't break anything."); }
+            else if (tag == "all") { fits = e => e.Kind != "blocked"; heading = Tr.T("All cheats"); }
             else { string p = tag.Substring(5); fits = e => e.Cat == p; heading = p; }
 
             { StackPanel hp = new StackPanel { Margin = new Thickness(2, 2, 0, sub.Length > 0 ? 6 : 12) };
-              hp.Children.Add(new TextBlock { Text = heading, FontSize = 14, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 5) });
+              hp.Children.Add(new TextBlock { Text = Tr.T(heading), FontSize = 14, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 5) });
               hp.Children.Add(new Border { Height = 1, Background = B("#8E2B27"), HorizontalAlignment = HorizontalAlignment.Stretch });
               Rows.Children.Add(hp); }
-            if (sub.Length > 0) Rows.Children.Add(new TextBlock { Text = sub, Foreground = Dim, FontSize = 11, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(2, 0, 0, 10) });
+            if (sub.Length > 0) Rows.Children.Add(new TextBlock { Text = Tr.T(sub), Foreground = Dim, FontSize = 11, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(2, 0, 0, 10) });
 
             HashSet<string> doneGroups = new HashSet<string>();
             int shown = 0;
@@ -1393,11 +1513,11 @@ loadSave();})();</script>";
             }
             if (late.Count > 0)
             {
-                Rows.Children.Add(new TextBlock { Text = "Not available here", Foreground = Grey, FontSize = 10.5, FontWeight = FontWeights.SemiBold, Margin = new Thickness(2, 14, 0, 6) });
+                Rows.Children.Add(new TextBlock { Text = Tr.T("Not available here"), Foreground = Grey, FontSize = 10.5, FontWeight = FontWeights.SemiBold, Margin = new Thickness(2, 14, 0, 6) });
                 foreach (Entry e in late) { Rows.Children.Add(EntryRow(e)); shown++; }
             }
             if (shown == 0)
-                Rows.Children.Add(new TextBlock { Text = tag == "on" && q.Length == 0 ? "Nothing is on. Pick a page on the left and flip a switch." : "Nothing here.", Foreground = Dim, FontSize = 11.5, Margin = new Thickness(2, 12, 0, 0) });
+                Rows.Children.Add(new TextBlock { Text = tag == "on" && q.Length == 0 ? Tr.T("Nothing is on. Pick a page on the left and flip a switch.") : Tr.T("Nothing here."), Foreground = Dim, FontSize = 11.5, Margin = new Thickness(2, 12, 0, 0) });
             Scroll.ScrollToTop();
             building = false;
         }
@@ -1415,31 +1535,31 @@ loadSave();})();</script>";
 
         static void StatusChips(Panel into, string kind, string status)
         {
-            if (kind == "code") into.Children.Add(Chip("BUILT IN", Blue, "Changes how the game works, so it is built into the game: switching it takes a rebuild (a few minutes).\nEvery instruction it changes was found in your ROM first."));
-            if (kind == "launch") into.Children.Add(Chip("NEXT START", Blue, "Takes effect the next time the game starts from this menu."));
-            if (kind == "live") into.Children.Add(Chip("ONE PLAYER", Dim, MpLive));
-            else if (kind == "code") into.Children.Add(Chip("ALL PLAYERS", Dim, MpCode));
-            else if (kind == "launch") into.Children.Add(Chip("OWN PC", Dim, MpLaunch));
-            if (status == "tested") into.Children.Add(Chip("TRIED OUT", Green, "Tried in this version of the game."));
-            else if (status == "untested") into.Children.Add(Chip("UNTESTED", Amber, "From the R4 cheat list for your ROM. Checked as far as a program can, but not tried in this version: save first."));
+            if (kind == "code") into.Children.Add(Chip(Tr.T("BUILT IN"), Blue, Tr.T("Changes how the game works, so it is built into the game: switching it takes a rebuild (a few minutes).\nEvery instruction it changes was found in your ROM first.")));
+            if (kind == "launch") into.Children.Add(Chip(Tr.T("NEXT START"), Blue, Tr.T("Takes effect the next time the game starts from this menu.")));
+            if (kind == "live") into.Children.Add(Chip(Tr.T("ONE PLAYER"), Dim, MpLive));
+            else if (kind == "code") into.Children.Add(Chip(Tr.T("ALL PLAYERS"), Dim, MpCode));
+            else if (kind == "launch") into.Children.Add(Chip(Tr.T("OWN PC"), Dim, MpLaunch));
+            if (status == "tested") into.Children.Add(Chip(Tr.T("TRIED OUT"), Green, Tr.T("Tried in this version of the game.")));
+            else if (status == "untested") into.Children.Add(Chip(Tr.T("UNTESTED"), Amber, Tr.T("From the R4 cheat list for your ROM. Checked as far as a program can, but not tried in this version: save first.")));
         }
 
         /* ---- hover info: what it is, how to use it, and when it works ---- */
         static FontFamily Mono = new FontFamily("Consolas");
-        const string WarnBuilt = "Works only after a full rebuild and a restart of the game.";
-        const string WarnNext = "Works after the next start of the game from this menu.";
-        const string MpLive = "Multiplayer: one player switching it on is enough. It is sent to every PC of the session and runs for everyone. Every player needs the mods folder installed in their game.";
-        const string MpCode = "Multiplayer: every player must have this built into their game, the same ones on every PC (the set code in the menu must match), or the session goes out of sync.";
-        const string MpLaunch = "Multiplayer: only changes your own PC; nobody else has to do anything.";
+        static string WarnBuilt { get { return Tr.T("Works only after a full rebuild and a restart of the game."); } }
+        static string WarnNext { get { return Tr.T("Works after the next start of the game from this menu."); } }
+        static string MpLive { get { return Tr.T("Multiplayer: one player switching it on is enough. It is sent to every PC of the session and runs for everyone. Every player needs the mods folder installed in their game."); } }
+        static string MpCode { get { return Tr.T("Multiplayer: every player must have this built into their game, the same ones on every PC (the set code in the menu must match), or the session goes out of sync."); } }
+        static string MpLaunch { get { return Tr.T("Multiplayer: only changes your own PC; nobody else has to do anything."); } }
 
         static ToolTip MakeTip(string title, IEnumerable<string> lines, string warn)
         {
             StackPanel p = new StackPanel { MaxWidth = 400 };
-            p.Children.Add(new TextBlock { Text = title, FontWeight = FontWeights.Bold, Foreground = Gold, FontSize = 11.5, TextWrapping = TextWrapping.Wrap });
+            p.Children.Add(new TextBlock { Text = Tr.T(title), FontWeight = FontWeights.Bold, Foreground = Gold, FontSize = 11.5, TextWrapping = TextWrapping.Wrap });
             foreach (string l in lines)
-                if (l != null && l.Length > 0) p.Children.Add(new TextBlock { Text = l, Foreground = Text, FontSize = 10.5, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 4, 0, 0) });
+                if (l != null && l.Length > 0) p.Children.Add(new TextBlock { Text = Tr.T(l), Foreground = Text, FontSize = 10.5, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 4, 0, 0) });
             if (warn != null)
-                p.Children.Add(new TextBlock { Text = "! " + warn, Foreground = Amber, FontSize = 10.5, FontWeight = FontWeights.Normal, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 6, 0, 0) });
+                p.Children.Add(new TextBlock { Text = "! " + Tr.T(warn), Foreground = Amber, FontSize = 10.5, FontWeight = FontWeights.Normal, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 6, 0, 0) });
             return new ToolTip { Content = p, Background = B("#0E0E10"), BorderBrush = B("#3A3A40"), BorderThickness = new Thickness(1), Padding = new Thickness(9, 7, 9, 8), FontFamily = Mono, HasDropShadow = false };
         }
 
@@ -1462,15 +1582,15 @@ loadSave();})();</script>";
             List<string> l = new List<string>();
             if (e.Kind == "live")
             {
-                if (e.Mode == "once") l.Add("Press \"Do it\": the game carries it out one time, right now.");
+                if (e.Mode == "once") l.Add(Tr.T("Press \"Do it\": the game carries it out one time, right now."));
                 else if (e.Mode == "both") l.Add("Switch it on" + (e.Keys.Length > 0 ? " and hold " + e.Keys + " in the game" : "") + ", or press \"Once\" to do it right away.");
-                else l.Add("Switch it on: it works every frame until you switch it off.");
+                else l.Add(Tr.T("Switch it on: it works every frame until you switch it off."));
                 l.Add(MpLive);
             }
-            else if (e.Kind == "code") { l.Add("Switch it on, press Rebuild, then restart the game."); l.Add(MpCode); }
-            else if (e.Kind == "launch") { l.Add("Applied each time the game is started from this menu."); l.Add(MpLaunch); }
+            else if (e.Kind == "code") { l.Add(Tr.T("Switch it on, press Rebuild, then restart the game.")); l.Add(MpCode); }
+            else if (e.Kind == "launch") { l.Add(Tr.T("Applied each time the game is started from this menu.")); l.Add(MpLaunch); }
             string warn = null;
-            if (e.Kind == "code" && IsOn(e) && !built.Contains(e.Id)) warn = "Switched on but not built into the game yet: press Rebuild, then restart the game.";
+            if (e.Kind == "code" && IsOn(e) && !built.Contains(e.Id)) warn = Tr.T("Switched on but not built into the game yet: press Rebuild, then restart the game.");
             return MakeTip(e.Name, l, warn);
         }
 
@@ -1478,7 +1598,7 @@ loadSave();})();</script>";
         static void AddWarn(StackPanel left, string text) { AddWarn(left, text, true); }
         static void AddWarn(StackPanel left, string text, bool warning)
         {
-            left.Children.Add(new TextBlock { Text = (warning ? "! " : "") + text, Foreground = warning ? Amber : Green, FontSize = 10, FontWeight = FontWeights.SemiBold, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 3, 0, 0) });
+            left.Children.Add(new TextBlock { Text = (warning ? "! " : "") + Tr.T(text), Foreground = warning ? Amber : Green, FontSize = 10, FontWeight = FontWeights.SemiBold, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 3, 0, 0) });
         }
 
         Border CardOf(UIElement left, UIElement right, bool dimmed)
@@ -1503,10 +1623,10 @@ loadSave();})();</script>";
         {
             StackPanel s = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 14, 0) };
             WrapPanel top = new WrapPanel();
-            top.Children.Add(new TextBlock { Text = name, FontSize = 12, FontWeight = FontWeights.SemiBold, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 10, 0), VerticalAlignment = VerticalAlignment.Center });
+            top.Children.Add(new TextBlock { Text = Tr.T(name), FontSize = 12, FontWeight = FontWeights.SemiBold, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 10, 0), VerticalAlignment = VerticalAlignment.Center });
             if (chips != null) chips(top);
             s.Children.Add(top);
-            if (note != null && note.Length > 0) s.Children.Add(new TextBlock { Text = note, Foreground = Dim, FontSize = 10.5, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 3, 0, 0) });
+            if (note != null && note.Length > 0) s.Children.Add(new TextBlock { Text = Tr.T(note), Foreground = Dim, FontSize = 10.5, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 3, 0, 0) });
             return s;
         }
 
@@ -1514,8 +1634,8 @@ loadSave();})();</script>";
         {
             if (e.Kind == "blocked")
             {
-                Border blocked = CardOf(TextOf(e.Name, e.Reason, null), new TextBlock { Text = "locked", FontSize = 10, Foreground = Grey, VerticalAlignment = VerticalAlignment.Center }, true);
-                Hover(blocked, MakeTip(e.Name, new[] { "Kept out on purpose so it can never crash the game." }, null));
+                Border blocked = CardOf(TextOf(e.Name, e.Reason, null), new TextBlock { Text = Tr.T("locked"), FontSize = 10, Foreground = Grey, VerticalAlignment = VerticalAlignment.Center }, true);
+                Hover(blocked, MakeTip(e.Name, new[] { Tr.T("Kept out on purpose so it can never crash the game.") }, null));
                 return blocked;
             }
 
@@ -1528,13 +1648,13 @@ loadSave();})();</script>";
                 StatusChips(w, e.Kind, e.Status);
             });
             string warn = WarnFor(e);
-            if (e.Kind == "code" && IsOn(e) && built.Contains(e.Id)) AddWarn(left, "Built into your game: active from the next start of the game.", false);
+            if (e.Kind == "code" && IsOn(e) && built.Contains(e.Id)) AddWarn(left, Tr.T("Built into your game: active from the next start of the game."), false);
             else if (warn != null) AddWarn(left, warn);
             StackPanel right = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
             if (e.Kind == "live" && (e.Mode == "once" || e.Mode == "both"))
             {
-                Button b = new Button { Content = e.Mode == "once" ? "Do it" : "Once", Style = (Style)ui.FindResource("Btn"), Margin = new Thickness(0, 0, e.Mode == "both" ? 12 : 0, 0), MinWidth = 64 };
-                b.ToolTip = "Carries the code out one time, now.";
+                Button b = new Button { Content = Tr.T(e.Mode == "once" ? "Do it" : "Once"), Style = (Style)ui.FindResource("Btn"), Margin = new Thickness(0, 0, e.Mode == "both" ? 12 : 0, 0), MinWidth = 64 };
+                b.ToolTip = Tr.T("Carries the code out one time, now.");
                 b.Click += delegate { Once(e); };
                 right.Children.Add(b);
             }
@@ -1560,10 +1680,10 @@ loadSave();})();</script>";
             });
             if (g.Kind == "code" || g.Kind == "launch") AddWarn(left, g.Kind == "code" ? WarnBuilt : WarnNext);
             ComboBox cb = new ComboBox { VerticalAlignment = VerticalAlignment.Center };
-            cb.Items.Add(new ComboBoxItem { Content = "Off", Tag = null });
+            cb.Items.Add(new ComboBoxItem { Content = Tr.T("Off"), Tag = null });
             foreach (Entry e in g.Items)
             {
-                ComboBoxItem it = new ComboBoxItem { Content = e.Option + (e.Status == "untested" && !anyUntestedAll(g) ? "  · untested" : ""), Tag = e };
+                ComboBoxItem it = new ComboBoxItem { Content = Tr.T(e.Option) + (e.Status == "untested" && !anyUntestedAll(g) ? "  · " + Tr.T("untested") : ""), Tag = e };
                 Hover(it, TipOf(e));
                 cb.Items.Add(it);
                 if (e == sel) cb.SelectedItem = it;
@@ -1586,7 +1706,7 @@ loadSave();})();</script>";
             };
             Border grow = CardOf(left, cb, false);
             List<string> gl = new List<string>();
-            gl.Add("Only one option can be on. Pick \"Off\" to switch it off.");
+            gl.Add(Tr.T("Only one option can be on. Pick \"Off\" to switch it off."));
             gl.Add(g.Kind == "code" ? MpCode : (g.Kind == "launch" ? MpLaunch : MpLive));
             Hover(grow, MakeTip(g.Title, gl, null));
             return grow;
@@ -1602,10 +1722,10 @@ loadSave();})();</script>";
 
         void Once(Entry e)
         {
-            if (!link.Connected) { Say("The game isn't running: \"" + e.Name + "\" wasn't done. Press Play first."); return; }
+            if (!link.Connected) { Say(Tr.F("The game isn't running: \"{0}\" wasn't done. Press Play first.", Tr.T(e.Name))); return; }
             WarnOnce(e);
-            if (link.Once(e)) Say("Done: " + e.Name + (e.Ops.Length / 2 > 40 && link.Inside ? "  (a long code: it takes a few seconds to reach the game)" : ""));
-            else Say("\"" + e.Name + "\" couldn't be sent.");
+            if (link.Once(e)) Say(Tr.F("Done: {0}", Tr.T(e.Name)) + (e.Ops.Length / 2 > 40 && link.Inside ? "  " + Tr.T("(a long code: it takes a few seconds to reach the game)") : ""));
+            else Say(Tr.F("\"{0}\" couldn't be sent.", Tr.T(e.Name)));
         }
 
         void Say(string text) { Status.Text = text; }
@@ -1613,25 +1733,24 @@ loadSave();})();</script>";
         void UpdatePill()
         {
             string t; Brush dot;
-            if (!link.Running) { t = "The game is not running"; dot = Grey; }
+            if (!link.Running) { t = Tr.T("The game is not running"); dot = Grey; }
             else if (link.Inside && link.Session && built.Count > 0)
             {
                 /* built-in mods are part of how the game computes: a friend without the same ones is out of sync at once */
-                t = "Playing with friends · everyone needs the same built-in mods (set " + SetCode() + ")"; dot = Amber;
+                t = Tr.F("Playing with friends · everyone needs the same built-in mods (set {0})", SetCode()); dot = Amber;
             }
-            else if (link.Inside) { t = link.Session ? "Playing with friends · cheats travel with your buttons" : (link.Busy ? "Sending to the game…" : "Connected · cheats are live"); dot = Green; }
-            else if (link.Outside) { t = "Connected from outside · not for playing with friends"; dot = Amber; }
-            else { t = "The game is starting…"; dot = Amber; }
+            else if (link.Inside) { t = link.Session ? Tr.T("Playing with friends · cheats travel with your buttons") : (link.Busy ? Tr.T("Sending to the game…") : Tr.T("Connected · cheats are live")); dot = Green; }
+            else if (link.Outside) { t = Tr.T("Connected from outside · not for playing with friends"); dot = Amber; }
+            else { t = Tr.T("The game is starting…"); dot = Amber; }
             if (t == lastPill) return;
             lastPill = t;
             PillText.Text = t; Dot.Fill = dot;
             PlayBtn.IsEnabled = !link.Running && !busy;
-            PlayBtn.Content = link.Running ? "Game is running" : "Play";
+            PlayBtn.Content = Tr.T(link.Running ? "Game is running" : "Play");
             UpdateBanner();
             if (link.Inside && link.Session && built.Count > 0)
-                Say("With friends: every player needs exactly these built into their game too, or the session goes OUT OF SYNC: "
-                    + string.Join(", ", entries.Where(e => built.Contains(e.Id)).Select(e => e.Name)) + ". Their menu must show the same set (" + SetCode() + ") at the top.");
-            if (link.Inside && link.Version < 2) Say("This game was built with an older version of the mods: close it and press Play here once.");
+                Say(Tr.F("With friends: every player needs exactly these built into their game too, or the session goes OUT OF SYNC: {0}. Their menu must show the same set ({1}).", string.Join(", ", entries.Where(e => built.Contains(e.Id)).Select(e => Tr.T(e.Name)).ToArray()), SetCode()));
+            if (link.Inside && link.Version < 2) Say(Tr.T("This game was built with an older version of the mods: close it and press Play here once."));
         }
 
         /* ---------------------------------------------------------------- getting the game ready, and starting it */
@@ -1699,14 +1818,14 @@ loadSave();})();</script>";
             {
                 LoadAll();
                 OverlayDone("The cheat list couldn't be made", "The text below says why.", rc != 0);
-                if (rc == 0) Say("The list was read again: " + entries.Count + " entries.");
+                if (rc == 0) Say(Tr.F("The list was read again: {0} entries.", entries.Count));
             });
         }
 
         void RunApply(bool thenPlay)
         {
             if (busy) return;
-            if (link.Running) { MessageBox.Show(this, "The game is still running. Save, close it, then press this again.", "Rebuild", MessageBoxButton.OK, MessageBoxImage.Information); return; }
+            if (link.Running) { MessageBox.Show(this, Tr.T("The game is still running. Save, close it, then press this again."), "Rebuild", MessageBoxButton.OK, MessageBoxImage.Information); return; }
             SaveState();
             bool pending = Pending();
             OpenOverlay(pending ? "Rebuilding the game with your mods" : "Getting the game ready",
@@ -1723,7 +1842,7 @@ loadSave();})();</script>";
                     return;
                 }
                 OverlayDone("", "", false);
-                Say("The game has your mods in it.");
+                Say(Tr.T("The game has your mods in it."));
                 if (thenPlay) StartGame();
             });
         }
@@ -1737,7 +1856,7 @@ loadSave();})();</script>";
         void StartGame()
         {
             string exe = Path.Combine(gameDir, "dqix.exe");
-            if (!File.Exists(exe)) { Say("game\\dqix.exe isn't there: run BUILD.bat once."); return; }
+            if (!File.Exists(exe)) { Say(Tr.T("game\\dqix.exe isn't there: run BUILD.bat once.")); return; }
             BackupSave();
             try
             {
@@ -1753,10 +1872,10 @@ loadSave();})();</script>";
                         si.EnvironmentVariables[e.Env.Substring(0, eq)] = e.Env.Substring(eq + 1);
                     }
                 using (Process.Start(si)) { }
-                Say(left.Length > 0 ? "The game is starting, without \"" + left + "\": this game can't keep it out of a session with friends (sync_cheats = no, or a newer version of the game)."
-                    : "The game is starting. Switches work while you play; keep this window open.");
+                Say(left.Length > 0 ? Tr.F("The game is starting, without \"{0}\": this game can't keep it out of a session with friends (sync_cheats = no, or a newer version of the game).", Tr.T(left))
+                    : Tr.T("The game is starting. Switches work while you play; keep this window open."));
             }
-            catch (Exception ex) { Say("The game couldn't be started: " + ex.Message); }
+            catch (Exception ex) { Say(Tr.F("The game couldn't be started: {0}", ex.Message)); }
         }
 
         /* tests: show a page ("Party", "on", "search:gold") and draw the window into a picture */
@@ -1823,6 +1942,17 @@ loadSave();})();</script>";
                 {
                     string page = Encoding.UTF8.GetString(Http("GET", h.Base, null, null, bad, 200));
                     if (!page.Contains("/__save") || !page.Contains(h.Token)) bad.Add("start page has no hook");
+                    /* the item names of the editor come out in the game's own German */
+                    Match jm = Regex.Match(page, @"/editor/(assets/[^""]+\.js)");
+                    string de = null;
+                    if (jm.Success && File.Exists(Path.Combine(root, "mods", "lang", "rom-itemname-de.tsv")))
+                    {
+                        h.LangDir = Path.Combine(root, "mods", "lang"); h.LangOf = delegate { return "de"; };
+                        foreach (string line in File.ReadAllLines(Path.Combine(h.LangDir, "rom-itemname-de.tsv"), Encoding.UTF8)) if (line.StartsWith("20004	")) de = line.Split('	')[1];
+                        string js = Encoding.UTF8.GetString(Http("GET", h.Base + jm.Groups[1].Value, null, null, bad, 200));
+                        if (de != null && !js.Contains("name:\"" + char.ToUpperInvariant(de[0]) + de.Substring(1) + "\"")) bad.Add("item names not in German: " + de);
+                        if (js.Contains("name:\"Copper sword\"")) bad.Add("English item name left");
+                    }
                     byte[] got = Http("GET", "http://127.0.0.1:" + h.Port + "/__save", h.Token, null, bad, 200);
                     if (got.Length != 65536) bad.Add("save length " + got.Length);
                     Http("GET", "http://127.0.0.1:" + h.Port + "/__save", "wrong", null, bad, 403);

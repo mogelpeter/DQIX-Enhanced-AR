@@ -876,6 +876,17 @@ def main():
     n = {k: sum(1 for e in entries if e["kind"] == k) for k in ("live", "code", "blocked", "launch")}
     print(f"   Cheat list: {n['live']} live, {n['code']} built into the game, {n['blocked']} that can't work here"
           + ("" if info["database"] else f"  (no mods\\database\\{info['game']}.txt: only your own files)"))
+    # the game's own item names in all five languages (for the save editor), read from the ROM
+    try:
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        import rom_text
+        rom = os.path.join(root, "game", "data", "dqix.nds")
+        langdir = os.path.join(root, "mods", "lang")
+        stamp = os.path.join(langdir, "rom-itemname-de.tsv")
+        if os.path.isfile(rom) and (not os.path.isfile(stamp) or os.path.getmtime(stamp) < os.path.getmtime(rom)):
+            rom_text.write_tables(rom, langdir)
+    except Exception as ex:
+        print(f"   (game texts for the translations: {ex})")
     if "--report" in sys.argv:
         for e in entries:
             what = e["reason"] if e["kind"] == "blocked" else \
