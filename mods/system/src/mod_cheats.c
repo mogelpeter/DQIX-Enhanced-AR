@@ -92,10 +92,18 @@ static int mc_read(void* u, uint32_t a, void* out, size_t n) {
  * is the same on every PC of a session. */
 uint8_t g_mod_lowexp;
 #define MC_SWITCH_LOWEXP 0x02F5A5A0u
+/* More switches of the same kind (mods/cheats/vanish.txt, metal-slimes-only.txt):
+ *   vanish  armed by the cheat; the buttons L+R+SELECT together flip it on and off. While it is on, vanish.c
+ *           makes the field's "did a monster touch you" check find nothing, so you walk through monsters. */
+uint8_t g_mod_vanish;
+#define MC_SWITCH_VANISH 0x02F5A5A4u
+#define MC_VANISH_KEYS  ((1 << 8) | (1 << 9) | (1 << 2))      /* R, L, SELECT */
+static uint8_t g_vanish_armed, g_vanish_on, g_vanish_prev;
 
 static int mc_write(void* u, uint32_t a, const void* in, size_t n) {
     (void)u;
     if ((a & 0x0FFFFFFFu) == MC_SWITCH_LOWEXP) { g_mod_lowexp = 1; return 1; }
+    if ((a & 0x0FFFFFFFu) == MC_SWITCH_VANISH) { g_vanish_armed = 1; return 1; }
     a &= MAIN_RAM_SIZE - 1;
     if (a + n > MAIN_RAM_SIZE) return 0;
     memcpy(&g_main_ram[a], in, n); return 1;
@@ -114,6 +122,8 @@ static void mc_forget(void) {
     for (int i = 0; i < MC_SLOTS; i++) { free(g_slot[i].ops); memset(&g_slot[i], 0, sizeof g_slot[i]); }
     g_type = g_len = g_got = 0;
     g_mod_lowexp = 0;
+    g_mod_vanish = 0;
+    g_vanish_armed = g_vanish_on = g_vanish_prev = 0;
 }
 
 static ArOp* mc_ops(const uint16_t* w, int nops) {
@@ -208,8 +218,18 @@ uint32_t mod_cheats_in(uint32_t v) {
         v &= 0x1FFF;
     }
     g_mod_lowexp = 0;                                    /* the codes below set it again while they are on */
+    g_vanish_armed = 0;
     int keys = (int)(v & 0xFFF);                         /* this console's buttons this frame: the same on every PC */
     for (int i = 0; i < MC_SLOTS; i++) if (g_slot[i].used) ar_run(&g_mem, g_slot[i].ops, g_slot[i].nops, keys);
+    if (g_vanish_armed) {                                /* L+R+SELECT together: flip vanish (once per press) */
+        int combo = (keys & MC_VANISH_KEYS) == MC_VANISH_KEYS;
+        if (combo && !g_vanish_prev) {
+            g_vanish_on ^= 1;
+            if (getenv("DQIX_MODLOG")) fprintf(stderr, "mod: vanish %s at frame %llu\n", g_vanish_on ? "on" : "off", (unsigned long long)g_frame);
+        }
+        g_vanish_prev = (uint8_t)combo;
+    } else g_vanish_on = g_vanish_prev = 0;              /* the cheat is off: vanish is off with it */
+    g_mod_vanish = g_vanish_armed && g_vanish_on;
     if (g_box) g_box->done = g_done;
     return v;
 }

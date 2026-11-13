@@ -60,12 +60,25 @@ CARD_PATCHED = CARD_BEGIN + """\
     }
 """ + END
 
+DATA_BEGIN = "    /* >>> mods: encounter tables for metal slimes only (mods/tools/apply_runtime_mod.py; an update removes this, Play with mods.bat puts it back) */\n"
+DATA_ORIGINAL = """\
+        int dmas = 0;
+"""
+DATA_PATCHED = DATA_BEGIN + """\
+        {   /* the cheat "Metal slimes only" hands the game changed encounter tables (mod_data.c) */
+            void mod_card_overlay(uint32_t, uint32_t, uint8_t*);
+            mod_card_overlay(addr, len, g_card_buf);
+        }
+        int dmas = 0;
+""" + END
+
 # (file in runtime/, the lines as the game has them, with the mods, first marker line, what it is)
 SITES = [
     ("input.c", INPUT_ORIGINAL, INPUT_PATCHED, INPUT_BEGIN, "Cheats with friends"),
     ("card.c", CARD_ORIGINAL, CARD_PATCHED, CARD_BEGIN, "Instant loading only alone"),
+    ("card.c", DATA_ORIGINAL, DATA_PATCHED, DATA_BEGIN, "Metal slimes only"),
 ]
-FILES = ["mod_cheats.c", "ar_engine.h"]       # belong to the first site
+FILES = ["mod_cheats.c", "ar_engine.h", "mod_data.c"]       # belong to the first site
 
 
 def read(path):
@@ -93,14 +106,15 @@ WRAP_BEGIN = "# >>> mods: lower-level characters get more experience (mods/tools
 WRAP_END = "# <<< mods"
 WRAP_LINES = """main 0202053c lowlvl
 ov023 021f4098 lowexp
+ov017 02196430 enccheck
 """
+WRAP_FILES = ["lowexp.c", "vanish.c"]
 
 
 def wrap_site(root, on):
     """lowexp.c and its two lines in wrap.txt (USA addresses; region.py moves them). -> changed"""
     changed = False
     path = os.path.join(root, "wrap.txt")
-    dst = os.path.join(root, "runtime", "lowexp.c")
     if not os.path.isfile(path):
         return False
     text = read(path)
@@ -113,14 +127,16 @@ def wrap_site(root, on):
     if new != text:
         write(path, new)
         changed = True
-    if on:
-        src = read(os.path.join(root, "mods", "system", "src", "lowexp.c"))
-        if not os.path.isfile(dst) or read(dst) != src:
-            write(dst, src)
+    for f in WRAP_FILES:
+        dst = os.path.join(root, "runtime", f)
+        if on:
+            src = read(os.path.join(root, "mods", "system", "src", f))
+            if not os.path.isfile(dst) or read(dst) != src:
+                write(dst, src)
+                changed = True
+        elif os.path.isfile(dst):
+            os.remove(dst)
             changed = True
-    elif os.path.isfile(dst):
-        os.remove(dst)
-        changed = True
     return changed
 
 

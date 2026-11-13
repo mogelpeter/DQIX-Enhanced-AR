@@ -1,0 +1,14 @@
+# name: Monsters can't flee
+# enabled: no
+# category: Battle
+# also: My cheats
+# status: untested
+# about: Monsters never run away from a battle (metal slimes and the like stay and fight).
+# Overlay 24 (battle): the monsters' AI asks one function per way of acting "who can this aim at?" (the table at
+# 0x021ff790, 161 of them). Number 112 is Flee (0x021F418C): it answers 0 (nobody: refused) unless the party is much
+# stronger than the monster. The first two instructions become "mov r0, #0 / bx lr": always refused, and the AI
+# takes another way instead.
+check 021F418C E92D4FF8
+check 021F4190 E24DD008
+patch 021F418C E92D4FF8 E3A00000
+patch 021F4190 E24DD008 E12FFF1E

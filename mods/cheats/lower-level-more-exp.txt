@@ -1,5 +1,7 @@
 # name: Lower-level characters get more experience
 # mode: always
 # category: Experience & gold
-# about: Battle experience is shared out the other way round: the lowest-level party member gets what the highest would have. Works with friends too (every PC carries it out at the same moment). The address is not memory: mods/system/src/mod_cheats.c takes it as a switch.
+# also: My cheats
+# replaces: Lower Level Characters Get More Exp.
+# about: Battle experience is shared out the other way round: the lowest-level party member gets what the highest would have. Works with friends too (every PC carries it out at the same moment).
 02F5A5A0 00000001

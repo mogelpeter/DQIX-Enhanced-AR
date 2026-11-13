@@ -44,7 +44,7 @@ namespace DqixMenu
     class Entry
     {
         public string Id = "", Cat = "", Group = "", Kind = "", Status = "", Name = "", Option = "", Note = "", Reason = "";
-        public string Mode = "", Keys = "", File = "", Env = "";
+        public string Mode = "", Keys = "", File = "", Env = "", Also = "";
         public int Combos, Index;
         public bool FileOn;
         public uint[] Ops = new uint[0];                    /* address, value, address, value... */
@@ -455,10 +455,25 @@ namespace DqixMenu
             return Array.IndexOf(Codes, two) >= 0 ? two : "en";
         }
 
+        static readonly Dictionary<string, string> about = new Dictionary<string, string>();
+
+        /* what a cheat does, in full (the hover): about.tsv = cheat name, English, then the other languages */
+        public static string About(string name) { string v; return name != null && about.TryGetValue(name, out v) ? v : null; }
+
         public static void Load(string dir, string lang)
         {
-            Lang = lang; map.Clear();
+            Lang = lang; map.Clear(); about.Clear();
             int col = Array.IndexOf(Codes, lang);
+            string af = Path.Combine(dir, "about.tsv");
+            if (File.Exists(af))
+                foreach (string line in File.ReadAllLines(af, Encoding.UTF8))
+                {
+                    if (line.Length == 0 || line[0] == '#') continue;
+                    string[] c = line.Split('	');
+                    int k = col < 1 ? 1 : col + 1;                      /* column 1 is English */
+                    string text = c.Length > k && c[k].Length > 0 ? c[k] : (c.Length > 1 ? c[1] : "");
+                    if (text.Length > 0) about[Un(c[0])] = Un(text);
+                }
             string f = Path.Combine(dir, "ui.tsv");
             if (col < 1 || !File.Exists(f)) return;
             foreach (string line in File.ReadAllLines(f, Encoding.UTF8))
@@ -467,6 +482,14 @@ namespace DqixMenu
                 string[] c = line.Split('\t');
                 if (c.Length > col && c[col].Length > 0) map[Un(c[0])] = Un(c[col]);
             }
+            /* what is still English: the ROM's own words (monster names, vocations, places...), read from the ROM by rom_text.py */
+            string gf = Path.Combine(dir, "rom-glossary.tsv");
+            if (File.Exists(gf))
+                foreach (string line in File.ReadAllLines(gf, Encoding.UTF8))
+                {
+                    string[] c = line.Split('	');
+                    if (c.Length > col && c[col].Length > 0 && !map.ContainsKey(c[0])) map[c[0]] = c[col];
+                }
         }
         static string Un(string s) { return s.Replace("\\n", "\n"); }
         public static string T(string s) { string v; return s != null && map.TryGetValue(s, out v) ? v : s; }
@@ -1138,7 +1161,7 @@ walk(document.documentElement);})();</script>";
             Overlay = F<Grid>("Overlay"); OverBar = F<ProgressBar>("OverBar");
             LangBox = F<ComboBox>("LangBox"); TitleSub = ui.FindName("TitleSub") as Run;
             string langFile = Path.Combine(mods, "system", "menu-lang.txt");
-            string lang = Tr.Detect();
+            string lang = "en";                                   /* the first start is always English */
             try { if (File.Exists(langFile)) { string l = File.ReadAllText(langFile).Trim(); if (Array.IndexOf(Tr.Codes, l) >= 0) lang = l; } } catch (Exception) { }
             Tr.Load(Path.Combine(mods, "system", "lang"), lang);
             for (int li = 0; li < Tr.Codes.Length; li++) { ComboBoxItem ci = new ComboBoxItem { Content = Tr.Names[li], Tag = Tr.Codes[li] }; LangBox.Items.Add(ci); if (Tr.Codes[li] == lang) LangBox.SelectedItem = ci; }
@@ -1218,7 +1241,7 @@ walk(document.documentElement);})();</script>";
                         {
                             Id = G(d, "id"), Cat = G(d, "cat"), Group = G(d, "group"), Kind = G(d, "kind"), Status = G(d, "status"), Name = G(d, "name"),
                             Option = G(d, "option"), Note = G(d, "note"), Reason = G(d, "reason"), Mode = G(d, "mode"), Keys = G(d, "keys"),
-                            File = G(d, "file"), Env = G(d, "env"), FileOn = G(d, "on") == "1", Index = entries.Count
+                            File = G(d, "file"), Env = G(d, "env"), Also = G(d, "also"), FileOn = G(d, "on") == "1", Index = entries.Count
                         };
                         int.TryParse(G(d, "combos"), out e.Combos);
                         try
@@ -1289,7 +1312,7 @@ walk(document.documentElement);})();</script>";
             string was = Nav.SelectedItem is ListBoxItem ? (string)((ListBoxItem)Nav.SelectedItem).Tag : "page:" + (pages.Count > 0 ? pages[0] : "");
             Nav.Items.Clear();
             AddNav("on", Tr.T("Switched on"), 0);
-            foreach (string p in pages) AddNav("page:" + p, p, RowCount(e => e.Cat == p && e.Kind != "blocked"));
+            foreach (string p in pages) AddNav("page:" + p, p, RowCount(e => (e.Cat == p || e.Also == p) && e.Kind != "blocked"));
             AddNav("all", Tr.T("All cheats"), RowCount(e => e.Kind != "blocked"));
             AddNav("blocked", Tr.T("Not available"), nNo);
             AddNav("tool:save", Tr.T("Save editor"), 0);
@@ -1336,6 +1359,13 @@ walk(document.documentElement);})();</script>";
             Sub.Text = (infoTitle.Length > 0 ? infoTitle : "Your own cheats") + "   ·   " + nLive + " live  ·  " + nCode + " built into the game  ·  " + nNo + " not available"
                 + (infoDatabase.Length > 0 && !infoExact ? "   ·   list for " + infoGame + " (another dump of it)" : "")
                 + (built.Count > 0 ? "   ·   built-in set " + SetCode() + " (friends need the same)" : "");
+        }
+
+        /* is the encounter-table part of the mods (mod_data.c) in the game? */
+        bool DataGuard()
+        {
+            try { return File.ReadAllText(Path.Combine(root, "runtime", "card.c")).Contains(">>> mods: encounter tables"); }
+            catch (Exception) { return false; }
         }
 
         bool CardGuard()
@@ -1570,7 +1600,7 @@ walk(document.documentElement);})();</script>";
             else if (tag == "on") { fits = e => IsOn(e); heading = Tr.T("Switched on"); sub = Tr.T("Everything that is on now."); }
             else if (tag == "blocked") { fits = e => e.Kind == "blocked"; heading = Tr.T("Not available"); sub = Tr.T("Codes of the list that can't work in this version of the game, or can't be checked. They stay off, so they can't break anything."); }
             else if (tag == "all") { fits = e => e.Kind != "blocked"; heading = Tr.T("All cheats"); }
-            else { string p = tag.Substring(5); fits = e => e.Cat == p; heading = p; }
+            else { string p = tag.Substring(5); fits = e => e.Cat == p || e.Also == p; heading = p; }
 
             { StackPanel hp = new StackPanel { Margin = new Thickness(2, 2, 0, sub.Length > 0 ? 6 : 12) };
               hp.Children.Add(new TextBlock { Text = Tr.T(heading), FontSize = 14, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 5) });
@@ -1615,12 +1645,13 @@ walk(document.documentElement);})();</script>";
             return b;
         }
 
-        static void StatusChips(Panel into, string kind, string status)
+        static void StatusChips(Panel into, string kind, string status, bool data)
         {
             if (kind == "code") into.Children.Add(Chip(Tr.T("BUILT IN"), Blue, Tr.T("Changes how the game works, so it is built into the game: switching it takes a rebuild (a few minutes).\nEvery instruction it changes was found in your ROM first.")));
             if (kind == "launch") into.Children.Add(Chip(Tr.T("NEXT START"), Blue, Tr.T("Takes effect the next time the game starts from this menu.")));
             if (kind == "live") into.Children.Add(Chip(Tr.T("ONE PLAYER"), Dim, MpLive));
             else if (kind == "code") into.Children.Add(Chip(Tr.T("ALL PLAYERS"), Dim, MpCode));
+            else if (kind == "launch" && data) into.Children.Add(Chip(Tr.T("ALL PLAYERS"), Dim, MpData));
             else if (kind == "launch") into.Children.Add(Chip(Tr.T("OWN PC"), Dim, MpLaunch));
             if (status == "tested") into.Children.Add(Chip(Tr.T("TRIED OUT"), Green, Tr.T("Tried in this version of the game.")));
             else if (status == "untested") into.Children.Add(Chip(Tr.T("UNTESTED"), Amber, Tr.T("From the R4 cheat list for your ROM. Checked as far as a program can, but not tried in this version: save first.")));
@@ -1632,6 +1663,7 @@ walk(document.documentElement);})();</script>";
         static string WarnNext { get { return Tr.T("Works after the next start of the game from this menu."); } }
         static string MpLive { get { return Tr.T("Multiplayer: one player switching it on is enough. It is sent to every PC of the session and runs for everyone. Every player needs the mods folder installed in their game."); } }
         static string MpCode { get { return Tr.T("Multiplayer: every player must have this built into their game, the same ones on every PC (the set code in the menu must match), or the session goes out of sync."); } }
+        static string MpData { get { return Tr.T("Multiplayer: it changes what the game reads from the cartridge when it starts, so every player must start the game with the same choice, or the session goes out of sync."); } }
         static string MpLaunch { get { return Tr.T("Multiplayer: only changes your own PC; nobody else has to do anything."); } }
 
         static ToolTip MakeTip(string title, IEnumerable<string> lines, string warn)
@@ -1662,6 +1694,9 @@ walk(document.documentElement);})();</script>";
         ToolTip TipOf(Entry e)
         {
             List<string> l = new List<string>();
+            string about = Tr.About(e.Name);
+            if (about == null) about = Tr.About(e.Option);
+            if (about != null) l.Add(about);
             if (e.Kind == "live")
             {
                 if (e.Mode == "once") l.Add(Tr.T("Press \"Do it\": the game carries it out one time, right now."));
@@ -1670,7 +1705,7 @@ walk(document.documentElement);})();</script>";
                 l.Add(MpLive);
             }
             else if (e.Kind == "code") { l.Add(Tr.T("Switch it on, press Rebuild, then restart the game.")); l.Add(MpCode); }
-            else if (e.Kind == "launch") { l.Add(Tr.T("Applied each time the game is started from this menu.")); l.Add(MpLaunch); }
+            else if (e.Kind == "launch") { l.Add(Tr.T("Applied each time the game is started from this menu.")); l.Add(e.Env.StartsWith("DQIX_MOD_") ? MpData : MpLaunch); }
             string warn = null;
             if (e.Kind == "code" && IsOn(e) && !built.Contains(e.Id)) warn = Tr.T("Switched on but not built into the game yet: press Rebuild, then restart the game.");
             return MakeTip(e.Name, l, warn);
@@ -1727,7 +1762,7 @@ walk(document.documentElement);})();</script>";
                     foreach (string k in e.Keys.Split(new[] { " / " }, StringSplitOptions.RemoveEmptyEntries))
                         w.Children.Add(Chip(k, Gold, e.Mode == "once" ? "On a DS you press this for it. Here the button does it." :
                             "Works like on a DS: switch it on, then hold these buttons in the game." + (e.Mode == "both" ? "\n\"Once\" does it right away, without the buttons." : "")));
-                StatusChips(w, e.Kind, e.Status);
+                StatusChips(w, e.Kind, e.Status, e.Env.StartsWith("DQIX_MOD_"));
             });
             string warn = WarnFor(e);
             if (e.Kind == "code" && IsOn(e) && built.Contains(e.Id)) AddWarn(left, Tr.T("Built into your game: active from the next start of the game."), false);
@@ -1758,7 +1793,7 @@ walk(document.documentElement);})();</script>";
             bool anyUntested = g.Items.Any(e => e.Status == "untested");
             StackPanel left = TextOf(g.Title, g.Note, delegate (WrapPanel w)
             {
-                StatusChips(w, g.Kind, sel != null ? sel.Status : (anyUntested ? "" : "tested"));
+                StatusChips(w, g.Kind, sel != null ? sel.Status : (anyUntested ? "" : "tested"), g.Items.Count > 0 && g.Items[0].Env.StartsWith("DQIX_MOD_"));
             });
             if (g.Kind == "code" || g.Kind == "launch") AddWarn(left, g.Kind == "code" ? WarnBuilt : WarnNext);
             ComboBox cb = new ComboBox { VerticalAlignment = VerticalAlignment.Center };
@@ -1788,8 +1823,10 @@ walk(document.documentElement);})();</script>";
             };
             Border grow = CardOf(left, cb, false);
             List<string> gl = new List<string>();
+            string gab = Tr.About(g.Title);
+            if (gab != null) gl.Add(gab);
             gl.Add(Tr.T("Only one option can be on. Pick \"Off\" to switch it off."));
-            gl.Add(g.Kind == "code" ? MpCode : (g.Kind == "launch" ? MpLaunch : MpLive));
+            gl.Add(g.Kind == "code" ? MpCode : (g.Kind == "launch" ? (g.Items.Count > 0 && g.Items[0].Env.StartsWith("DQIX_MOD_") ? MpData : MpLaunch) : MpLive));
             Hover(grow, MakeTip(g.Title, gl, null));
             return grow;
         }
@@ -1951,6 +1988,7 @@ walk(document.documentElement);})();</script>";
                         /* instant loading puts a session out of sync unless the game itself keeps it out of
                          * sessions (the mods' change in runtime\card.c): without that, not at all */
                         if (e.Env.StartsWith("DQIX_CARD_INSTANT") && !CardGuard()) { left = e.Name; continue; }
+                        if (e.Env.StartsWith("DQIX_MOD_") && !DataGuard()) { left = e.Name; continue; }
                         si.EnvironmentVariables[e.Env.Substring(0, eq)] = e.Env.Substring(eq + 1);
                     }
                 using (Process.Start(si)) { }

@@ -300,6 +300,38 @@ def glossary(nds):
     return gl
 
 
+def tagged_records(b):
+    """[(tag, [values])] of a tagged data table (see map_names)"""
+    stab = struct.unpack_from("<I", b, 4)[0]
+    p, out = 16, []
+    while p < stab:
+        if b[p:p + 4] == b"\xff\xff\xff\xff":
+            p += 4
+            continue
+        tag, cnt = struct.unpack_from("<HB", b, p)
+        hdr = ((3 + (cnt * 2 + 7) // 8 + 3) // 4) * 4
+        out.append((tag, list(struct.unpack_from("<%dI" % cnt, b, p + hdr))))
+        p += hdr + 4 * cnt
+    return out
+
+
+def monsters(nds):
+    """[(monster number, English name)] of the ordinary monsters, the ones that roam the field (fld_mondata.bin:
+    the tag 0x65 records; value 2, the margin by which the party's level must pass the monster's before it runs, is 0 on the bosses only)"""
+    arc = gpc2(nds.read("data/prm/mon_list.gp2"))
+    b = arc["mon_list_en.nat"]
+    count = struct.unpack_from("<I", b, 0)[0] & 0xFFF
+    base = 4 + 32 * count
+    names = {}
+    for i in range(count):
+        off = struct.unpack_from("<I", b, 4 + 32 * i + 8)[0]
+        num = struct.unpack_from("<H", b, 4 + 32 * i + 12)[0]
+        e = b.find(b"\0", base + off)
+        names.setdefault(num, clean(b[base + off:e if e >= 0 else None].decode("latin1")))
+    ordinary = [v[0] for t, v in tagged_records(nds.read("data/prm/fld_mondata.bin")) if t == 0x65 and len(v) >= 3 and v[2] != 0]
+    return sorted((n, names[n]) for n in set(ordinary) if n in names and names[n])
+
+
 def write_tables(rom_path, out):
     """writes <out>/rom-itemname-<lang>.tsv for every language in the ROM"""
     nds = Nds(rom_path)

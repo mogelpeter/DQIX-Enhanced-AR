@@ -1,0 +1,11 @@
+# name: Unlock All Jobs v1
+# enabled: no
+# status: untested
+# category: Unlocks
+# replaces: Unlock All Jobs v1
+# about: Every vocation shows up as unlocked in the vocation menu. Shown only: it doesn't change your save.
+# Overlay 3 (the vocation list) asks the flag routine at 0x0206DFC0 once per vocation "is this one unlocked?"
+# and only lists the ones that answer yes. The call is replaced by "mov r0, #1" (always yes).
+check 021560A8 E286108C
+check 021560AC E2822C11
+patch 021560B0 EBFC5FC2 E3A00001

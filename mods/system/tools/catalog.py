@@ -82,9 +82,11 @@ REASONS = {
 
 LAUNCH = [
     ("launch:fast", "Always fast forward", "DQIX_FAST=1",
-     "The whole game runs as fast as your PC can, from the moment it starts. (While playing, Tab does the same.) No sound while it's fast. Takes effect the next time the game starts."),
+     "The whole game runs as fast as your PC can, from the moment it starts. (While playing, Tab does the same.) No sound while it's fast. Takes effect the next time the game starts.", "Speed & comfort", ""),
     ("launch:card", "Instant loading", "DQIX_CARD_INSTANT=1",
-     "Skips the DS cartridge's reading delays. Only while you play alone: in a session with friends the game keeps the real delays by itself, so everyone stays in sync. Takes effect the next time the game starts."),
+     "Skips the DS cartridge's reading delays. Only while you play alone: in a session with friends the game keeps the real delays by itself, so everyone stays in sync. Takes effect the next time the game starts.", "Speed & comfort", ""),
+    ("launch:metal", "Metal slimes only, in the areas that have them", "DQIX_MOD_METAL=1",
+     "In every area where metal monsters live, only metal monsters appear. Areas without them stay as they are. The game reads this once when it starts.", "Battle", "My cheats"),
 ]
 
 
@@ -658,8 +660,9 @@ def build(root):
         if not ops:
             continue
         keys, _ = scan(ops)
-        e = dict(id="file:cheats/" + base, name=name, note=about, cat=cat, group="", kind="live", status="tested",
-                 mode=mode, ops=ops, keys=keys, reason="", file="", on=False, patch=[], env="")
+        e = dict(id="file:cheats/" + base, name=name, note=about, cat=cat, group="", kind="live", status=file_header(f, "status") or "tested",
+                 mode=mode, ops=ops, keys=keys, reason="", file="", on=False, patch=[], env="",
+                 also=file_header(f, "also"), replaces=file_header(f, "replaces"), help=file_header(f, "help"))
         if len(ops) > 1023:
             e.update(kind="blocked", status="blocked", reason=REASONS["long"])
         files.append(e)
@@ -670,8 +673,9 @@ def build(root):
             continue
         name, on, checks, patches, errors = acm.parse_mod(f)
         e = dict(id="file:code/" + base, name=name, note=file_header(f, "about"), cat=file_header(f, "category"),
-                 group="", kind="code", status="tested", mode="", ops=[], keys=[], reason="",
-                 file="system/code/" + base, on=on, patch=[], env="")
+                 group="", kind="code", status=file_header(f, "status") or "tested", mode="", ops=[], keys=[], reason="",
+                 file="system/code/" + base, on=on, patch=[], env="",
+                 also=file_header(f, "also"), replaces=file_header(f, "replaces"), help=file_header(f, "help"))
         fit = None if errors else fit_code_file(rom, checks, patches)
         if errors:
             e.update(kind="blocked", status="blocked", reason="The file has a mistake: " + "; ".join(errors))
@@ -754,7 +758,7 @@ def build(root):
             if twin is not None and twin["id"] not in used:
                 used.add(twin["id"])
                 e.update(id=twin["id"], name=twin["name"], note=twin["note"] or e["note"], status="tested",
-                         mode=twin["mode"], file=twin["file"], on=twin["on"])
+                         mode=twin["mode"], file=twin["file"], on=twin["on"], also=twin.get("also", ""), help=twin.get("help", ""))
         choice = [e for e in made if e["kind"] in ("live", "code")]
         if folder["one"] and len(choice) > 1 and len({e["kind"] for e in choice}) == 1:
             gid = "group:" + f"{zlib.crc32(folder['name'].encode('utf-8')) & 0xFFFFFFFF:08x}"
@@ -769,6 +773,16 @@ def build(root):
             e["cat"] = e["cat"] or "My cheats"
             e["option"] = e["name"]
             entries.append(e)
+
+    # ---- "# replaces: <names, separated by |>" in a file: our own cheat takes the place of those database codes
+    repl = set()
+    for e in files:
+        for r in e.get("replaces", "").split("|"):
+            if r.strip():
+                repl.add(r.strip().lower())
+    if repl:
+        entries = [e for e in entries if not (e["id"].startswith("db:") and
+                                              (e["name"].lower() in repl or e.get("option", "").lower() in repl))]
 
     # ---- code mods that change the same instruction differently can't be on together: one choice
     code = [e for e in entries if e["kind"] == "code"]
@@ -812,10 +826,25 @@ def build(root):
     for old in [g for g in groups if not any(e["group"] == g["id"] for e in entries)]:
         groups.remove(old)
 
+    # ---- "Battle any monster you want": our own version of the database's code, one choice with every ordinary monster
+    try:
+        import rom_text
+        mons = rom_text.monsters(rom_text.Nds(os.path.join(root, "game", "data", "dqix.nds")))
+    except Exception:
+        mons = []
+    if mons:
+        entries = [e for e in entries if not (e["id"].startswith("db:") and e["name"].lower().startswith("battle any monsters you want"))]
+        gid = "group:battle-any-monster"
+        groups.append(dict(id=gid, cat="Battle", title="Battle any monster you want", note="", kind="launch"))
+        for num, mname in mons:
+            entries.append(dict(id=f"launch:monster:{num}", name=mname, note="", cat="Battle", group=gid, kind="launch", status="untested",
+                                mode="", ops=[], keys=[], reason="", file="", on=False, patch=[], env=f"DQIX_MOD_FORCE={num}", option=mname))
+
     # ---- how the game is started
-    for lid, name, env, note in LAUNCH:
-        entries.append(dict(id=lid, name=name, note=note, cat="Speed & comfort", group="", kind="launch", status="tested",
-                            mode="", ops=[], keys=[], reason="", file="", on=False, patch=[], env=env, option=name))
+    for lid, name, env, note, cat, also in LAUNCH:
+        entries.append(dict(id=lid, name=name, note=note, cat=cat, group="", kind="launch",
+                            status="untested" if env.startswith("DQIX_MOD_") else "tested",
+                            mode="", ops=[], keys=[], reason="", file="", on=False, patch=[], env=env, option=name, also=also))
     return info, entries, groups
 
 
@@ -840,6 +869,9 @@ def write(root, info, entries, groups):
     for e in entries:
         if e["cat"] not in pages:
             pages.append(e["cat"])
+    for e in entries:
+        if e.get("also") and e["also"] not in pages:
+            pages.append(e["also"])
     pages.sort(key=lambda p: (PAGE_ORDER.index(p) if p in PAGE_ORDER else len(PAGE_ORDER) - 1.5, p))
     lines = [kv("info", **info)]
     lines += [kv("page", title=p) for p in pages]
@@ -849,7 +881,7 @@ def write(root, info, entries, groups):
             "entry", id=e["id"], cat=e["cat"], group=e["group"], kind=e["kind"], status=e["status"], name=e["name"],
             option=e.get("option", ""), note=e["note"], reason=e["reason"], mode=e["mode"],
             keys=" / ".join(k for k in (key_text(k) for k in e["keys"]) if k), combos=str(len(e["keys"])) if e["keys"] else "",
-            file=e["file"], on="1" if e["on"] else "", env=e["env"],
+            file=e["file"], on="1" if e["on"] else "", env=e["env"], also=e.get("also", ""), help=e.get("help", ""),
             ops=",".join(f"{a:08X}:{b:08X}" for a, b in e["ops"]),
             patch=",".join(f"{n}:{a:08x}:{w:08x}" for n, a, w in e["patch"])))
     out = os.path.join(root, "mods", "system", "bin", "catalog.txt")

@@ -444,7 +444,7 @@ def cmd_scratch(a):
         if "build=0" not in out:
             print("  BUILD FAILED"); return 1
         e2 = dict(env, TEST_EXE=os.path.join(proj, "game", "dqix.exe"))
-        for script, args in (("test_session.py", [os.path.join(TMP, f"s{i}"), str(47300 + i)]), ("test_live.py", [os.path.join(TMP, f"l{i}"), "3000"])):
+        for script, args in (("test_session.py", [os.path.join(TMP, f"s{i}"), str(47300 + i)]), ("test_live.py", [os.path.join(TMP, f"l{i}"), "3000"]), ("test_vanish.py", [os.path.join(TMP, f"v{i}")])):
             o = subprocess.run([sys.executable, "-u", os.path.join(proj, "mods", "system", "tests", script), proj] + args, cwd=proj, env=e2, capture_output=True, text=True, errors="replace").stdout
             keep = [l.strip() for l in o.splitlines() if "RESULT" in l or "different" in l or "FAIL" in l]
             print("  ", script, "|", " ; ".join(keep))
