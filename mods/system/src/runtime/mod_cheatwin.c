@@ -299,6 +299,7 @@ void mod_cheatwin_boot(void) {
 enum { IDC_SIDE = 100, IDC_SEARCH, IDC_OFF, IDC_CLOSE, IDC_TITLE, IDC_COUNT, IDC_NOTE, IDC_ROW0 = 1000, WM_SHOW_CHEATS = WM_APP + 1 };
 enum { R_CHECK, R_ONCE, R_GROUP, R_KEY };
 typedef struct { int kind, idx, gi, y, h, nm, on, *members; HWND main, sub, right, combo, btn; } Row;
+static void card_hide(void);                      /* the hover card (below) */
 
 static HWND g_search;
 static int g_search_page;
@@ -422,8 +423,8 @@ static void cv_text(Cv* c, const wchar_t* t, RECT r, HFONT f, COLORREF col, UINT
 
 /* the grey line under a cheat */
 static void tag_text(const Ent* e, char* out, size_t n) {
-    snprintf(out, n, "%s%s%s%s%s%s%s", who_short(e), e->keys[0] ? "  \xC2\xB7  hold " : "", e->keys, !strcmp(e->status, "untested") ? "  \xC2\xB7  untested" : "",
-             !strcmp(e->mode, "once") ? "  \xC2\xB7  once" : "", e->note[0] ? "  \xC2\xB7  " : "", e->note);
+    snprintf(out, n, "%s%s%s%s%s%s%s", who_short(e), e->keys[0] ? " \xC2\xB7 hold " : "", e->keys, !strcmp(e->status, "untested") ? " \xC2\xB7 untested" : "",
+             !strcmp(e->mode, "once") ? " \xC2\xB7 once" : "", e->note[0] ? " \xC2\xB7 " : "", e->note);
 }
 
 /* the hover text: the cheat's longer explanation (mods/system/about.tsv, through the catalog), nothing the row already shows
@@ -647,8 +648,7 @@ static void lay_rows(void) {
     ReleaseDC(g_host, dc);
     if (dwp) EndDeferWindowPos(dwp);
     g_total = y + 8;
-    SCROLLINFO si; memset(&si, 0, sizeof si); si.cbSize = sizeof si; si.fMask = SIF_RANGE | SIF_PAGE | SIF_POS; si.nMax = g_total; si.nPage = (UINT)cr.bottom; si.nPos = g_scroll;
-    SetScrollInfo(g_host, SB_VERT, &si, TRUE);
+    { int max = g_total - cr.bottom; if (max < 0) max = 0; if (g_scroll > max) g_scroll = max; }
     RedrawWindow(g_host, NULL, NULL, RDW_INVALIDATE | RDW_ERASE | RDW_ALLCHILDREN);
 }
 
@@ -677,8 +677,6 @@ static void scroll_to(int pos) {
         ti.rect.left = 0; ti.rect.right = cr.right; ti.rect.top = g_rows[i].y - g_scroll; ti.rect.bottom = ti.rect.top + g_rows[i].h;
         SendMessageW(g_tip, TTM_NEWTOOLRECTW, 0, (LPARAM)&ti);
     }
-    SCROLLINFO si; memset(&si, 0, sizeof si); si.cbSize = sizeof si; si.fMask = SIF_POS; si.nPos = g_scroll;
-    SetScrollInfo(g_host, SB_VERT, &si, TRUE);
     UpdateWindow(g_host);
 }
 
@@ -715,7 +713,7 @@ static void build_page(void) {
     int special = p == g_on_page || p == g_search_page;
     g_found = 0;
     ShowWindow(g_host, SW_HIDE);                                  /* built out of sight, shown in one go: no controls flying in from the corner */
-    clear_rows(); g_scroll = 0; g_cur_page = p;
+    card_hide(); clear_rows(); g_scroll = 0; g_cur_page = p;
     SetWindowTextW(g_note, L"");
     { char ts[260]; if (p == g_search_page) snprintf(ts, sizeof ts, "Search: %s", q); else snprintf(ts, sizeof ts, "%s", p == g_on_page ? "Enabled" : g_pg[p]);
       wchar_t* tt = wide(ts); SetWindowTextW(g_title, tt); free(tt); }
@@ -744,7 +742,7 @@ static void build_page(void) {
                         if (p == g_search_page ? (all || match_words(m)) : (special || !strcmp(m->cat, g_pg[p]) || !strcmp(m->also, g_pg[p]))) r->members[r->nm++] = g->mem[j];
                     }
                     r->main = mk(L"STATIC", g_g[gi].title, SS_NOPREFIX | SS_ENDELLIPSIS | SS_CENTERIMAGE, g_bold, id);
-                    { char st[200]; snprintf(st, sizeof st, "%s  \xC2\xB7  Choose one: only one of these can be on.", who_group(g));
+                    { char st[200]; snprintf(st, sizeof st, "%s \xC2\xB7 Choose one: only one of these can be on.", who_group(g));
                       r->sub = mk(L"STATIC", st, SS_OWNERDRAW, g_small, id); SetWindowLongPtrW(r->sub, GWLP_USERDATA, 1); }
                     r->combo = mk(L"COMBOBOX", "", CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP, g_font, id); dark(r->combo, L"DarkMode_CFD");
                     SendMessageW(r->combo, CB_SETITEMHEIGHT, (WPARAM)-1, 24); SendMessageW(r->combo, CB_SETITEMHEIGHT, 0, 22);
@@ -853,6 +851,71 @@ static Row* row_of_id(int id) { int i = id - IDC_ROW0; return i >= 0 && i < g_nr
 
 static void test_step(int step);
 
+/* ---- the hover card: the cheat's longer explanation in a small window of its own, so it can reach past the window's edge
+ * (kept on the screen it is on). Shown when the mouse rests on a row for a moment; gone when the mouse leaves, a click, a key,
+ * the wheel or another page. */
+static HWND g_card;
+static int g_card_row = -1, g_card_want = -1;
+static wchar_t g_card_text[2100];
+#define IDT_CARD 201
+#define IDT_CARDPOLL 202
+#define CARD_PAD 12
+#define CARD_W 380
+static void card_hide(void) {
+    g_card_want = -1; g_card_row = -1;
+    if (g_card && IsWindowVisible(g_card)) ShowWindow(g_card, SW_HIDE);
+}
+static int row_at(POINT screen) {
+    POINT pt = screen; ScreenToClient(g_host, &pt);
+    for (int i = 0; i < g_nrows; i++) { int t = g_rows[i].y - g_scroll; if (pt.y >= t && pt.y < t + g_rows[i].h) return i; }
+    return -1;
+}
+static void card_mouse(POINT screen) {
+    int i = row_at(screen);
+    if (i == g_card_row || i == g_card_want) return;
+    card_hide();
+    if (i < 0) return;
+    g_card_want = i;
+    SetTimer(g_host, IDT_CARD, 450, NULL); SetTimer(g_host, IDT_CARDPOLL, 120, NULL);
+}
+static void card_show_at(int i, POINT pt);
+static void card_show(int i) { POINT pt; GetCursorPos(&pt); card_show_at(i, pt); }
+static void card_show_at(int i, POINT pt) {
+    if (!g_card || i < 0 || i >= g_nrows) return;
+    Row* r = &g_rows[i];
+    hover_text(r->kind == R_GROUP ? g_g[r->gi].about : r->idx >= 0 ? g_e[r->idx].about : NULL, g_card_text, 2100);
+    if (!g_card_text[0]) { g_card_want = -1; return; }
+    HDC dc = GetDC(g_card); HGDIOBJ o = SelectObject(dc, g_small);
+    RECT m = { 0, 0, CARD_W - 2 * CARD_PAD, 0 }; DrawTextW(dc, g_card_text, -1, &m, DT_CALCRECT | DT_WORDBREAK | DT_NOPREFIX);
+    SelectObject(dc, o); ReleaseDC(g_card, dc);
+    int w = m.right + 2 * CARD_PAD, ht = m.bottom + 2 * CARD_PAD;
+    MONITORINFO mi; memset(&mi, 0, sizeof mi); mi.cbSize = sizeof mi; GetMonitorInfoW(MonitorFromPoint(pt, MONITOR_DEFAULTTONEAREST), &mi);
+    RECT wa = mi.rcWork; int x = pt.x + 16, y = pt.y + 22;
+    if (x + w > wa.right - 4) x = wa.right - 4 - w;
+    if (x < wa.left + 4) x = wa.left + 4;
+    if (y + ht > wa.bottom - 4) y = pt.y - ht - 12;                     /* no room below: above the mouse */
+    if (y < wa.top + 4) y = wa.top + 4;
+    g_card_row = i; g_card_want = -1;
+    SetWindowPos(g_card, HWND_TOPMOST, x, y, w, ht, SWP_NOACTIVATE | SWP_SHOWWINDOW);
+    InvalidateRect(g_card, NULL, FALSE);
+}
+static LRESULT CALLBACK cardproc(HWND h, UINT m, WPARAM wp, LPARAM lp) {
+    if (m == WM_PAINT) {
+        PAINTSTRUCT ps; HDC dc = BeginPaint(h, &ps); RECT rc; GetClientRect(h, &rc); Cv c;
+        if (cv_begin(&c, rc.right, rc.bottom, RGB(47, 49, 56))) {
+            cv_box(&c, 0, 0, (float)rc.right, (float)rc.bottom, 0, RGB(78, 81, 90), 1.0f);     /* a thin edge */
+            RECT tr = { CARD_PAD, CARD_PAD, rc.right - CARD_PAD, rc.bottom - CARD_PAD };
+            cv_text(&c, g_card_text, tr, g_small, COL_TEXT, DT_WORDBREAK);
+            cv_end(&c, dc, 0, 0);
+        }
+        EndPaint(h, &ps); return 0;
+    }
+    if (m == WM_ERASEBKGND) return 1;
+    if (m == WM_MOUSEACTIVATE) return MA_NOACTIVATE;
+    if (m == WM_NCHITTEST) return HTTRANSPARENT;
+    return DefWindowProcW(h, m, wp, lp);
+}
+
 /* the scrolling panel */
 static LRESULT CALLBACK hostproc(HWND h, UINT m, WPARAM wp, LPARAM lp) {
     switch (m) {
@@ -920,7 +983,14 @@ static LRESULT CALLBACK hostproc(HWND h, UINT m, WPARAM wp, LPARAM lp) {
         }
         scroll_to(pos); return 0;
     }
-    case WM_MOUSEWHEEL: scroll_to(g_scroll - (short)HIWORD(wp) * 60 / WHEEL_DELTA); return 0;
+    case WM_MOUSEWHEEL: card_hide(); scroll_to(g_scroll - (short)HIWORD(wp) * 60 / WHEEL_DELTA); return 0;
+    case WM_TIMER:
+        if (wp == IDT_CARD) { KillTimer(h, IDT_CARD); if (g_card_want >= 0) card_show(g_card_want); }
+        else if (wp == IDT_CARDPOLL) {                       /* the mouse left the page (or the window went to the back): the card goes */
+            POINT pt; GetCursorPos(&pt); HWND under = WindowFromPoint(pt);
+            if (!(under == g_host || (under && IsChild(g_host, under))) || GetForegroundWindow() != g_win) { card_hide(); KillTimer(h, IDT_CARDPOLL); }
+        }
+        return 0;
     case WM_SIZE: if (g_nrows) lay_rows(); return 0;
     case WM_COMMAND: {
         Row* r = row_of_id(LOWORD(wp)); if (!r) break;
@@ -972,7 +1042,8 @@ static LRESULT CALLBACK wndproc(HWND h, UINT m, WPARAM wp, LPARAM lp) {
     case WM_SIZE: if (g_side) layout(LOWORD(lp), HIWORD(lp)); return 0;
     case WM_GETMINMAXINFO: { MINMAXINFO* mm = (MINMAXINFO*)lp; mm->ptMinTrackSize.x = 560; mm->ptMinTrackSize.y = 380; return 0; }
     case WM_SHOW_CHEATS: EnterCriticalSection(&g_cs); load_state(); LeaveCriticalSection(&g_cs); build_page(); ShowWindow(h, IsIconic(h) ? SW_RESTORE : SW_SHOWNORMAL); SetForegroundWindow(h); return 0;
-    case WM_CLOSE: ShowWindow(h, SW_HIDE); return 0;                   /* hidden, not destroyed: the game goes on */
+    case WM_CLOSE: card_hide(); ShowWindow(h, SW_HIDE); return 0;      /* hidden, not destroyed: the game goes on */
+    case WM_ACTIVATE: if (LOWORD(wp) == WA_INACTIVE) card_hide(); break;
     case WM_CTLCOLORSTATIC: {
         HDC dc = (HDC)wp; HWND c = (HWND)lp; int id = GetDlgCtrlID(c);
         SetBkColor(dc, COL_BG); SetTextColor(dc, id == IDC_TITLE ? COL_TEXT : COL_GRAY);
@@ -1004,10 +1075,15 @@ static LRESULT CALLBACK wndproc(HWND h, UINT m, WPARAM wp, LPARAM lp) {
 /* Test hook: DQIX_CHEATWIN_TEST=<entry id>[,<picture.bmp>] opens the window by itself, switches that cheat on the way a click does
  * (the page, then the row's check box) and draws the window into the picture. Used by tests/test_cheatwin.py. */
 static void save_shot(HWND h, const char* path) {
-    RECT r; GetWindowRect(h, &r); int w = r.right - r.left, ht = r.bottom - r.top;
+    RECT r; GetWindowRect(h, &r);
+    if (g_card && IsWindowVisible(g_card)) {                 /* the hover card is up: the screen itself, window and card */
+        RECT c; GetWindowRect(g_card, &c); UnionRect(&r, &r, &c);
+    }
+    int w = r.right - r.left, ht = r.bottom - r.top;
     HDC dc = GetDC(NULL), mem = CreateCompatibleDC(dc);
     HBITMAP bmp = CreateCompatibleBitmap(dc, w, ht); HGDIOBJ old = SelectObject(mem, bmp);
-    PrintWindow(h, mem, 2);
+    if (g_card && IsWindowVisible(g_card)) BitBlt(mem, 0, 0, w, ht, dc, r.left, r.top, SRCCOPY);
+    else PrintWindow(h, mem, 2);
     BITMAPINFOHEADER bi; memset(&bi, 0, sizeof bi); bi.biSize = sizeof bi; bi.biWidth = w; bi.biHeight = ht; bi.biPlanes = 1; bi.biBitCount = 24;
     int stride = (w * 3 + 3) & ~3; unsigned char* px = (unsigned char*)malloc((size_t)stride * (size_t)ht);
     if (px && GetDIBits(mem, bmp, 0, (UINT)ht, px, (BITMAPINFO*)&bi, DIB_RGB_COLORS)) {
@@ -1075,6 +1151,13 @@ static void test_step(int step) {
         }
     } else if (step == 2 && g_test_shot[0]) {
         const char* sc = getenv("DQIX_CHEATWIN_SCROLL");          /* tests: scroll in steps first (the controls must follow) */
+        if (getenv("DQIX_CHEATWIN_CARD")) {                     /* tests: the hover card of the last row with one, at the window's bottom right */
+            RECT cr; GetClientRect(g_host, &cr); POINT pt = { cr.right - 20, cr.bottom - 20 }; ClientToScreen(g_host, &pt);
+            for (int i = g_nrows - 1; i >= 0; i--) {
+                const char* ab = g_rows[i].kind == R_GROUP ? g_g[g_rows[i].gi].about : g_rows[i].idx >= 0 ? g_e[g_rows[i].idx].about : "";
+                if (ab && ab[0] && g_rows[i].y - g_scroll < cr.bottom) { card_show_at(i, pt); UpdateWindow(g_card); Sleep(400); break; }
+            }
+        }
         if (sc && *sc) { int to = atoi(sc); for (int k = 1; k <= 8; k++) scroll_to(to * k / 8);
                          RECT cr; GetClientRect(g_host, &cr); fprintf(stderr, "cheatwin test: scrolled %d of %d (page %d)\n", g_scroll, g_total, (int)cr.bottom); }
         save_shot(g_win, g_test_shot); fprintf(stderr, "cheatwin test: picture written\n");
@@ -1150,8 +1233,8 @@ static DWORD WINAPI ui_thread(LPVOID unused) {
         if (f) f(&ic);
     }
     load_fonts();
-    g_font = ui_font(13, FW_NORMAL); g_small = ui_font(11, FW_NORMAL); g_bold = ui_font(13, FW_SEMIBOLD);
-    g_head = ui_font(20, FW_SEMIBOLD); g_mono = ui_font(12, FW_SEMIBOLD);
+    g_font = ui_font(12, FW_NORMAL); g_small = ui_font(11, FW_NORMAL); g_bold = ui_font(12, FW_SEMIBOLD);
+    g_head = ui_font(18, FW_SEMIBOLD); g_mono = ui_font(11, FW_SEMIBOLD);
     g_box = CreateSolidBrush(COL_BOX); g_white = CreateSolidBrush(COL_BG); g_gray = CreateSolidBrush(COL_SIDE);
     HINSTANCE hi = GetModuleHandleW(NULL);
     WNDCLASSW wc; memset(&wc, 0, sizeof wc);
@@ -1172,7 +1255,7 @@ static DWORD WINAPI ui_thread(LPVOID unused) {
     SendMessageW(g_search, WM_SETFONT, (WPARAM)g_font, TRUE); SendMessageW(g_search, 0x1501 /*EM_SETCUEBANNER*/, TRUE, (LPARAM)L"Search cheats"); SendMessageW(g_search, EM_LIMITTEXT, 100, 0);
     g_title = CreateWindowExW(0, L"STATIC", L"", WS_CHILD | WS_VISIBLE | SS_NOPREFIX | SS_ENDELLIPSIS, 0, 0, 10, 10, g_win, (HMENU)(UINT_PTR)IDC_TITLE, hi, NULL);
     g_count = CreateWindowExW(0, L"STATIC", L"", WS_CHILD | WS_VISIBLE | SS_NOPREFIX, 0, 0, 10, 10, g_win, (HMENU)(UINT_PTR)IDC_COUNT, hi, NULL);
-    g_host = CreateWindowExW(WS_EX_CONTROLPARENT, L"DqixCheatPage", L"", WS_CHILD | WS_VISIBLE | WS_VSCROLL | WS_CLIPCHILDREN, 0, 0, 10, 10, g_win, NULL, hi, NULL);
+    g_host = CreateWindowExW(WS_EX_CONTROLPARENT, L"DqixCheatPage", L"", WS_CHILD | WS_VISIBLE | WS_CLIPCHILDREN, 0, 0, 10, 10, g_win, NULL, hi, NULL);
     g_note = CreateWindowExW(0, L"STATIC", L"Switches work at once while you play. Save your game first.", WS_CHILD | WS_VISIBLE | SS_NOPREFIX | SS_ENDELLIPSIS, 0, 0, 10, 10, g_win, (HMENU)(UINT_PTR)IDC_NOTE, hi, NULL);
     g_off = CreateWindowExW(0, L"BUTTON", L"Everything off", WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_OWNERDRAW, 0, 0, 10, 10, g_win, (HMENU)(UINT_PTR)IDC_OFF, hi, NULL);
     g_close = CreateWindowExW(0, L"BUTTON", L"Close", WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_OWNERDRAW, 0, 0, 10, 10, g_win, (HMENU)(UINT_PTR)IDC_CLOSE, hi, NULL);
@@ -1180,8 +1263,13 @@ static DWORD WINAPI ui_thread(LPVOID unused) {
     SendMessageW(g_title, WM_SETFONT, (WPARAM)g_head, TRUE); SendMessageW(g_count, WM_SETFONT, (WPARAM)g_small, TRUE); SendMessageW(g_note, WM_SETFONT, (WPARAM)g_small, TRUE);
     SendMessageW(g_off, WM_SETFONT, (WPARAM)g_font, TRUE); SendMessageW(g_close, WM_SETFONT, (WPARAM)g_font, TRUE); SendMessageW(g_side, WM_SETFONT, (WPARAM)g_font, TRUE);
     SendMessageW(g_side, LB_SETITEMHEIGHT, 0, 32);
-    g_tip = CreateWindowExW(WS_EX_TOPMOST, L"tooltips_class32", NULL, WS_POPUP | 0x01 /*TTS_ALWAYSTIP*/ | 0x02 /*TTS_NOPREFIX*/, 0, 0, 0, 0, g_win, NULL, hi, NULL);
-    if (g_tip) { SendMessageW(g_tip, TTM_SETMAXTIPWIDTH, 0, 400); SendMessageW(g_tip, TTM_SETDELAYTIME, TTDT_INITIAL, 450); SendMessageW(g_tip, TTM_SETDELAYTIME, TTDT_AUTOPOP, 30000); SendMessageW(g_tip, WM_SETFONT, (WPARAM)g_font, TRUE); }
+    wc.lpfnWndProc = cardproc; wc.lpszClassName = L"DqixCheatCard"; wc.hbrBackground = NULL; wc.style = CS_DROPSHADOW; RegisterClassW(&wc);
+    g_card = CreateWindowExW(WS_EX_TOOLWINDOW | WS_EX_TOPMOST | WS_EX_NOACTIVATE, L"DqixCheatCard", L"", WS_POPUP, 0, 0, 10, 10, g_win, NULL, hi, NULL);
+    if (g_card) {                                                      /* Windows 11: round corners */
+        HMODULE dm = LoadLibraryW(L"dwmapi.dll"); typedef HRESULT (WINAPI* Fn)(HWND, DWORD, LPCVOID, DWORD);
+        Fn f = dm ? (Fn)(void*)GetProcAddress(dm, "DwmSetWindowAttribute") : NULL; DWORD round = 3 /*DWMWCP_ROUNDSMALL*/;
+        if (f) f(g_card, 33 /*DWMWA_WINDOW_CORNER_PREFERENCE*/, &round, sizeof round);
+    }
     dark_title(g_win); dark(g_host, L"DarkMode_Explorer");
     g_on_page = g_npg; g_search_page = g_npg + 1;                                            /* the Enabled entry: a page number past the real ones */
     { int at0 = (int)SendMessageW(g_side, LB_ADDSTRING, 0, (LPARAM)L"Enabled"); SendMessageW(g_side, LB_SETITEMDATA, (WPARAM)at0, g_on_page); }
@@ -1197,10 +1285,8 @@ static DWORD WINAPI ui_thread(LPVOID unused) {
     if (g_test_id[0] || g_test_search[0]) { SetTimer(g_win, 1, 1500, NULL); SetTimer(g_win, 2, 4000, NULL); }
     MSG msg;
     while (GetMessageW(&msg, NULL, 0, 0) > 0) {
-        if (g_tip && (msg.message == WM_MOUSEMOVE || msg.message == WM_LBUTTONDOWN || msg.message == WM_MOUSELEAVE) && msg.hwnd && (msg.hwnd == g_host || IsChild(g_host, msg.hwnd))) {
-            MSG m2 = msg; POINT pt = msg.pt; ScreenToClient(g_host, &pt); m2.hwnd = g_host; m2.lParam = MAKELPARAM(pt.x, pt.y);
-            SendMessageW(g_tip, TTM_RELAYEVENT, 0, (LPARAM)&m2);
-        }
+        if (msg.message == WM_MOUSEMOVE && msg.hwnd && (msg.hwnd == g_host || IsChild(g_host, msg.hwnd))) card_mouse(msg.pt);
+        else if (msg.message == WM_LBUTTONDOWN || msg.message == WM_RBUTTONDOWN || msg.message == WM_KEYDOWN) card_hide();
         if (msg.message == WM_MOUSEWHEEL) {                      /* the wheel scrolls the page, whatever has the focus (a drop-down must not change by it) */
             POINT pt = { (short)LOWORD(msg.lParam), (short)HIWORD(msg.lParam) }; HWND under = WindowFromPoint(pt);
             if (under == g_host || (under && IsChild(g_host, under))) { SendMessageW(g_host, WM_MOUSEWHEEL, msg.wParam, msg.lParam); continue; }

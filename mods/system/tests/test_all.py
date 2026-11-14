@@ -38,12 +38,14 @@ def words(batch):
     return sum(2 + 4 * len(e["ops"]) for e in batch) + sum(1 + 4 * len(e["ops"]) for e in batch if e.get("mode") in ("once", "both"))
 
 
-b1, b2 = entries[:BATCH], entries[BATCH:]
+# as many batches as it takes: the game holds 128 cheats at a time (the USA list has 272 live ones, the European 218)
+batches = [entries[i:i + BATCH] for i in range(0, len(entries), BATCH)] or [[]]
 start1 = 30 if mode == "single" else 150
-d1 = start1 + words(b1) + 200
-d2 = d1 + 60 + words(b2) + 200
-frames = int(sys.argv[4]) if len(sys.argv) > 4 and sys.argv[4] else d2 + 20
-print("frames", frames, "(dumps at", d1, "and", d2, ")")
+dumps = []
+for k, b in enumerate(batches):
+    dumps.append((dumps[-1] + 60 if dumps else start1) + words(b) + 200)
+frames = int(sys.argv[4]) if len(sys.argv) > 4 and sys.argv[4] else dumps[-1] + 20
+print("frames", frames, "(dumps at", " and ".join(str(d) for d in dumps), ")")
 env_base = dict(os.environ)
 env_base.pop("NoDefaultCurrentDirectoryInExePath", None)
 
@@ -54,7 +56,7 @@ def start(who, extra):
     os.makedirs(d)
     shutil.copy(os.path.join(root, "game", "dqix.sav"), os.path.join(d, "test.sav"))
     env = dict(env_base)
-    env.update(DQIX_NOWINDOW="1", SDL_AUDIODRIVER="dummy", DQIX_CHEATWIN_OFF="1", DQIX_NO_SETTINGS="1", DQIX_RAMDUMP=f".,{d1},{d2}", DQIX_NO_UPNP="1", DQIX_NO_RELAY="1", DQIX_PLAYER_NAME=who)
+    env.update(DQIX_NOWINDOW="1", SDL_AUDIODRIVER="dummy", DQIX_CHEATWIN_OFF="1", DQIX_NO_SETTINGS="1", DQIX_RAMDUMP=".," + ",".join(str(d) for d in dumps), DQIX_NO_UPNP="1", DQIX_NO_RELAY="1", DQIX_PLAYER_NAME=who)
     env.update(extra)
     log = open(os.path.join(d, "run.log"), "wb")
     p = subprocess.Popen([exe, os.path.join(root, "game", "data", "dqix.nds"), os.path.join(root, "game", "data", "code"), str(frames), "1", "test.sav"],
@@ -119,21 +121,16 @@ def plain_writes(batch):
 
 def drive(m, proc):
     m.wait_frame(start1, proc)
-    m.send(4, None, [])
-    for e in b1:
-        m.send(2, e["index"], e["ops"])
-    for e in b1:
-        if e.get("mode") in ("once", "both"):
-            m.send(1, None, e["ops"])
-    m.wait_frame(d1 + 20, proc)                              # the first dump is behind us
-    print(f"after batch 1: sent {m.sent}, carried out {m.u(24)}, forgotten-all count (gen) {m.u(16)}")
-    m.send(4, None, [])
-    for e in b2:
-        m.send(2, e["index"], e["ops"])
-    for e in b2:
-        if e.get("mode") in ("once", "both"):
-            m.send(1, None, e["ops"])
-    return b1, b2
+    for k, batch in enumerate(batches):
+        if k:
+            m.wait_frame(dumps[k - 1] + 20, proc)            # the dump of the batch before is behind us
+            print(f"after batch {k}: sent {m.sent}, carried out {m.u(24)}, forgotten-all count (gen) {m.u(16)}")
+        m.send(4, None, [])
+        for e in batch:
+            m.send(2, e["index"], e["ops"])
+        for e in batch:
+            if e.get("mode") in ("once", "both"):
+                m.send(1, None, e["ops"])
 
 
 def ramfile(d, frame):
@@ -173,12 +170,12 @@ if mode == "single":
     if box is None:
         print("FAIL: no mailbox"); p.kill(); sys.exit(1)
     m = Mail(box)
-    b1, b2 = drive(m, p)
+    drive(m, p)
     ran = watch([p], m)
     log.close()
     print("exit code", p.returncode, "frames", m.u(28), "messages sent", m.sent, "carried out", m.u(24), "gen", m.u(16))
     ok &= ran and p.returncode == 0 and m.u(24) == m.sent
-    for frame, batch in ((d1, b1), (d2, b2)):
+    for frame, batch in zip(dumps, batches):
         try:
             ram = ramfile(d, frame)
         except OSError as e:
@@ -201,7 +198,7 @@ else:
     if box is None:
         print("FAIL: no mailbox"); ph.kill(); pj.kill(); sys.exit(1)
     m = Mail(box)
-    b1, b2 = drive(m, ph)
+    drive(m, ph)
     ran = watch([ph, pj], m)
     lh.close(); lj.close()
     print("exit codes", ph.returncode, pj.returncode, "| messages sent", m.sent, "carried out", m.u(24))
@@ -223,7 +220,7 @@ else:
             print("     ", l[:200])
     # each PC dumps the DS it plays itself, so the two dumps are not expected to be equal: "sync ... same" is the check.
     for who, d in (("host", dh), ("join", dj)):
-        for frame, batch in ((d1, b1), (d2, b2)):
+        for frame, batch in zip(dumps, batches):
             try:
                 ram = ramfile(d, frame)
             except OSError as e:
@@ -231,6 +228,10 @@ else:
             want = plain_writes(batch)
             have = sum(int.from_bytes(ram[a:a + 4], "little") == v for a, (v, n) in want.items())
             print(f"{who} dump at frame {frame}: {have}/{len(want)} plain write cheats in RAM")
+            if who == "host":
+                for a, (v, n) in want.items():
+                    if int.from_bytes(ram[a:a + 4], "little") != v:
+                        print("   not in RAM:", hex(a), hex(v), "is", hex(int.from_bytes(ram[a:a + 4], "little")), n)
             if who == "host":
                 ok &= have == len(want)
 print("RESULT:", "PASS" if ok else "FAIL")

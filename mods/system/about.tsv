@@ -157,3 +157,24 @@ Treasure map bosses always drop their chest	The boss at the bottom of a treasure
 Normal attacks hit every enemy	The plain Attack command of every party member damages all enemies in the battle at once, like a sweeping attack. Damage per enemy is worked out as usual. Switching it off makes attacks single-target again at once.
 Unlock All Extra Quests V1, with the Wi-Fi quests	Like V1, but also opens the extra quests that the game used to download over Nintendo Wi-Fi. Use it on a new game before you accept any quest, and do not connect to Wi-Fi afterwards.
 Unlock All Extra Quests V2, with the Wi-Fi quests	Like V2, but also opens the extra quests that the game used to download over Nintendo Wi-Fi. Use it after you have finished quests 2, 117 and 120, and do not connect to Wi-Fi afterwards.
+# the USA list's names (r4-YDQE.txt)
+Max/Infinite Mini Medals	Sets the mini medals you carry to 999 and keeps them there, enough for every prize.
+360 Degree Camera Angle - World Map	On the world map the camera can be turned all the way round with L and R, not only a little to each side.
+360 Degree Camera Angle - Town & Dungeons	In towns and dungeons the camera can be turned all the way round with L and R.
+Actual HP 9,999	Sets the hero's real hit points (the number the game uses in battle) to 9999 and keeps it there.
+Current HP 9,999	Sets the hero's current hit points to 9999, the number shown on screen right now. If the maximum is lower, the game may pull it back down.
+Actual MP 9,999	Sets the hero's real magic points to 9999 and keeps them there.
+Current MP 9,999	Sets the hero's current magic points to 9999, the number shown on screen right now.
+Job Modifier - Player 1	Changes the hero's vocation to the one you pick.
+Job Modifier - Player 2	Changes player 2's vocation to the one you pick.
+Job Modifier - Player 3	Changes player 3's vocation to the one you pick.
+Job Modifier - Player 4	Changes player 4's vocation to the one you pick.
+Experience Multiplier	Battles give 2, 4, 8... up to 524,288 times the experience. Pick one option; it only changes what you are given after a battle.
+Enemy Status	Press START in battle: the enemies get the status you pick (sleep, poison, stunned or confused).
+100% Steal Rate	Every attempt to steal from a monster succeeds.
+P2 HP	In battle, player 2's HP stays at the maximum.
+P2 MP	In battle, player 2's MP stays at the maximum.
+P3 HP	In battle, player 3's HP stays at the maximum.
+P3 MP	In battle, player 3's MP stays at the maximum.
+P4 HP	In battle, player 4's HP stays at the maximum.
+P4 MP	In battle, player 4's MP stays at the maximum.

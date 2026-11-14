@@ -1,7 +1,7 @@
 # name: Quick Save Never Return To Title
 # enabled: no
 # category: Speed & comfort
-# replaces: Quick Save Never Return To Title
+# replaces: Quick Save Never Return To Title|Never Return To Title Screen With Quick Save
 # about: After a quick save the game goes on instead of going back to the title screen.
 # Overlay 2 (the quick save screen): when the save is done it writes a 1 to a flag (byte at base + 0xCC2) that
 # state 2 of the same screen reads at 0x0216B194 to go to state 3, which ends in the title screen. That

@@ -5,20 +5,28 @@ rem and builds them into the game (through mods\Apply cheats.bat). Nothing else 
 rem Advanced: Install cheats.bat "D:\Games\DQIX Enhanced"
 setlocal
 title DQIX Enhanced - cheats patcher
+rem Windows' own tools by their full path: a PC with Git, MSYS2 or other tools early in PATH has its own "find" etc.
+set "SYS32=%SystemRoot%\System32"
+set "PS=%SYS32%\WindowsPowerShell\v1.0\powershell.exe"
+if not exist "%PS%" set "PS=powershell"
+rem some PCs don't run programs from the current folder by bare name: this batch calls BUILD.bat by its full path anyway
+set "NoDefaultCurrentDirectoryInExePath="
 set "TARGET=%~1"
 if not defined TARGET if exist "%~dp0..\BUILD.bat" set "TARGET=%~dp0.."
 if not defined TARGET (
   echo Looking for your DQIX Enhanced folder...
-  for /f "usebackq delims=" %%i in (`powershell -NoProfile -Command "$r=@(); foreach($b in @([Environment]::GetFolderPath('Desktop'),[Environment]::GetFolderPath('MyDocuments'),$env:USERPROFILE+'\Downloads',$env:USERPROFILE,'C:\','D:\','E:\')){ if(Test-Path $b){ $r+=Get-ChildItem $b -Directory -ErrorAction SilentlyContinue; $r+=Get-ChildItem $b -Directory -ErrorAction SilentlyContinue | ForEach-Object { Get-ChildItem $_.FullName -Directory -ErrorAction SilentlyContinue } } }; $r | Where-Object { Test-Path ($_.FullName+'\BUILD.bat') } | Where-Object { Test-Path ($_.FullName+'\recomp') } | Sort-Object LastWriteTime -Descending | Select-Object -First 1 -ExpandProperty FullName"`) do set "TARGET=%%i"
+  for /f "usebackq delims=" %%i in (`"%PS%" -NoProfile -Command "$r=@(); foreach($b in @([Environment]::GetFolderPath('Desktop'),[Environment]::GetFolderPath('MyDocuments'),$env:USERPROFILE+'\Downloads',$env:USERPROFILE,'C:\','D:\','E:\')){ if(Test-Path $b){ $r+=Get-ChildItem $b -Directory -ErrorAction SilentlyContinue; $r+=Get-ChildItem $b -Directory -ErrorAction SilentlyContinue | ForEach-Object { Get-ChildItem $_.FullName -Directory -ErrorAction SilentlyContinue } } }; $r | Where-Object { Test-Path ($_.FullName+'\BUILD.bat') } | Where-Object { Test-Path ($_.FullName+'\recomp') } | Sort-Object LastWriteTime -Descending | Select-Object -First 1 -ExpandProperty FullName"`) do set "TARGET=%%i"
 )
 if not defined TARGET (
   echo Not found automatically. Please choose your DQIX Enhanced folder in the window that opens.
-  for /f "usebackq delims=" %%i in (`powershell -NoProfile -STA -Command "Add-Type -AssemblyName System.Windows.Forms; $d = New-Object System.Windows.Forms.FolderBrowserDialog; $d.Description = 'Choose your DQIX Enhanced folder (the one with BUILD.bat in it)'; if ($d.ShowDialog() -eq 'OK') { $d.SelectedPath }"`) do set "TARGET=%%i"
+  for /f "usebackq delims=" %%i in (`"%PS%" -NoProfile -STA -Command "Add-Type -AssemblyName System.Windows.Forms; $d = New-Object System.Windows.Forms.FolderBrowserDialog; $d.Description = 'Choose your DQIX Enhanced folder (the one with BUILD.bat in it)'; if ($d.ShowDialog() -eq 'OK') { $d.SelectedPath }"`) do set "TARGET=%%i"
 )
+rem a full path without a trailing backslash (also for "." or a relative path given on the command line)
+if defined TARGET for %%i in ("%TARGET%\.") do set "TARGET=%%~fi"
 if not defined TARGET ( echo No folder chosen. Run this again and pick the folder. & pause & exit /b 1 )
 if not exist "%TARGET%\BUILD.bat" ( echo That folder has no BUILD.bat, so it is not DQIX Enhanced. Run this again and pick the right folder. & pause & exit /b 1 )
 echo Installing into "%TARGET%\mods" ...
-robocopy "%~dp0mods" "%TARGET%\mods" /E /R:1 /W:1 /NFL /NDL /NJH /NJS /NP /XF menu-state.txt editor-lang.txt msys2-root.txt settings.txt dev-root.txt AR-codes-EU.txt AR-codes-USA.txt /XD bin save-backups __pycache__ >nul
+"%SYS32%\robocopy.exe" "%~dp0mods" "%TARGET%\mods" /E /R:1 /W:1 /NFL /NDL /NJH /NJS /NP /XF menu-state.txt editor-lang.txt msys2-root.txt settings.txt dev-root.txt AR-codes-EU.txt AR-codes-USA.txt /XD bin save-backups __pycache__ >nul
 if errorlevel 8 ( echo Copy failed. Close the game, then try again. & pause & exit /b 1 )
 if not exist "%TARGET%\mods\settings.txt" copy "%~dp0mods\settings.txt" "%TARGET%\mods\settings.txt" >nul
 rem the patcher's old name: an outdated copy must not stay next to the new one

@@ -37,17 +37,19 @@ BUDGET = 400000
 
 # The database's folders, put into the window's pages: (folder name matches, page, put before each code's name)
 PAGES = [
-    (r"random game enhancer", "Speed & comfort", ""),
+    (r"game enhancer", "Speed & comfort", ""),                  # EU: "Random Game Enhancer", USA: "Game Enhancer Codes & Fun Codes"
     (r"movement speed", "Speed & comfort", ""),
     (r"camera", "Speed & comfort", ""),
-    (r"exp multiplier|gold multiplier", "Experience & gold", ""),
+    (r"exp(erience)? multiplier|gold multiplier", "Experience & gold", ""),
     (r"hero codes for battle", "Party", "Hero: "),
     (r"infinite hp/mp", "Party", "Never goes down: "),
     (r"job modifier", "Party", ""),
-    (r"max exp for all jobs", "Party", "Max EXP in every vocation: "),
+    (r"max exp(erience)? (for )?all jobs", "Party", "Max EXP in every vocation: "),
+    (r"max skill", "Party", "Hero max skill: "),                        # USA: "Max Skill Codes - Player 1 (Individual)"
     (r"skill point", "Party", ""),
     (r"battle codes", "Battle", ""),
     (r"enemy hp", "Battle", "Enemy HP 1: "),
+    (r"enemy status", "Battle", ""),                                   # USA: "Enemy Status Codes"
     (r"enemy mp", "Battle", "Enemy MP 0: "),
     (r"encounter", "Battle", ""),
     (r"item codes", "Items", "99 of every: "),
@@ -733,6 +735,7 @@ NOTES = {
 # of its name), and "Always Alchemiracle" sets the result flag afterwards; "Every time" / "Never" set the chance.
 # "Debug Code" changes two constants of a boot function (main 02000ec8/02000ef0) to an effect nobody describes: left out.
 HIDE = {("Alchemy", "Always Success (R)"), ("Alchemy", "Always Success (L)"), ("Alchemy", "Always Alchemiracle"),
+        ("Alchemy", "Always Success v1 (R)"), ("Alchemy", "Always Success v1 (L)"),          # (the USA list's names)
         ("Speed & comfort", "Debug Code")}
 
 
@@ -887,6 +890,8 @@ def build(root):
     # ---- "# replaces: <names, separated by |>" in a file: our own cheat takes the place of those database codes
     repl = set()
     for e in files:
+        if e["kind"] == "blocked":
+            continue                                        # a file that doesn't fit this ROM leaves the database's code in place
         for r in e.get("replaces", "").split("|"):
             if r.strip():
                 repl.add(r.strip().lower())
@@ -999,6 +1004,8 @@ def build(root):
     about = read_about(root)
     for e in entries:
         t = about.get(e["name"].lower()) or about.get(e.get("option", "").lower()) or about.get(e.get("was", "").lower(), "")
+        if not t and e["name"].startswith("Hero max skill: "):          # the USA list's one-skill codes
+            t = "Puts the hero's " + e["name"][len("Hero max skill: "):] + " at its maximum: every ability of that skill is learned."
         e["about"] = "" if repeats(t, e["note"]) else t
     for g in groups:
         g["about"] = about.get(g["title"].lower()) or about.get(g.get("was", "").lower(), "")
