@@ -21,6 +21,11 @@ Start the game as always (game\dqix.exe). In its menu bar (next to Mods and Help
 - Cheats > Treasure maps...  opens the treasure map search website.
 
 When the game updates itself (Help > Check for updates) the tab is put back automatically.
+If an update changed the game's code where the mods go in, Apply cheats.bat finds the places
+anyway (other spacing or line breaks, the newer menu bar made from a table). If the game then
+doesn't build with one of them, that one is left out and the game is built without it (the
+window says which; mods\system\bin\build.log has the build's output, repatch.txt how each
+place was found). It is tried again with the next update of the game or of the mods.
 If you update by hand (a new download), run Install cheats.bat once more.
 
 

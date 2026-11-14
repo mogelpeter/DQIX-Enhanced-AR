@@ -172,6 +172,9 @@ def t_static(root, work):
     rp = subprocess.run([sys.executable, "-X", "utf8", os.path.join(live, "tests", "test_runtime_patch.py"), root], capture_output=True, text=True)
     if rp.returncode != 0:                                  # the Cheats tab and the other marked places in the game's source
         problems.append("test_runtime_patch.py: " + (rp.stdout + rp.stderr)[-300:])
+    rp = subprocess.run([sys.executable, "-X", "utf8", os.path.join(live, "tests", "test_repatch.py"), root], capture_output=True, text=True)
+    if rp.returncode != 0:                                  # re-patching after updates: relaxed places, table menus, a failed build
+        problems.append("test_repatch.py: " + (rp.stdout + rp.stderr)[-400:])
     cs = open(os.path.join(live, "src", "editor", "EditorHost.cs"), encoding="utf-8").read()
     for pat, why in ((r'\$"', 'string interpolation'), (r'\w\?\.\w', '?. operator'), (r'nameof\(', 'nameof'), (r'\bout var\b', 'out var')):
         if re.search(pat, cs):

@@ -15,8 +15,21 @@
 
 Each change sits between two marker lines. An update of the game brings fresh
 files without them; running this again (Apply cheats.bat does, every time)
-puts them back. If a file ever looks different from what this expects, that
-change is left out and said so: nothing is half-changed.
+puts them back. How a place is found when an update changed the game's code:
+
+  - each patched file is made from an untouched copy of the game's own file
+    (mods/system/bin/pristine/, taken whenever the file comes without markers,
+    e.g. right after an update) plus the changes that are on, so one change
+    can also be taken out again exactly;
+  - a place is found by its exact lines, else by another known form of it
+    (newer games build the menu bar from a table), else by the same code with
+    other spaces, line breaks or comments (only if that fits exactly once);
+  - a change that a build failed on (repatch.py reads the compiler's errors)
+    is left out (mods/system/bin/sites-off.txt) until the game's file changes
+    again, so an update can never leave a game that doesn't build.
+
+If a place isn't found, that change is left out and said so: nothing is
+half-changed. mods/system/bin/repatch.txt says how each place was found.
 
 "sync_cheats = no" in mods/settings.txt takes all of it out again.
 
@@ -84,6 +97,27 @@ MENU_PATCHED = MENU_BEGIN + """\
     sep(cheats);
     item(cheats, 361, L"&What is this?");
 """ + MENU_ORIGINAL + END
+
+# Newer versions of the game (v34 on) build the menu bar from a table (runtime/menu_items.c): there is no "Help" line to put
+# the tab in front of. There the tab goes in after the table is built, in front of Help.
+MENU2_BEGIN = "    /* >>> mods: Cheats tab in the menu bar, table menus (mods/system/tools/apply_runtime_mod.py; an update removes this, Apply cheats.bat puts it back) */\n"
+MENU2_ORIGINAL = """\
+    SetMenu(g_hwnd, g_bar);
+    SDL_EventState(SDL_SYSWMEVENT, SDL_ENABLE);
+"""
+MENU2_PATCHED = MENU2_BEGIN + """\
+    {
+        HMENU cheats = CreatePopupMenu();
+        item(cheats, 360, L"&Cheats...");                   /* 360-363: handled in frontend_sdl.c, mod_menu.c, mod_cheatwin.c */
+        item(cheats, 362, L"&Save editor...");
+        item(cheats, 363, L"&Treasure maps...");
+        sep(cheats);
+        item(cheats, 361, L"&What is this?");
+        int n = GetMenuItemCount(g_bar), at = n; wchar_t t[32];
+        if (n > 0 && GetMenuStringW(g_bar, (UINT)(n - 1), t, 32, MF_BYPOSITION) && !lstrcmpW(t, L"&Help")) at = n - 1;
+        InsertMenuW(g_bar, (UINT)at, MF_BYPOSITION | MF_POPUP | MF_STRING, (UINT_PTR)cheats, L"&Cheats");
+    }
+""" + MENU2_ORIGINAL + END
 
 ACT_BEGIN = "    /* >>> mods: what the Cheats tab does (mods/tools/apply_runtime_mod.py; an update removes this, Play with mods.bat puts it back) */\n"
 ACT_ORIGINAL = """\
@@ -154,6 +188,9 @@ SITES = [
     ("frontend_sdl.c", ACT_ORIGINAL, ACT_PATCHED, ACT_BEGIN, "Cheats tab: what it does"),
     ("update.c", UPD_ORIGINAL, UPD_PATCHED, UPD_BEGIN, "Cheats stay after an update of the game"),
 ]
+NEEDS_INPUT = {"data", "act"}                                       # they call the mods' own files, which come with "input"
+SITE_KEYS = ["input", "card", "data", "menu", "act", "update"]   # SITES in order; "wrap" is the lines in wrap.txt (live code mods)
+VARIANTS = {"menu": [(MENU2_ORIGINAL, MENU2_PATCHED, MENU2_BEGIN)]}    # other forms of a place: tried after the first one
 FILES = ["mod_cheats.c", "ar_engine.h", "mod_data.c", "livepatch.c", "mod_cheatwin.c"]       # belong to the first site
 MENU_FILES = ["mod_menu.c"]                                  # belong to the "what it does" site (frontend_sdl.c)
 GONE = ["mod_plugins.c", "dqix_plugin.h"]                   # files of earlier versions of the mods: taken out of runtime/ again
@@ -308,6 +345,148 @@ def livepatch_files(root, on):
     return changed, wrap, len(fns), len(sites)
 
 
+MARK_RE = re.compile(r"[ \t]*/\* >>> mods:.*?/\* <<< mods \*/\r?\n", re.S)
+
+
+def fingerprint(text):
+    import hashlib
+    text = re.sub(r"\r?\n?" + re.escape(WRAP_BEGIN) + r".*?" + re.escape(WRAP_END) + r"\r?\n?", "\n", MARK_RE.sub("", text), flags=re.S)
+    return hashlib.sha1(text.replace("\r\n", "\n").strip().encode("utf-8")).hexdigest()[:16]
+
+
+def mods_print(root):
+    """the mods' own part (their files and this patcher): a newer version of the mods tries a left-out place again too"""
+    import hashlib
+    h = hashlib.sha1()
+    src = os.path.join(root, "mods", "system", "src", "runtime")
+    for f in sorted(os.listdir(src)) if os.path.isdir(src) else []:
+        h.update(f.encode() + open(os.path.join(src, f), "rb").read().replace(b"\r\n", b"\n"))
+    h.update(open(os.path.abspath(__file__), "rb").read().replace(b"\r\n", b"\n"))
+    return h.hexdigest()[:8]
+
+
+def off_list(root):
+    """mods/system/bin/sites-off.txt: places a build failed on: {key: fingerprint of the game's file then}"""
+    out = {}
+    try:
+        for line in open(os.path.join(root, "mods", "system", "bin", "sites-off.txt"), encoding="utf-8"):
+            p = line.split()
+            if len(p) >= 2 and not line.startswith("#"):
+                out[p[0]] = p[1]
+    except OSError:
+        pass
+    return out
+
+
+def write_off_list(root, off):
+    path = os.path.join(root, "mods", "system", "bin", "sites-off.txt")
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    if not off:
+        if os.path.isfile(path):
+            os.remove(path)
+        return
+    write(path, "# places of the mods a build of the game failed on (repatch.py): left out until the game's file changes\n"
+          + "".join(f"{k} {v}\n" for k, v in sorted(off.items())))
+
+
+def pristine_of(root, name):
+    """the game's own file without the mods: the current one when it has no markers (it is kept), else the kept copy,
+    else (a game patched by an older version of this) the current one with each known place put back."""
+    path = os.path.join(root, "runtime", name)
+    keep = os.path.join(root, "mods", "system", "bin", "pristine", name)
+    text = read(path)
+    if ">>> mods:" not in text:
+        os.makedirs(os.path.dirname(keep), exist_ok=True)
+        if not os.path.isfile(keep) or read(keep) != text:
+            write(keep, text)
+        return text
+    if os.path.isfile(keep):                            # (an update always brings the file without markers: then it is kept anew)
+        return read(keep)
+    nl = "\r\n" if "\r\n" in text else "\n"
+    for i, (n, original, patched, begin, what) in enumerate(SITES):
+        if n != name:
+            continue
+        for orig, pat, beg in [(original, patched, begin)] + VARIANTS.get(SITE_KEYS[i], []):
+            b, e = beg.replace("\n", nl), END.replace("\n", nl)
+            if b in text:
+                text = re.sub(re.escape(b) + r".*?" + re.escape(e), lambda m: orig.replace("\n", nl), text, count=1, flags=re.S)
+    if ">>> mods:" in text:
+        return None
+    os.makedirs(os.path.dirname(keep), exist_ok=True)
+    write(keep, text)
+    return text
+
+
+TOKEN = re.compile(r'"(?:\\.|[^"\\\n])*"|\w+|\S')
+
+
+def loose_find(text, original):
+    """where the original lines are when an update changed only spaces, line breaks or comments: (start, end), or None
+    when they aren't there or are there more than once"""
+    lines = []
+    for line in original.strip("\n").split("\n"):
+        code = re.sub(r"/\*.*?\*/\s*$|//.*$", "", line).strip()
+        if code:
+            lines.append(TOKEN.findall(code))
+    if not lines:
+        return None
+    gap = r"(?:\s|/\*.*?\*/|//[^\n]*\n)*"
+    body = gap.join(gap.join(re.escape(t) for t in toks) for toks in lines)
+    pat = re.compile(r"^[ \t]*" + body + r"[ \t]*(?:/\*.*?\*/|//[^\n]*)?[ \t]*\r?\n", re.M | re.S)
+    found = list(pat.finditer(text))
+    return (found[0].start(), found[0].end()) if len(found) == 1 else None
+
+
+def put_site(text, original, patched):
+    """one place into the text: (new text, how) or (None, "") when it isn't there"""
+    nl = "\r\n" if "\r\n" in text else "\n"
+    o, p = original.replace("\n", nl), patched.replace("\n", nl)
+    if o in text:
+        return text.replace(o, p, 1), "exact"
+    span = loose_find(text, o)
+    if span:
+        actual = text[span[0]:span[1]]
+        if not actual.endswith(nl):
+            actual = actual.rstrip("\r\n") + nl
+        return text[:span[0]] + (p.replace(o, actual) if o in p else p) + text[span[1]:], "relaxed"
+    return None, ""
+
+
+def patch_file(root, name, on_keys, report):
+    """the game's file = its own copy + the places that are on. -> (changed, {key: state}) with state on / off / unknown"""
+    path = os.path.join(root, "runtime", name)
+    states = {}
+    if not os.path.isfile(path):
+        return False, {SITE_KEYS[i]: "unknown" for i, site_ in enumerate(SITES) if site_[0] == name}
+    cur = read(path)
+    base = pristine_of(root, name)
+    if base is None:                                    # can't tell the game's own lines apart: as before, place by place
+        changed = False
+        for i, (n, original, patched, begin, what) in enumerate(SITES):
+            if n == name:
+                did, st = site(root, name, original, patched, begin, SITE_KEYS[i] in on_keys)
+                changed |= did; states[SITE_KEYS[i]] = st; report.append(f"{SITE_KEYS[i]} {st} (in place)")
+        return changed, states
+    text = base
+    for i, (n, original, patched, begin, what) in enumerate(SITES):
+        if n != name:
+            continue
+        key = SITE_KEYS[i]
+        if key not in on_keys:
+            states[key] = "off"; report.append(f"{key} off"); continue
+        for k, (orig, pat, beg) in enumerate([(original, patched, begin)] + VARIANTS.get(key, [])):
+            new, how = put_site(text, orig, pat)
+            if new is not None:
+                text = new; states[key] = "on"
+                report.append(f"{key} on ({how}{', form ' + str(k + 1) if k else ''})")
+                break
+        else:
+            states[key] = "unknown"; report.append(f"{key} not found")
+    if text != cur:
+        write(path, text)
+    return text != cur, states
+
+
 def site(root, name, original, patched, begin, on):
     """-> (changed, state) with state "on", "off" or "unknown" (the file isn't what this expects)."""
     path = os.path.join(root, "runtime", name)
@@ -336,9 +515,39 @@ def main():
         return 1
     on = wanted(root)
     changed = False
-    for i, (name, original, patched, begin, what) in enumerate(SITES):
-        did, state = site(root, name, original, patched, begin, on)
+    if len(sys.argv) > 3 and sys.argv[2] == "--off":     # repatch.py: a build failed on these places
+        off = off_list(root)
+        for key in sys.argv[3].split(","):
+            name = SITES[SITE_KEYS.index(key)][0] if key in SITE_KEYS else "wrap.txt"
+            pp = os.path.join(root, "runtime" if key in SITE_KEYS else "", name)
+            base = pristine_of(root, name) if key in SITE_KEYS and os.path.isfile(pp) else (read(pp) if os.path.isfile(pp) else "")
+            off[key] = fingerprint(base or "") + mods_print(root)
+        write_off_list(root, off)
+    off = off_list(root)
+    fresh = {}
+    for key, fp in off.items():                          # a place stays out only while the game's file is the one the build failed with
+        name = SITES[SITE_KEYS.index(key)][0] if key in SITE_KEYS else "wrap.txt"
+        pp = os.path.join(root, "runtime", name) if key in SITE_KEYS else os.path.join(root, name)
+        now = (pristine_of(root, name) if key in SITE_KEYS else read(pp)) if os.path.isfile(pp) else None
+        if now is not None and fingerprint(now) + mods_print(root) == fp:
+            fresh[key] = fp
+        else:
+            print(f"   The game or the mods changed since the build failed with \"{key}\": trying it again.")
+    if fresh != off:
+        write_off_list(root, fresh)
+    off = fresh
+    on_keys = {k for k in SITE_KEYS if on and k not in off}
+    report, states = [], {}
+    for name in dict.fromkeys(n for n, *_ in SITES):     # (input.c first: the places below call into its files)
+        did, st = patch_file(root, name, on_keys, report)
         changed |= did
+        states.update(st)
+        if states.get("input") != "on":
+            on_keys -= NEEDS_INPUT
+    for i, (name, original, patched, begin, what) in enumerate(SITES):
+        state = states.get(SITE_KEYS[i], "unknown")
+        if state == "off" and on and SITE_KEYS[i] in off:
+            print(f"   [off] {what}: the game didn't build with it (mods\\system\\bin\\build.log); it is tried again after the next update.")
         files = FILES if i == 0 else MENU_FILES if name == "frontend_sdl.c" else []
         for f in files:          # the mods' own files go with their call in the game: without it they would be dead weight
             dst = os.path.join(root, "runtime", f)
@@ -361,14 +570,21 @@ def main():
         if os.path.isfile(dst):
             os.remove(dst)
             changed = True
-    lp_changed, lp_wrap, nfn, nsite = livepatch_files(root, on)
+    wrap_on = on and states.get("input") == "on" and "wrap" not in off      # live code mods need the mods' own files (input)
+    lp_changed, lp_wrap, nfn, nsite = livepatch_files(root, wrap_on)
     changed |= lp_changed
-    if wrap_site(root, on, lp_wrap):
+    if wrap_site(root, wrap_on, lp_wrap):
         changed = True
-    if on and nfn:
+    report.append("wrap " + ("on" if wrap_on else "off"))
+    rp = os.path.join(root, "mods", "system", "bin", "repatch.txt")
+    os.makedirs(os.path.dirname(rp), exist_ok=True)
+    write(rp, "# how each place of the mods was found in the game's code (apply_runtime_mod.py)\n" + "\n".join(report) + "\n")
+    if wrap_on and nfn:
         print(f"   [on] Code mods switch while the game runs: {nsite} instruction sites in {nfn} functions")
-    if on:
+    if wrap_on:
         print("   [on] Lower-level characters get more experience (when switched on in the Cheats window)")
+    elif on and "wrap" in off:
+        print("   [off] Code mods that switch while the game runs: the game didn't build with them; tried again after the next update.")
     if not on:
         print("   The mods' part of the game: off (sync_cheats = no).")
     if changed:
