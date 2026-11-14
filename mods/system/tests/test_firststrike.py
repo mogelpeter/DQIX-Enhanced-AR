@@ -40,7 +40,7 @@ def run(tag, cheat):
             time.sleep(0.05)
         if box is None:
             p.kill(); return None
-        while struct.unpack_from("<I", box, 28)[0] < 3000 and p.poll() is None:     # in the dungeon, before the first battle
+        while struct.unpack_from("<I", box, 28)[0] < 1200 and p.poll() is None:     # save loaded, before the first battle (USA: about frame 2950)
             time.sleep(0.01)
         a, b = 0x02F5A5AC, 1                                                       # SET: the cheat "Always strike first" is on
         msg = [2 << 12 | 5, 12, a & 0xFFFF, a >> 16, b & 0xFFFF, b >> 16]

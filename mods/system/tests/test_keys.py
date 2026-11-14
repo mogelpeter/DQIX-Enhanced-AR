@@ -29,7 +29,7 @@ entry = None
 for line in open(os.path.join(root, "mods", "system", "bin", "catalog.txt"), encoding="utf-8"):
     if line.startswith("entry\t"):
         d = dict(x.split("=", 1) for x in line.rstrip("\n").split("\t")[1:] if "=" in x)
-        if d["id"] == cid:
+        if d["id"] in cid.split("|") or (d.get("option") or d.get("name")) in cid.split("|"):     # an id, or (other ROM) the name
             entry = d
 if not entry or not entry.get("ops"):
     print("RESULT: FAIL (no live cheat %s in the catalog)" % cid); sys.exit(1)

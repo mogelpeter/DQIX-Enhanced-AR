@@ -705,6 +705,13 @@ LABELS = {
     "Kracking w/o Ingredients": "Kracking without Ingredients",
     "Disabling Movement of P2": "Disable Movement of P2",
     "Night Time, push Start and Down": "Nighttime, push Start and Down",
+    # the USA list's names
+    "Item Amount Modifier": "99 of the bag item under the cursor",
+    "Walkthrough A Door/Stairs to Go Observatory/Stornway": "Walk Through a Door/Stairs to Go to the Observatory/Stornway",
+    "Fight Three of The Same Monster": "Fight Three of the Same Monster",
+    "View Character Animation Before A Battle": "View Character Animation Before a Battle",
+    "Day": "Daytime, push Start and Up",
+    "Night": "Nighttime, push Start and Down",
 }
 # the grey line's notes from the R4 list, in plain words (part of a note -> the new words)
 NOTES = {
@@ -729,6 +736,15 @@ NOTES = {
     "Need to reactivate after leveling up, or equipment change.": "Switch it on again after a level-up or a change of equipment.",
     "location=spot after screen blacks out (in/out door, exit Battle Records)": "The spot is where you are when the screen blacks out (through a door, leaving the battle records).",
     "It might not contain all consumable items": "It might not have every consumable item.",
+    # the USA list's notes
+    "Needs to be reactivated after leveling up or chaning equipment.": "Switch it on again after a level-up or a change of equipment.",
+    "This will take affect everywhere.": "It works everywhere.",
+    "(Press A+L to increase the head size, A+R to decrease the head size)": "(Press A+L to make the hero bigger, A+R to make them smaller)",
+    "(Press Start+R while highlighting an item in the bag): Use this only for items in the bag, this will not work while in the Stornway Inn.":
+        "Move the cursor to an item in the bag and press START+R: you get 99 of it. Only for items in the bag; not in the Stornway inn.",
+    "This might not contain all consumable items.": "It might not have every consumable item.",
+    "This makes all monsters item drop counts to 127.": "Sets every monster's item drop count to 127.",
+    "WARNING: This may break the main story of the game, use this at your own risk.": "It may break the main story: use it at your own risk.",
 }
 
 # codes another entry does the same as, better: the [L/R] toggle wrote the roll itself (R: never, L: always, the opposite
@@ -736,7 +752,11 @@ NOTES = {
 # "Debug Code" changes two constants of a boot function (main 02000ec8/02000ef0) to an effect nobody describes: left out.
 HIDE = {("Alchemy", "Always Success (R)"), ("Alchemy", "Always Success (L)"), ("Alchemy", "Always Alchemiracle"),
         ("Alchemy", "Always Success v1 (R)"), ("Alchemy", "Always Success v1 (L)"),          # (the USA list's names)
-        ("Speed & comfort", "Debug Code")}
+        ("Speed & comfort", "Debug Code"), ("Speed & comfort", "Debug Mode"),          # (EU / USA name)
+        ("Miscellaneous", "Widescreen"),                     # USA list: not needed on a PC (the game has its own wide view)
+        # USA list: its call goes to the game's random number generator (main 02003d14) where ov024 checks the chance
+        # (021dfbcc), and it ORs bits into that loop's counter: not "100%", and not safe
+        ("Battle", "100% Steal Rate")}
 
 
 def read_about(root):
@@ -831,7 +851,7 @@ def build(root):
                 cut = re.split(r", | - |\. |: ", shown, maxsplit=1)[0]
                 if 10 <= len(cut) < len(shown):
                     note, shown = note if len(note) >= len(c["name"]) else clean(c["name"] + ". " + note).rstrip(". ") , cut
-            base = dict(id=db_id(folder["name"], c["name"], c["ops"]), name=prefix + shown,
+            base = dict(id=db_id(folder["name"], c["name"], c["ops"]), name=prefix + shown, prefix=prefix,
                         note=note, cat=page, group="",
                         status="untested", mode="both" if len(r["keys"]) <= 1 else "always", ops=[],
                         keys=r["keys"], reason="", file="", on=False, patch=[], env="", option=shown)
@@ -955,11 +975,26 @@ def build(root):
         for old, new in NOTES.items():
             if old in e["note"]:
                 e["note"] = clean(e["note"].replace(old, new))
+        m = re.match(r"\((?:Press and hold|Press|Hold) ([A-Za-z]+(?:\s*\+\s*[A-Za-z]+)*)\)\s*:?\s*", e["note"])
+        if m and e.get("keys") and all(w.strip().upper() in KEY_NAMES for w in m.group(1).split("+")):
+            e["note"] = e["note"][m.end():]
+            if e["note"]:
+                e["note"] = e["note"][0].upper() + e["note"][1:]
     for g in groups:
         g["was"] = g["title"]
         g["title"] = re.sub(r"\s+Codes?$", "", g["title"])
         g["title"] = LABELS.get(g["title"], g["title"])
     entries = [e for e in entries if not (e["id"].startswith("db:") and (e["cat"], e["name"]) in HIDE)]
+    # two cheats of a page that would show the same name ("Enemy 1" for HP 1 and for MP 0): the folder's prefix tells them apart
+    seen = {}
+    for e in entries:
+        if not e["group"] and e["kind"] != "blocked":
+            seen.setdefault((e["cat"], e.get("option") or e["name"]), []).append(e)
+    for same in seen.values():
+        if len(same) > 1:
+            for e in same:
+                if e.get("prefix") and not (e.get("option") or "").startswith(e["prefix"]):
+                    e["option"] = e["prefix"] + (e.get("option") or e["name"])
 
     for old in [g for g in groups if not any(e["group"] == g["id"] for e in entries)]:
         groups.remove(old)
@@ -984,6 +1019,12 @@ def build(root):
         entries.append(dict(id=lid, name=name, note=note, cat=cat, group="", kind="launch",
                             status="tested",
                             mode="", ops=[], keys=[], reason="", file="", on=False, patch=[], env=env, option=name, also=also))
+    # ---- what a cheat does, the same for both ROMs: a code mod's instructions (kept with USA addresses for either ROM),
+    # else its data writes (the RAM addresses are the same in the USA and the European game). verified.txt can name it
+    # ("sig:..."), so a cheat confirmed on one ROM counts on the other when its code is the same.
+    for e in entries:
+        what = [(n, rom.from_rom(a) if n == "main" else a, w) for n, a, w in e["patch"]] if e.get("patch") else e.get("ops")   # (USA addresses)
+        e["sig"] = "sig:%08x" % (zlib.crc32(repr([tuple(x) for x in what]).encode()) & 0xFFFFFFFF) if what else ""
     # ---- code mods that run live: the build wraps every function they touch (mods/system/bin/livepatch.txt, written by
     # apply_runtime_mod.py), so the game applies their instructions while it runs and switching needs no rebuild.
     sites = read_livepatch(root)
@@ -1016,7 +1057,7 @@ def build(root):
     except OSError:
         ok = set()
     for e in entries:
-        if e["status"] == "untested" and e["id"] in ok:
+        if e["status"] == "untested" and (e["id"] in ok or (e.get("sig") and e["sig"] in ok)):
             e["status"] = "tested"
     return info, entries, groups
 

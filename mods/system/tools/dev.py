@@ -271,8 +271,8 @@ def runners(root, work):
         "livepatch":      (fn("test_livepatch.py", ["4500"]), True, 400),         # live code mods; needs TEST_SAVE = a save with the hero in a dungeon
         "firststrike":    (fn("test_firststrike.py", []), True, 200),             # "Always strike first" (firststrike.c); needs TEST_SAVE as above
         # cheats with buttons, the buttons really pressed (test_keys.py); TEST_SAVE as above
-        "keys":           (fn("test_keys.py", ["db:6fec10fd", "A+L,A+R", "20"]), True, 120),
-        "keys-bag":       (fn("test_keys.py", ["db:26b3f9a9", "START+R", "10"],
+        "keys":           (fn("test_keys.py", ["db:6fec10fd|Increase/Decrease Size", "A+L,A+R", "20"]), True, 120),
+        "keys-bag":       (fn("test_keys.py", ["db:26b3f9a9|99 of the bag item under the cursor", "START+R", "10"],
                               {"TEST_PRE": "3700:X:6;3780:A:6;3860:A:6;3940:DOWN:6;3990:DOWN:6;4040:DOWN:6;4100:A:6", "TEST_AT": "4200"}), True, 120),
         "zoom-grotto":    (fn("test_zoom_grotto.py", []), True, 150),
         "editor":         (inproc(t_editor, "editor"), False, 10),

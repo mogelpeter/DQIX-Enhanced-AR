@@ -1,3 +1,4 @@
 # name: Mini medals always 999
 # mode: always
+# replaces: Max/Infinite Mini Medals
 020F6D50 000003E7
