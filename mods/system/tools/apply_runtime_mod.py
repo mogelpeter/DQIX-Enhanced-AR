@@ -83,6 +83,10 @@ MENU_PATCHED = MENU_BEGIN + """\
     item(cheats, 363, L"&Treasure maps...");
     sep(cheats);
     item(cheats, 361, L"&What is this?");
+    {   /* plugins: the DLLs in mods/plugins, each with its own items (400-503: mod_plugins.c) */
+        void mod_plugins_menu(void* m);
+        mod_plugins_menu(sub(g_bar, L"&Plugins"));
+    }
 """ + MENU_ORIGINAL + END
 
 ACT_BEGIN = "    /* >>> mods: what the Cheats tab does (mods/tools/apply_runtime_mod.py; an update removes this, Play with mods.bat puts it back) */\n"
@@ -106,6 +110,7 @@ ACT_PATCHED = ACT_BEGIN + r"""
         mod_cheatwin_show();
         break;
     }
+    case 400 ... 503: { void mod_plugins_command(int); mod_plugins_command(id); break; }   /* the Plugins tab (mod_plugins.c) */
 """ + ACT_ORIGINAL + END
 ACT_PATCHED = ACT_PATCHED.replace(ACT_BEGIN + "\n", ACT_BEGIN, 1)
 
@@ -126,7 +131,8 @@ SITES = [
     ("frontend_sdl.c", ACT_ORIGINAL, ACT_PATCHED, ACT_BEGIN, "Cheats tab: what it does"),
     ("update.c", UPD_ORIGINAL, UPD_PATCHED, UPD_BEGIN, "Cheats stay after an update of the game"),
 ]
-FILES = ["mod_cheats.c", "ar_engine.h", "mod_data.c", "livepatch.c", "mod_cheatwin.c"]       # belong to the first site
+FILES = ["mod_cheats.c", "ar_engine.h", "mod_data.c", "livepatch.c", "mod_cheatwin.c", "mod_plugins.c", "dqix_plugin.h"]   # belong to the first site
+SRC_DIR = {"dqix_plugin.h": ("mods", "plugins", "sdk")}      # files kept elsewhere than mods/system/src/runtime
 MENU_FILES = ["mod_menu.c"]                                  # belong to the "what it does" site (frontend_sdl.c)
 
 
@@ -181,7 +187,7 @@ def wrap_site(root, on, extra=""):
     for f in WRAP_FILES:
         dst = os.path.join(root, "runtime", f)
         if on:
-            src = read(os.path.join(root, "mods", "system", "src", "runtime", f))
+            src = read(os.path.join(root, *SRC_DIR.get(f, ("mods", "system", "src", "runtime")), f))
             if not os.path.isfile(dst) or read(dst) != src:
                 write(dst, src)
                 changed = True
@@ -314,7 +320,7 @@ def main():
         for f in files:          # the mods' own files go with their call in the game: without it they would be dead weight
             dst = os.path.join(root, "runtime", f)
             if state == "on":
-                src = read(os.path.join(root, "mods", "system", "src", "runtime", f))
+                src = read(os.path.join(root, *SRC_DIR.get(f, ("mods", "system", "src", "runtime")), f))
                 if not os.path.isfile(dst) or read(dst) != src:
                     write(dst, src)
                     changed = True

@@ -254,7 +254,11 @@ uint32_t mod_cheats_in(uint32_t v) {
         mc_word((uint16_t)(v >> 14));
         v &= 0x1FFF;
     }
-    g_mod_lowexp = 0;                                    /* the codes below set it again while they are on */
+    if (v != 0xFFFFFFFFu) {                              /* plugins (mod_plugins.c) see and may change the buttons; never in a session */
+        uint32_t mod_plugins_frame(uint32_t);
+        v = (v & ~0xFFFu) | (mod_plugins_frame(v & 0xFFFu) & 0xFFFu);
+    }
+    g_mod_lowexp = 0;                                   /* the codes below set it again while they are on */
     g_mod_noflee = 0;
     g_mod_first = 0;
     lp_clear();                                          /* the live code mods below set their sites again while they are on */

@@ -265,6 +265,7 @@ def runners(root, work):
         "all-single":     (fn("test_all.py", ["single"]), True, 150),
         "all-session":    (fn("test_all.py", ["session", "", "{port}"]), True, 160),
         "cheatwin":       (fn("test_cheatwin.py", ["900"]), True, 60),             # the Cheats window inside the game (mod_cheatwin.c)
+        "plugins":        (fn("test_plugins.py", ["700"]), True, 40),              # the Plugins tab: DLLs loaded, on_frame runs (mod_plugins.c)
         "livepatch":      (fn("test_livepatch.py", ["4500"]), True, 400),         # live code mods; needs TEST_SAVE = a save with the hero in a dungeon
         "firststrike":    (fn("test_firststrike.py", []), True, 200),             # "Always strike first" (firststrike.c); needs TEST_SAVE as above
         # cheats with buttons, the buttons really pressed (test_keys.py); TEST_SAVE as above
@@ -278,7 +279,7 @@ def runners(root, work):
 
 TIERS = {
     "fast": ["static", "live-fast", "session-fast", "all-quick", "editor"],
-    "full": ["static", "live", "session", "all-single", "all-session", "cheatwin", "editor"],
+    "full": ["static", "live", "session", "all-single", "all-session", "cheatwin", "plugins", "editor"],
 }
 
 

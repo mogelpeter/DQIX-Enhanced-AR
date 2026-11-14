@@ -9,3 +9,6 @@ mods/system/AR-codes-*.txt
 mods/system/lang/rom-*.tsv
 mods/system/editor-lang.txt
 .claude/settings.local.json
+mods/plugins/*.dll
+mods/plugins/plugins.log
+mods/plugins/*.ini
