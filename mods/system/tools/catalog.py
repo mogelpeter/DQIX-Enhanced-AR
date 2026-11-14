@@ -657,6 +657,50 @@ def read_livepatch(root):
     return out
 
 
+# ---- curated by hand (see NOTES.md 2026-11-14): (page, name in the R4 list) -> what the window shows
+RENAME_GROUPS = {
+    ("Alchemy", "Always"): "Alchemiracle (great success in the Krak Pot)",
+}
+RENAME_OPTIONS = {
+    ("Alchemy", "Always Success v2"): "Every time",      # sets the Alchemiracle chance to 100% (ov006 0215e720)
+    ("Alchemy", "Always Fail"): "Never",                 # ... to 0%
+}
+# the R4 list has two "Unlock All Extra Quests V1" and two "V2": the second pair writes 8s instead of 9s and its note says
+# "do not go on Nintendo Wifi", i.e. it also opens the quests that came over Wi-Fi. By id, the names being the same.
+RENAME_IDS = {
+    "db:0a4a78a6": "Unlock All Extra Quests V1",
+    "db:d1dfd609": "Unlock All Extra Quests V2",
+    "db:3c7d9957": "Unlock All Extra Quests V1, with the Wi-Fi quests",
+    "db:e7e837f8": "Unlock All Extra Quests V2, with the Wi-Fi quests",
+}
+# codes another entry does the same as, better: the [L/R] toggle wrote the roll itself (R: never, L: always, the opposite
+# of its name), and "Always Alchemiracle" sets the result flag afterwards; "Every time" / "Never" set the chance.
+# "Debug Code" changes two constants of a boot function (main 02000ec8/02000ef0) to an effect nobody describes: left out.
+HIDE = {("Alchemy", "Always Success (R)"), ("Alchemy", "Always Success (L)"), ("Alchemy", "Always Alchemiracle"),
+        ("Speed & comfort", "Debug Code")}
+
+
+def read_about(root):
+    """mods/system/about.tsv: name (lower case) -> the hover text"""
+    out = {}
+    try:
+        for line in open(os.path.join(root, "mods", "system", "about.tsv"), encoding="utf-8-sig"):
+            if line.startswith("#") or "\t" not in line:
+                continue
+            k, t = line.rstrip("\r\n").split("\t", 1)
+            out[k.strip().lower()] = clean(t)
+    except OSError:
+        pass
+    return out
+
+
+def repeats(text, note):
+    """the text adds (almost) nothing to the note: most of its words are already there"""
+    words = lambda x: set(re.findall(r"[a-z0-9']+", x.lower()))
+    t, n = words(text), words(note)
+    return not t or (len(t) <= len(n) + 3 and len(t & n) >= 0.8 * len(t))
+
+
 def build(root):
     """-> (info, entries, groups). An entry is a dict; see write() for what the window gets."""
     rom = Rom(root)
@@ -674,7 +718,7 @@ def build(root):
         keys, _ = scan(ops)
         e = dict(id="file:cheats/" + base, name=name, note=about, cat=cat, group="", kind="live", status=file_header(f, "status") or "tested",
                  mode=mode, ops=ops, keys=keys, reason="", file="", on=False, patch=[], env="",
-                 also=file_header(f, "also"), replaces=file_header(f, "replaces"), help=file_header(f, "help"))
+                 also=file_header(f, "also"), replaces=file_header(f, "replaces"))
         if len(ops) > 1023:
             e.update(kind="blocked", status="blocked", reason=REASONS["long"])
         files.append(e)
@@ -685,7 +729,7 @@ def build(root):
         e = dict(id="file:code/" + base, name=name, note=file_header(f, "about"), cat=file_header(f, "category"),
                  group="", kind="code", status=file_header(f, "status") or "tested", mode="", ops=[], keys=[], reason="",
                  file="system/cheats/" + base, on=on, patch=[], env="",
-                 also=file_header(f, "also"), replaces=file_header(f, "replaces"), help=file_header(f, "help"))
+                 also=file_header(f, "also"), replaces=file_header(f, "replaces"))
         fit = None if errors else fit_code_file(rom, checks, patches)
         if errors:
             e.update(kind="blocked", status="blocked", reason="The file has a mistake: " + "; ".join(errors))
@@ -768,7 +812,7 @@ def build(root):
             if twin is not None and twin["id"] not in used:
                 used.add(twin["id"])
                 e.update(id=twin["id"], name=twin["name"], note=twin["note"] or e["note"], status="tested",
-                         mode=twin["mode"], file=twin["file"], on=twin["on"], also=twin.get("also", ""), help=twin.get("help", ""))
+                         mode=twin["mode"], file=twin["file"], on=twin["on"], also=twin.get("also", ""))
         choice = [e for e in made if e["kind"] in ("live", "code")]
         if folder["one"] and len(choice) > 1 and len({e["kind"] for e in choice}) == 1:
             gid = "group:" + f"{zlib.crc32(folder['name'].encode('utf-8')) & 0xFFFFFFFF:08x}"
@@ -833,6 +877,17 @@ def build(root):
             if not e["group"]:
                 e["option"] = e["name"]
             e["group"], e["cat"] = gid, g["cat"]
+    # ---- curated: clearer names for some database choices, and codes another entry does better
+    for e in entries:
+        for (page, old), new in RENAME_OPTIONS.items():
+            if e["id"].startswith("db:") and e["cat"] == page and e.get("option", e["name"]) == old:
+                e["name"] = e["option"] = new
+        if e["id"] in RENAME_IDS:
+            e["name"] = e["option"] = RENAME_IDS[e["id"]]
+    for g in groups:
+        g["title"] = RENAME_GROUPS.get((g["cat"], g["title"]), g["title"])
+    entries = [e for e in entries if not (e["id"].startswith("db:") and (e["cat"], e["name"]) in HIDE)]
+
     for old in [g for g in groups if not any(e["group"] == g["id"] for e in entries)]:
         groups.remove(old)
 
@@ -847,13 +902,14 @@ def build(root):
         gid = "group:battle-any-monster"
         groups.append(dict(id=gid, cat="Battle", title="Battle any monster you want", note="", kind="launch"))
         for num, mname in mons:
-            entries.append(dict(id=f"launch:monster:{num}", name=mname, note="", cat="Battle", group=gid, kind="launch", status="untested",
+            # tested: tests/test_force_data.c (all 288 hand out exactly that monster) and the 288-run crash check (NOTES 2026-11-13)
+            entries.append(dict(id=f"launch:monster:{num}", name=mname, note="", cat="Battle", group=gid, kind="launch", status="tested",
                                 mode="", ops=[], keys=[], reason="", file="", on=False, patch=[], env=f"DQIX_MOD_FORCE={num}", option=mname, also="Custom"))
 
     # ---- how the game is started
     for lid, name, env, note, cat, also in LAUNCH:
         entries.append(dict(id=lid, name=name, note=note, cat=cat, group="", kind="launch",
-                            status="untested" if env.startswith("DQIX_MOD_") and not env.startswith("DQIX_MOD_METAL") else "tested",
+                            status="tested",
                             mode="", ops=[], keys=[], reason="", file="", on=False, patch=[], env=env, option=name, also=also))
     # ---- code mods that run live: the build wraps every function they touch (mods/system/bin/livepatch.txt, written by
     # apply_runtime_mod.py), so the game applies their instructions while it runs and switching needs no rebuild.
@@ -869,6 +925,15 @@ def build(root):
         for g in groups:
             if grp_ok.get(g["id"]):
                 g["kind"] = "live"
+
+    # ---- the hover box: mods/system/about.tsv, by the name the window shows (a choice by its title). A text that only
+    # repeats the grey line's note says nothing new and is left out.
+    about = read_about(root)
+    for e in entries:
+        t = about.get(e["name"].lower()) or about.get(e.get("option", "").lower(), "")
+        e["about"] = "" if repeats(t, e["note"]) else t
+    for g in groups:
+        g["about"] = about.get(g["title"].lower(), "")
 
     # ---- cheats whose effect an automated test confirmed (mods/system/verified.txt) count as tried out
     try:
@@ -908,13 +973,13 @@ def write(root, info, entries, groups):
     pages.sort(key=lambda p: (PAGE_ORDER.index(p) if p in PAGE_ORDER else len(PAGE_ORDER) - 1.5, p))
     lines = [kv("info", **info)]
     lines += [kv("page", title=p) for p in pages]
-    lines += [kv("group", id=g["id"], cat=g["cat"], title=g["title"], note=g["note"], kind=g["kind"]) for g in groups]
+    lines += [kv("group", id=g["id"], cat=g["cat"], title=g["title"], note=g["note"], kind=g["kind"], about=g.get("about", "")) for g in groups]
     for e in entries:
         lines.append(kv(
             "entry", id=e["id"], cat=e["cat"], group=e["group"], kind=e["kind"], status=e["status"], name=e["name"],
             option=e.get("option", ""), note=e["note"], reason=e["reason"], mode=e["mode"],
             keys=" / ".join(k for k in (key_text(k) for k in e["keys"]) if k), combos=str(len(e["keys"])) if e["keys"] else "",
-            file=e["file"], on="1" if e["on"] else "", env=e["env"], also=e.get("also", ""), help=e.get("help", ""),
+            file=e["file"], on="1" if e["on"] else "", env=e["env"], also=e.get("also", ""), about=e.get("about", ""),
             ops=",".join(f"{a:08X}:{b:08X}" for a, b in e["ops"]),
             patch=",".join(f"{n}:{a:08x}:{w:08x}" for n, a, w in e["patch"])))
     out = os.path.join(root, "mods", "system", "bin", "catalog.txt")

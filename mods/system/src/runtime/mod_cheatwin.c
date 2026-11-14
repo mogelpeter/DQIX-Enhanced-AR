@@ -26,8 +26,8 @@ int mod_cheats_post(const uint16_t* w, int n);       /* mod_cheats.c: words into
 uint32_t mod_cheats_gen(void);                       /* goes up whenever the game forgot every cheat */
 
 typedef struct { char *id, *cat, *group, *kind, *status, *name, *option, *note, *mode, *keys, *env, *also, *file; int on, nops; uint32_t* ops;
-                 int gi; char* hay; } Ent;                        /* gi: index into g_g or -1; hay: the search text, lower case */
-typedef struct { char *id, *cat, *title, *kind; char* lt; int* mem; int nmem; } Grp;   /* lt: title lower case; mem: its entries */
+                 int gi; char* hay; char* about; } Ent;                        /* gi: index into g_g or -1; hay: the search text, lower case */
+typedef struct { char *id, *cat, *title, *kind, *about; char* lt; int* mem; int nmem; } Grp;   /* lt: title lower case; mem: its entries */
 
 static Ent* g_e; static int g_ne;
 static Grp* g_g; static int g_ng;
@@ -89,13 +89,14 @@ static void load_catalog(void) {
             if (g_ng == cap_g) { cap_g = cap_g ? cap_g * 2 : 32; g_g = (Grp*)realloc(g_g, (size_t)cap_g * sizeof *g_g); }
             Grp* g = &g_g[g_ng++];
             g->id = kv(tok + 1, nt - 1, "id"); g->cat = kv(tok + 1, nt - 1, "cat"); g->title = kv(tok + 1, nt - 1, "title"); g->kind = kv(tok + 1, nt - 1, "kind");
+            g->about = kv(tok + 1, nt - 1, "about");
         } else if (nt >= 1 && !strcmp(tok[0], "entry")) {
             if (g_ne == cap_e) { cap_e = cap_e ? cap_e * 2 : 256; g_e = (Ent*)realloc(g_e, (size_t)cap_e * sizeof *g_e); }
             Ent* e = &g_e[g_ne++]; memset(e, 0, sizeof *e);
             char** t = tok + 1; int n = nt - 1;
             e->id = kv(t, n, "id"); e->cat = kv(t, n, "cat"); e->group = kv(t, n, "group"); e->kind = kv(t, n, "kind"); e->status = kv(t, n, "status");
             e->name = kv(t, n, "name"); e->option = kv(t, n, "option"); e->note = kv(t, n, "note"); e->mode = kv(t, n, "mode"); e->keys = kv(t, n, "keys");
-            e->env = kv(t, n, "env"); e->also = kv(t, n, "also"); e->file = kv(t, n, "file");
+            e->env = kv(t, n, "env"); e->also = kv(t, n, "also"); e->file = kv(t, n, "file"); e->about = kv(t, n, "about");
             char* on = kv(t, n, "on"); e->on = on[0] == '1'; free(on);
             char* ops = kv(t, n, "ops");
             if (ops[0]) {
@@ -358,17 +359,73 @@ static void tag_text(const Ent* e, char* out, size_t n) {
              !strcmp(e->mode, "once") ? "  \xC2\xB7  once" : "", e->note[0] ? "  \xC2\xB7  " : "", e->note);
 }
 
-/* the hover text: all of it */
-static void hover_text(const Ent* e, wchar_t* out, size_t n) {
-    const char* who;
-    if (!strcmp(e->kind, "live")) who = "Works with friends: only ONE player needs it enabled. It is sent to every PC in the session.";
-    else if (!strcmp(e->kind, "launch")) who = !strncmp(e->env, "DQIX_MOD_", 9) ? "ALL players need it enabled (it changes the game's rules, same on every PC). Takes effect the next time the game starts."
-                                                                                  : "Only your own PC. Takes effect the next time the game starts.";
-    else who = "ALL players need it enabled (built into the game). Needs a rebuild: run mods\\Apply cheats.bat.";
-    char b[2000];
-    snprintf(b, sizeof b, "%s\r\n\r\n%s%s%s%s%s%s", e->name, e->note, e->note[0] ? "\r\n\r\n" : "", who,
-             e->keys[0] ? "\r\nHold: " : "", e->keys, !strcmp(e->status, "untested") ? "\r\nUntested: save your game first." : "");
-    wchar_t* w = wide(b); if (w) { wcsncpy(out, w, n - 1); out[n - 1] = 0; free(w); }
+/* the hover text: the cheat's longer explanation (mods/system/about.tsv, through the catalog), nothing the row already shows
+ * (name, who needs it, keys, labels and the note are in the row). No explanation: no hover box. */
+static void hover_text(const char* about, wchar_t* out, size_t n) {
+    out[0] = 0;
+    if (!about || !about[0]) return;
+    wchar_t* w = wide(about); if (w) { wcsncpy(out, w, n - 1); out[n - 1] = 0; free(w); }
+}
+
+/* ---- the grey line, drawn by hand: word-wrapped like DrawText, with the DS buttons in it (hold L+R, START+UP, [R],
+ * L + R + SELECT...) in their own colour. rich_text(..., draw=0) only measures (the row height). */
+#define COL_KEY RGB(122, 178, 255)
+static int key_part(const wchar_t* p, int n, int loose) {     /* one button name; loose: also "Start", "Up"... */
+    static const wchar_t* up[] = { L"A", L"B", L"X", L"Y", L"L", L"R", L"START", L"SELECT", L"UP", L"DOWN", L"LEFT", L"RIGHT" };
+    static const wchar_t* cap[] = { L"Start", L"Select", L"Up", L"Down", L"Left", L"Right" };
+    for (int i = 0; i < 12; i++) if ((int)wcslen(up[i]) == n && !wcsncmp(p, up[i], (size_t)n)) return 1;
+    if (loose) for (int i = 0; i < 6; i++) if ((int)wcslen(cap[i]) == n && !wcsncmp(p, cap[i], (size_t)n)) return 1;
+    return 0;
+}
+/* 2 = a combo (L+A, START+UP: always a key), 1 = a single button name, 0 = not one */
+static int key_word(const wchar_t* w, int n) {
+    int plus = 0, s = 0;
+    for (int i = 0; i <= n; i++) {
+        if (i == n || w[i] == L'+' || w[i] == L'/') {
+            if (i == s || !key_part(w + s, i - s, 1)) return 0;
+            if (i < n) plus = 1;
+            s = i + 1;
+        }
+    }
+    return plus ? 2 : 1;
+}
+static int rich_text(HDC dc, const wchar_t* t, RECT rc, int draw) {
+    TEXTMETRICW tm; GetTextMetricsW(dc, &tm); int lh = tm.tmHeight, sp;
+    SIZE z; GetTextExtentPoint32W(dc, L" ", 1, &z); sp = z.cx;
+    int x = 0, y = 0, W = rc.right - rc.left, prevkey = 0, prevctx = 0;
+    const wchar_t* p = t;
+    if (draw) SetBkMode(dc, TRANSPARENT);
+    while (*p) {
+        int gap = 0; while (*p == L' ') { p++; gap++; }
+        if (!*p) break;
+        if (gap > 1 && x > 0) x += sp * (gap - 1);                    /* the separators keep their room */
+        const wchar_t* q = p; while (*q && *q != L' ') q++;
+        int n = (int)(q - p);
+        /* the word without brackets and punctuation around it */
+        const wchar_t* a = p; const wchar_t* b = q;
+        while (a < b && (*a == L'(' || *a == L'[' || *a == L'"')) a++;
+        while (b > a && wcschr(L").,:;!?]\"", b[-1])) b--;
+        int k = key_word(a, (int)(b - a)), key = 0;
+        if (k == 2) key = 1;                                         /* L+A, START+UP */
+        else if (k == 1 && (b - a > 1) && iswupper(a[1])) key = 1;     /* START, SELECT, UP... in capitals */
+        else if (k == 1 && (prevctx || prevkey || a > p)) key = 1;     /* "press A", "[R]", "L + R" */
+        else if ((b - a) == 1 && *a == L'+' && prevkey) key = 1;       /* the "+" of "L + R" */
+        GetTextExtentPoint32W(dc, p, n, &z);
+        if (x > 0 && x + z.cx > W) { x = 0; y += lh; }
+        if (draw) {
+            SetTextColor(dc, key ? COL_KEY : COL_GRAY);
+            TextOutW(dc, rc.left + x, rc.top + y, p, n);
+        }
+        x += z.cx + sp;
+        /* "press" / "hold" / "push" make the next single letter a button */
+        wchar_t lw[12] = { 0 }; int ln = (int)(b - a) < 11 ? (int)(b - a) : 0;
+        for (int i = 0; i < ln; i++) lw[i] = (wchar_t)towlower(a[i]);
+        prevctx = (ln && (!wcscmp(lw, L"press") || !wcscmp(lw, L"hold") || !wcscmp(lw, L"push") || !wcscmp(lw, L"pressing") || !wcscmp(lw, L"holding")))
+                  || (prevkey && (!wcscmp(lw, L"and") || !wcscmp(lw, L"or") || !wcscmp(lw, L"then")));
+        prevkey = key || (prevkey && prevctx);
+        p = q;
+    }
+    return y + lh;
 }
 
 static void dark(HWND h, const wchar_t* theme);
@@ -426,7 +483,7 @@ static void lay_rows(void) {
         wchar_t buf[600];
         if (r->sub) {
             GetWindowTextW(r->sub, buf, 600); HGDIOBJ o = SelectObject(dc, g_small);
-            RECT m = { 0, 0, textw - indent, 0 }; DrawTextW(dc, buf, -1, &m, DT_CALCRECT | DT_WORDBREAK | DT_NOPREFIX); subh = m.bottom; SelectObject(dc, o);
+            RECT m = { 0, 0, textw - indent, 0 }; subh = rich_text(dc, buf, m, 0); SelectObject(dc, o);
         }
         if (r->kind == R_KEY && r->right) {
             GetWindowTextW(r->right, buf, 600); HGDIOBJ o = SelectObject(dc, g_mono);
@@ -521,7 +578,7 @@ static void build_page(void) {
                         if (p == g_search_page ? (all || match_words(m)) : (special || !strcmp(m->cat, g_pg[p]) || !strcmp(m->also, g_pg[p]))) r->members[r->nm++] = g->mem[j];
                     }
                     r->main = mk(L"STATIC", g_g[gi].title, SS_NOPREFIX | SS_ENDELLIPSIS, g_bold, id);
-                    r->sub = mk(L"STATIC", "Choose one. Only one of these can be on.", SS_NOPREFIX, g_small, id); SetWindowLongPtrW(r->sub, GWLP_USERDATA, 1);
+                    r->sub = mk(L"STATIC", "Choose one. Only one of these can be on.", SS_OWNERDRAW, g_small, id); SetWindowLongPtrW(r->sub, GWLP_USERDATA, 1);
                     r->combo = mk(L"COMBOBOX", "", CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP, g_font, id); dark(r->combo, L"DarkMode_CFD");
                     SendMessageW(r->combo, CB_ADDSTRING, 0, (LPARAM)L"Off");
                     int cur = 0;
@@ -546,7 +603,7 @@ static void build_page(void) {
                 r->on = ent_on(e);
             }
             char tag[700]; tag_text(e, tag, sizeof tag);
-            r->sub = mk(L"STATIC", tag, SS_NOPREFIX, g_small, id); SetWindowLongPtrW(r->sub, GWLP_USERDATA, 1);
+            r->sub = mk(L"STATIC", tag, SS_OWNERDRAW, g_small, id); SetWindowLongPtrW(r->sub, GWLP_USERDATA, 1);
             if (both) { r->btn = mk(L"BUTTON", "Do it now", BS_PUSHBUTTON | WS_TABSTOP, g_font, id); dark(r->btn, L"DarkMode_Explorer"); }
         }
         free(seen);
@@ -639,6 +696,12 @@ static LRESULT CALLBACK hostproc(HWND h, UINT m, WPARAM wp, LPARAM lp) {
     case WM_ERASEBKGND: { RECT r; GetClientRect(h, &r); FillRect((HDC)wp, &r, g_white); return 1; }
     case WM_DRAWITEM: {
         DRAWITEMSTRUCT* d = (DRAWITEMSTRUCT*)lp; Row* r = row_of_id((int)d->CtlID);
+        if (r && r->sub == d->hwndItem) {                         /* the grey line, buttons in colour */
+            wchar_t t[600]; GetWindowTextW(d->hwndItem, t, 600);
+            FillRect(d->hDC, &d->rcItem, g_white);
+            HGDIOBJ of = SelectObject(d->hDC, g_small); rich_text(d->hDC, t, d->rcItem, 1); SelectObject(d->hDC, of);
+            return TRUE;
+        }
         if (!r || r->main != d->hwndItem) break;
         HDC dc = d->hDC; RECT rc = d->rcItem; FillRect(dc, &rc, g_white);
         int cy = (rc.top + rc.bottom) / 2, on = r->on;
@@ -666,13 +729,8 @@ static LRESULT CALLBACK hostproc(HWND h, UINT m, WPARAM wp, LPARAM lp) {
         if (di->hdr.hwndFrom == g_tip && di->hdr.code == TTN_GETDISPINFOW) {
             Row* r = (Row*)NULL; int i = (int)di->hdr.idFrom; if (i >= 0 && i < g_nrows) r = &g_rows[i];
             g_tiptext[0] = 0;
-            if (r && r->kind == R_GROUP) {
-                Ent* m0 = r->nm ? &g_e[r->members[0]] : NULL; wchar_t w[300];
-                if (m0) { hover_text(m0, g_tiptext, 2100); wchar_t* nl = wcsstr(g_tiptext, L"\r\n\r\n"); (void)nl; }
-                const Grp* g = &g_g[r->gi]; wchar_t* gt = wide(g->title); swprintf(w, 300, L"%ls\r\nChoose one: only one of the options can be on.\r\n\r\n", gt); free(gt);
-                wchar_t rest[2100]; hover_text(m0 ? m0 : &g_e[0], rest, 2100); wchar_t* who = wcsstr(rest, L"Works with"); if (!who) who = wcsstr(rest, L"ALL players"); if (!who) who = wcsstr(rest, L"Only your"); if (!who) who = rest;
-                swprintf(g_tiptext, 2100, L"%ls%ls", w, who);
-            } else if (r && r->idx >= 0) hover_text(&g_e[r->idx], g_tiptext, 2100);
+            if (r && r->kind == R_GROUP) hover_text(g_g[r->gi].about, g_tiptext, 2100);
+            else if (r && r->idx >= 0) hover_text(g_e[r->idx].about, g_tiptext, 2100);
             di->lpszText = g_tiptext; return 0;
         }
         break;

@@ -1,6 +1,9 @@
 """Per-cheat effect check: each live cheat is fired alone ("Once", all keys held) into a headless game and the RAM it
    leaves is compared with what an independent Python copy of the Action Replay engine predicts for that moment.
    test_effects.py <project root> <work dir> [untested|all] [first] [count] [input]
+   Game state: by default the cheats are fired at the boot menu. TEST_SAVE (a save), TEST_START (the frame of the first
+   cheat, e.g. 1500 in the field), TEST_ENV ("K=V;K=V", e.g. DQIX_MOD_FORCE=3 for a battle) and [input] (DQIX_INPUT,
+   e.g. the presses that load the save) put them where their conditions are met. TEST_IDS (ids, comma separated) picks cheats.
 
    A cheat PASSES when every byte its code writes (and that would change the value) is in the dump taken right after.
    NOCHANGE = the code writes nothing in this game state (its condition is not met at the boot menu / field): not a
@@ -14,6 +17,7 @@ first = int(sys.argv[4]) if len(sys.argv) > 4 and sys.argv[4] else 0
 count = int(sys.argv[5]) if len(sys.argv) > 5 and sys.argv[5] else 55
 inp = sys.argv[6] if len(sys.argv) > 6 else ""
 exe = os.environ.get("TEST_EXE", os.path.join(root, "game", "dqix.exe"))
+ids = set(x for x in os.environ.get("TEST_IDS", "").split(",") if x)
 os.makedirs(work, exist_ok=True)
 RING, AT = 8192, 32
 
@@ -24,6 +28,8 @@ def catalog():
         if not line.startswith("entry\t"):
             continue
         d = dict(p.split("=", 1) for p in line.rstrip("\n").split("\t")[1:] if "=" in p)
+        if ids and d["id"] not in ids:
+            continue
         if d.get("kind") == "live" and d.get("ops") and (which == "all" or d.get("status") == "untested"):
             d["ops"] = [tuple(int(x, 16) for x in o.split(":")) for o in d["ops"].split(",")]
             out.append(d)
@@ -116,7 +122,7 @@ print("cheats in this run:", len(entries))
 def words(e): return 1 + 4 * len(e["ops"])
 
 
-START = 40
+START = int(os.environ.get("TEST_START") or 40)
 slots, f = [], START
 for e in entries:
     slots.append((f, f + words(e) + 30))     # send at f, dump at f+words+30
@@ -124,12 +130,15 @@ for e in entries:
 frames = f + 40
 dumps = [s[1] for s in slots]
 d = os.path.join(work, "effects"); shutil.rmtree(d, ignore_errors=True); os.makedirs(d)
-shutil.copy(os.path.join(root, "game", "dqix.sav"), os.path.join(d, "test.sav"))
+shutil.copy(os.environ.get("TEST_SAVE") or os.path.join(root, "game", "dqix.sav"), os.path.join(d, "test.sav"))
 env = dict(os.environ); env.pop("NoDefaultCurrentDirectoryInExePath", None)
 env.update(DQIX_NOWINDOW="1", SDL_AUDIODRIVER="dummy", DQIX_CHEATWIN_OFF="1", DQIX_NO_SETTINGS="1", DQIX_NO_UPNP="1", DQIX_NO_RELAY="1", DQIX_PLAYER_NAME="fx",
            DQIX_RAMDUMP=".," + ",".join(map(str, [START - 5] + dumps)))
 if inp:
     env["DQIX_INPUT"] = inp
+for kv in os.environ.get("TEST_ENV", "").split(";"):
+    if "=" in kv:
+        env[kv.split("=", 1)[0]] = kv.split("=", 1)[1]
 log = open(os.path.join(d, "run.log"), "wb")
 p = subprocess.Popen([exe, os.path.join(root, "game", "data", "dqix.nds"), os.path.join(root, "game", "data", "code"), str(frames), "1", "test.sav"],
                      cwd=d, env=env, stdout=log, stderr=subprocess.STDOUT)
@@ -161,7 +170,11 @@ def send(typ, cid, ops):
     struct.pack_into("<I", box, 8, w)
 
 
-for (fs, _), e in zip(slots, entries):
+sys.path.insert(0, os.path.join(root, "mods", "system", "tools"))
+import progress                                           # the Claude Code status line shows this
+for k, ((fs, _), e) in enumerate(zip(slots, entries)):
+    if not os.environ.get("DQIX_PROGRESS_QUIET"):
+        progress.set("test_effects", k, len(entries), e["name"])
     while u(28) < fs and p.poll() is None:
         time.sleep(0.005)
     send(1, None, e["ops"])

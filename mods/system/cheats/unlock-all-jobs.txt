@@ -1,6 +1,5 @@
 # name: Unlock All Jobs v1
 # enabled: no
-# status: untested
 # category: Unlocks
 # replaces: Unlock All Jobs v1
 # about: Every vocation shows up as unlocked in the vocation menu. Shown only: it doesn't change your save.

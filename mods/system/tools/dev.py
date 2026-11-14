@@ -305,12 +305,24 @@ def cmd_test(a):
     if cache.get("key") != key:
         cache = {"key": key, "passed": {}}
     results, t0 = {}, time.time()
+    sys.path.insert(0, HERE)
+    import progress                                       # the Claude Code status line shows this (.claude/statusline.py)
+    running, lock = [], __import__("threading").Lock()
+
+    def show():
+        progress.set("dev test", len(results), len(names), ", ".join(running))
 
     def go(n, port):
         t = time.time()
         if n in cache["passed"] and not a.force:
             return n, True, "cached PASS", 0.0
-        ok, out = table[n][0](port)
+        with lock:
+            running.append(n); show()
+        try:
+            ok, out = table[n][0](port)
+        finally:
+            with lock:
+                running.remove(n)
         open(os.path.join(work, n + ".log"), "w", encoding="utf-8").write(out)
         return n, ok, out, time.time() - t
 
@@ -322,16 +334,17 @@ def cmd_test(a):
         for i, n in enumerate(par):
             futs.append(ex.submit(go, n, port + i * 3))
         for f in futs:
-            r = f.result(); results[r[0]] = r
+            r = f.result(); results[r[0]] = r; show()
             print(f"{'PASS' if r[1] else 'FAIL'}  {r[0]:<13} {r[3]:6.1f}s" + ("  (unchanged since the last pass: skipped)" if r[2] == "cached PASS" else ""), flush=True)
     for i, n in enumerate(seq):                           # the editor test runs alone, after the rest
-        r = go(n, port + 60 + i); results[n] = r
+        r = go(n, port + 60 + i); results[n] = r; show()
         print(f"{'PASS' if r[1] else 'FAIL'}  {n:<13} {r[3]:6.1f}s" + ("  (unchanged since the last pass: skipped)" if r[2] == "cached PASS" else ""), flush=True)
     for n, r in results.items():
         if r[1] and r[2] != "cached PASS":
             cache["passed"][n] = True
     os.makedirs(os.path.dirname(cache_file), exist_ok=True)
     json.dump(cache, open(cache_file, "w"))
+    progress.clear()
     bad = [n for n, r in results.items() if not r[1]]
     for n in bad:
         print(f"\n--- {n} (log: {os.path.join(work, n + '.log')}) ---\n" + "\n".join(results[n][2].splitlines()[-25:]))

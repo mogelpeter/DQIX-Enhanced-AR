@@ -54,8 +54,8 @@ On the left the pages (Speed & comfort, Experience & gold, Party, Battle, Items,
 first "Enabled": everything that is on now, from every page. The search box above them
 finds a cheat by the words of its name, option, note, page or keys (all words must fit;
 inside a choice only the fitting options are offered; the first 60 hits are shown). Under each cheat a grey line
-says who needs it in a session, the buttons to hold and its labels; hover a row for the
-full text. You can keep the window open while you play.
+says who needs it in a session, the buttons to hold (in blue) and its labels; hover a row
+for a longer explanation of what it does. You can keep the window open while you play.
 
 Each cheat is one of these:
 

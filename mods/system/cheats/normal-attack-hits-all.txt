@@ -1,0 +1,10 @@
+# name: Normal attacks hit every enemy
+# enabled: no
+# category: Battle
+# replaces: Normal Atk equal Atk All
+# about: A normal attack hits every enemy instead of one.
+# How: where the battle decides "does this attack hit all enemies" (ov000 0217c2e8, the bit 1 of the attacker's
+# flags), the answer is always yes. The R4 code wrote that bit into the character's data each time, so it stayed
+# after the cheat was switched off; this one writes nothing.
+patch 0217C2E8 13A04001 E3A04001
+patch 0217C2EC 1A000007 EA000007

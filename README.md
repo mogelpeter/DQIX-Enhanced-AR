@@ -2,7 +2,7 @@
 
 A cheat list and code mods for [DQIX Enhanced](https://github.com/sackchief/dqix-enhanced) (Dragon Quest IX on PC), in the style of an R4 / Action Replay cheat menu, built into the game's own menu bar.
 
-- **235 cheats that switch while you play** (50 of them code mods that change the game's instructions; none needs a rebuild), and launch options such as *Battle any monster you want* (288 monsters). All are checked against your own ROM before they can run, so they cannot crash the game.
+- **218 cheats that switch while you play** (code mods included; none needs a rebuild), and launch options such as *Battle any monster you want* (288 monsters). All are checked against your own ROM before they can run, so they cannot crash the game, and all but three were tried out in the game (see *untested* below).
 - **A "Cheats" tab inside the game's own menu bar**: *Cheats...* opens the cheat list in a window of the game itself, and a switch works at once while you play: no restart, no rebuild, code mods included. There is no separate cheat program. *Save editor...* and *Treasure maps...* open the web tools. The tab is put back automatically after the game updates itself.
 - **Works alone and in sessions with friends** (cheats travel with the buttons, so every PC stays in sync).
 - **Save editor** and **Treasure maps**: the DQIX project's browser editor opens with your save already loaded (downloaded on first use, needs the internet once; not part of this repo), and the map search website.
@@ -91,7 +91,7 @@ The very first time after an update of the cheats the game is built once (a few 
 
 ## Using the cheats
 
-The cheat window has pages on the left: **Enabled** (everything that is on), then Speed & comfort, Experience & gold, Party, Battle, Items, Alchemy, World, Unlocks, Records & quests, Fun, Miscellaneous and Custom. The search box above them looks through every page (all words must fit; inside a choice like *Battle any monster you want* only the fitting options are offered; the first 60 hits are shown). Keep the window open while you play and switch cheats on the fly. The grey line under a cheat says who needs it in a session, the buttons to hold and its labels; hover a row for the full text.
+The cheat window has pages on the left: **Enabled** (everything that is on), then Speed & comfort, Experience & gold, Party, Battle, Items, Alchemy, World, Unlocks, Records & quests, Fun, Miscellaneous and Custom. The search box above them looks through every page (all words must fit; inside a choice like *Battle any monster you want* only the fitting options are offered; the first 60 hits are shown). Keep the window open while you play and switch cheats on the fly. The grey line under a cheat says who needs it in a session, the buttons to hold (in blue) and its labels; hover a row for a longer explanation of what the cheat does.
 
 Each cheat is one of these:
 

@@ -59,3 +59,126 @@ db:598b370f  # Movement speed x0.5
 db:7216dff5  # Movement speed x1
 db:d2e26d65  # Movement speed x1.5
 db:71f3a7a2  # Movement speed x2
+
+# Code mods checked against the game's own code (the recompiled instructions around each patch, 2026-11-14, NOTES (31)):
+# the patch does what the name says and nothing else (no data written, no other caller affected).
+db:181e157a  # EXP x16: same add-with-shift as the tested x2/x4/x8 (ov000 0215525c), shift 4
+db:904c9e08  # EXP x32: shift 5
+db:0d9ac1a0  # EXP x64: shift 6
+db:8ed3d125  # EXP x128: shift 7
+db:a794cb13  # Gold x16: same as the tested gold x2/x4/x8 (ov000 02155270), shift 4
+db:2fc64061  # Gold x32: shift 5
+db:b2101fc9  # Gold x64: shift 6
+db:1bdce758  # Gold x128: shift 7
+db:531f2c96  # Kracking w/o Ingredients: the three "how many needed" reads (ov006 02153800/8d0/9a0) become 0
+db:ec8b029f  # Ingredients Never Decrease: the decrement stores become nop, the amount taken 0
+db:36761569  # 100% Critical Rate: the critical chance (ov000 02156d44) becomes 128, compared against 100.0
+db:9074baee  # Can Always Use Coup de Grace: the "not available" branch (ov000 0217b2c4) is gone
+db:a14fa648  # 1 Skill Point = Max: the 5 skill-line values (ov013 02184cd8) become 100
+db:203dfe21  # Treasure Map's Blue Chests Closed: the "opened" bit is not set (main 020113d4; one caller, ov017)
+db:27c62ebd  # Discard Any Equipment: the "can't discard" result takes the discard path (ov005 02159374)
+db:3e993f04  # Remove Special Guest Requirement: the four checks in 0205fb04 answer yes
+db:46a4403c  # 360 Camera WorldMap: the angle clamps (main 020a21f0/f8) become nop
+db:e00abc8f  # 360 Camera Town and Dungeons: the angle clamps (main 020a2368/23d8) are skipped
+db:4992e7ce  # Infinite Quick Save: the "a quick save exists" check (ov004 0216e558) is skipped
+
+# Effect tests in a real game state (2026-11-14, NOTES (31)): fired in the field (Guarantomb, save of 11-13 17:09:34)
+# and in a battle (3 metal slimes), each byte checked in RAM; members of a choice share the address of a confirmed one.
+db:31685fec  # Fix Guest Book Freeze: plain writes on SELECT; the values were in RAM (the test save already had them)
+db:ad481bba  # Hero MAX ATK/DEF/AGIL: in RAM after firing it (field / battle run)
+db:c2584ca9  # Re-Zoom to any location, L+Start Copy, Zoom, L+A Paste: in RAM after firing it (field / battle run)
+db:91adb868  # Reset Special Guests: plain writes on SELECT; the values were in RAM (the test save already had them)
+db:87400a7e  # Invisible Party Members: in RAM after firing it (field / battle run)
+db:f9ada60c  # Disabling Movement of P2: in RAM after firing it (field / battle run)
+db:f3bd9d15  # No Random Battles, Push Start+Right for Instant Battle: in RAM after firing it (field / battle run)
+db:a0289820  # L+R to push enemy away: in RAM after firing it (field / battle run)
+db:5419612d  # Daytime, push Start and Up: in RAM after firing it (field / battle run)
+db:718333e5  # Never goes down: P2 HP: in RAM after firing it (field / battle run)
+db:b8ca3754  # Never goes down: P2 MP: same code as the confirmed slots, one record further (no such member / enemy in the test)
+db:e85d272b  # Never goes down: P3 HP: in RAM after firing it (field / battle run)
+db:505a2b40  # Never goes down: P3 MP: in RAM after firing it (field / battle run)
+db:4c139642  # Never goes down: P4 HP: same code as the confirmed slots, one record further (no such member / enemy in the test)
+db:a4d310c9  # Never goes down: P4 MP: same code as the confirmed slots, one record further (no such member / enemy in the test)
+db:fc8ee7e0  # Visitors Max: in RAM after firing it (field / battle run)
+db:01b8ecf2  # Alchemy Recipies - Not Forged: in RAM after firing it (field / battle run)
+db:d1dfd609  # Unlock All Extra Quests V2: in RAM after firing it (field / battle run)
+db:3c7d9957  # Unlock All Extra Quests V1: in RAM after firing it (field / battle run)
+db:51004328  # 100% Monster List: in RAM after firing it (field / battle run)
+db:dae7c14d  # 1 Hit Kill: in RAM after firing it (field / battle run)
+db:f0b2933f  # Enemy in Sleep Status: in RAM after firing it (field / battle run)
+db:87c7c890  # Enemy in Stunned Status: in RAM after firing it (field / battle run)
+db:8612cef1  # Fight 3 of the Same Monster: in RAM after firing it (field / battle run)
+db:d9e84d1f  # High Tension - 1st Character (Press Y): in RAM after firing it (field / battle run)
+db:564d0358  # High Tension - 2nd Character (Press Y): in RAM after firing it (field / battle run)
+db:41d1ef0f  # High Tension - 3rd Character (Press Y): in RAM after firing it (field / battle run)
+db:1e2de3b5  # High Tension - 4th Character (Press Y): in RAM after firing it (field / battle run)
+db:30fb6ca1  # Enable Coup de Grace - 1st Character (Press X): in RAM after firing it (field / battle run)
+db:3a5ad4bc  # Enable Coup de Grace - 2nd Character (Press X): in RAM after firing it (field / battle run)
+db:af9660a7  # Enable Coup de Grace - 3rd Character (Press X): in RAM after firing it (field / battle run)
+db:13513cab  # Enable Coup de Grace - 4th Character (Press X): in RAM after firing it (field / battle run)
+db:2a72b330  # To View Character Animation Before A Battle: in RAM after firing it (field / battle run)
+db:af9cf6d2  # Hero Skill Point x500 (P1): in RAM after firing it (field / battle run)
+db:050c050b  # P2 Skill Point x500: in RAM after firing it (field / battle run)
+db:74e3b5a5  # P3 Skill Point x500: in RAM after firing it (field / battle run)
+db:5b731c4f  # P4 Skill Point x500: in RAM after firing it (field / battle run)
+db:0b4b70c9  # All Member in Party Skill Points x500: in RAM after firing it (field / battle run)
+db:fcba9e62  # Warrior: same write as Ranger (confirmed in RAM), another value
+db:9033a5c9  # Priest: same write as Ranger (confirmed in RAM), another value
+db:40db6b7e  # Mage: same write as Ranger (confirmed in RAM), another value
+db:1a960256  # Martial Artist: same write as Ranger (confirmed in RAM), another value
+db:75789145  # Thief: same write as Ranger (confirmed in RAM), another value
+db:b025bc33  # Minstrel: same write as Ranger (confirmed in RAM), another value
+db:a860318f  # Gladiator: same write as Ranger (confirmed in RAM), another value
+db:bb546a47  # Armamentalist: same write as Ranger (confirmed in RAM), another value
+db:0779aa05  # Palladin: same write as Ranger (confirmed in RAM), another value
+db:66fb6532  # Sage: same write as Ranger (confirmed in RAM), another value
+db:983fa98e  # Luminary: same write as Ranger (confirmed in RAM), another value
+db:e9e3acc3  # Ranger: in RAM after firing it (field / battle run)
+db:3c3e6c6b  # Guardian: same write as Luminary (confirmed in RAM), another value
+db:e8b48f18  # Warrior: same write as Luminary (confirmed in RAM), another value
+db:8cda69a3  # Priest: same write as Luminary (confirmed in RAM), another value
+db:53263b42  # Mage: same write as Luminary (confirmed in RAM), another value
+db:0c69a8e0  # Martial Artist: same write as Luminary (confirmed in RAM), another value
+db:e3716062  # Thief: same write as Luminary (confirmed in RAM), another value
+db:b9945af0  # Minstrel: same write as Luminary (confirmed in RAM), another value
+db:13716393  # Gladiator: same write as Luminary (confirmed in RAM), another value
+db:3b9560ee  # Armamentalist: same write as Luminary (confirmed in RAM), another value
+db:0ec84cc6  # Palladin: same write as Luminary (confirmed in RAM), another value
+db:7506350e  # Sage: same write as Luminary (confirmed in RAM), another value
+db:918e4f4d  # Luminary: in RAM after firing it (field / battle run)
+db:4eba0bb8  # Guardian: same write as Sage (confirmed in RAM), another value
+db:7bfd7125  # Warrior: same write as Sage (confirmed in RAM), another value
+db:dc9261d5  # Priest: same write as Sage (confirmed in RAM), another value
+db:1b961a43  # Mage: same write as Sage (confirmed in RAM), another value
+db:ae60c6e7  # Martial Artist: same write as Sage (confirmed in RAM), another value
+db:be4182e9  # Thief: same write as Sage (confirmed in RAM), another value
+db:cb103d23  # Minstrel: same write as Sage (confirmed in RAM), another value
+db:26a606a6  # Gladiator: same write as Sage (confirmed in RAM), another value
+db:45c3bd36  # Armamentalist: same write as Sage (confirmed in RAM), another value
+db:7c4c2b15  # Palladin: same write as Sage (confirmed in RAM), another value
+db:3db6140f  # Sage: in RAM after firing it (field / battle run)
+db:e67c18c7  # Guardian: same write as Luminary (confirmed in RAM), another value
+db:1bc8a513  # Warrior: same write as Luminary (confirmed in RAM), another value
+db:98317cd1  # Priest: same write as Luminary (confirmed in RAM), another value
+db:15ddd902  # Mage: same write as Luminary (confirmed in RAM), another value
+db:5896e277  # Martial Artist: same write as Luminary (confirmed in RAM), another value
+db:d8880b1e  # Thief: same write as Luminary (confirmed in RAM), another value
+db:63d62e5c  # Minstrel: same write as Luminary (confirmed in RAM), another value
+db:81a81f2a  # Gladiator: same write as Luminary (confirmed in RAM), another value
+db:cb388878  # Armamentalist: same write as Luminary (confirmed in RAM), another value
+db:d48a386a  # Palladin: same write as Luminary (confirmed in RAM), another value
+db:33fdd74e  # Sage: same write as Luminary (confirmed in RAM), another value
+db:4bcc3be1  # Luminary: in RAM after firing it (field / battle run)
+db:bc232ede  # Enemy MP 0: Enemy 1: in RAM after firing it (field / battle run)
+db:e91b40f6  # Enemy MP 0: Enemy 2: in RAM after firing it (field / battle run)
+db:2687275c  # Enemy MP 0: Enemy 3: in RAM after firing it (field / battle run)
+db:891195ef  # Enemy MP 0: Enemy 4: same code as the confirmed slots, one record further (no such member / enemy in the test)
+db:884c68e7  # Enemy MP 0: Enemy 5: same code as the confirmed slots, one record further (no such member / enemy in the test)
+db:01d9cd50  # Enemy MP 0: Enemy 6: same code as the confirmed slots, one record further (no such member / enemy in the test)
+db:e176041d  # Increase/Decrease Head (Hold Start and L or R): in RAM after firing it (field / battle run)
+db:065d8242  # Big: same write as Hero is a Giant Pair of Trousers (confirmed in RAM), another value
+db:6477a3a3  # Massive: same write as Hero is a Giant Pair of Trousers (confirmed in RAM), another value
+db:cc6e2e02  # Hero is a Giant Pair of Trousers: in RAM after firing it (field / battle run)
+db:5dc783c9  # Big Head: in RAM after firing it alone (field)
+db:976a8fb9  # Massive Head: in RAM after firing it alone (field)
+db:0a4a78a6  # Unlock All Extra Quests V1: in RAM after firing it alone (field)

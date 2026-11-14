@@ -1,6 +1,5 @@
 # name: Quick Save Never Return To Title
 # enabled: no
-# status: untested
 # category: Speed & comfort
 # replaces: Quick Save Never Return To Title
 # about: After a quick save the game goes on instead of going back to the title screen.

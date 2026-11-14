@@ -8,3 +8,4 @@ mods/system/dev-root.txt
 mods/system/AR-codes-*.txt
 mods/system/lang/rom-*.tsv
 mods/system/editor-lang.txt
+.claude/settings.local.json
