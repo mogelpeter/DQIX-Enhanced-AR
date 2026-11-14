@@ -15,11 +15,11 @@ set "TARGET=%~1"
 if not defined TARGET if exist "%~dp0..\BUILD.bat" set "TARGET=%~dp0.."
 if not defined TARGET (
   echo Looking for your DQIX Enhanced folder...
-  for /f "usebackq delims=" %%i in (`"%PS%" -NoProfile -Command "$r=@(); foreach($b in @([Environment]::GetFolderPath('Desktop'),[Environment]::GetFolderPath('MyDocuments'),$env:USERPROFILE+'\Downloads',$env:USERPROFILE,'C:\','D:\','E:\')){ if(Test-Path $b){ $r+=Get-ChildItem $b -Directory -ErrorAction SilentlyContinue; $r+=Get-ChildItem $b -Directory -ErrorAction SilentlyContinue | ForEach-Object { Get-ChildItem $_.FullName -Directory -ErrorAction SilentlyContinue } } }; $r | Where-Object { Test-Path ($_.FullName+'\BUILD.bat') } | Where-Object { Test-Path ($_.FullName+'\recomp') } | Sort-Object LastWriteTime -Descending | Select-Object -First 1 -ExpandProperty FullName"`) do set "TARGET=%%i"
+  for /f "usebackq delims=" %%i in (`""%PS%" -NoProfile -Command "$r=@(); foreach($b in @([Environment]::GetFolderPath('Desktop'),[Environment]::GetFolderPath('MyDocuments'),$env:USERPROFILE+'\Downloads',$env:USERPROFILE,'C:\','D:\','E:\')){ if(Test-Path $b){ $r+=Get-ChildItem $b -Directory -ErrorAction SilentlyContinue; $r+=Get-ChildItem $b -Directory -ErrorAction SilentlyContinue | ForEach-Object { Get-ChildItem $_.FullName -Directory -ErrorAction SilentlyContinue } } }; $r | Where-Object { Test-Path ($_.FullName+'\BUILD.bat') } | Where-Object { Test-Path ($_.FullName+'\recomp') } | Sort-Object LastWriteTime -Descending | Select-Object -First 1 -ExpandProperty FullName""`) do set "TARGET=%%i"
 )
 if not defined TARGET (
-  echo Not found automatically. Please choose your DQIX Enhanced folder in the window that opens.
-  for /f "usebackq delims=" %%i in (`"%PS%" -NoProfile -STA -Command "Add-Type -AssemblyName System.Windows.Forms; $d = New-Object System.Windows.Forms.FolderBrowserDialog; $d.Description = 'Choose your DQIX Enhanced folder (the one with BUILD.bat in it)'; if ($d.ShowDialog() -eq 'OK') { $d.SelectedPath }"`) do set "TARGET=%%i"
+  echo Not found automatically. A window opens now: please choose your DQIX Enhanced folder ^(the one with BUILD.bat in it^).
+  for /f "usebackq delims=" %%i in (`""%PS%" -NoProfile -STA -Command "Add-Type -AssemblyName System.Windows.Forms; $o = New-Object System.Windows.Forms.Form; $o.TopMost = $true; $d = New-Object System.Windows.Forms.FolderBrowserDialog; $d.Description = 'Choose your DQIX Enhanced folder (the one with BUILD.bat in it)'; if ($d.ShowDialog($o) -eq 'OK') { $d.SelectedPath }""`) do set "TARGET=%%i"
 )
 rem a full path without a trailing backslash (also for "." or a relative path given on the command line)
 if defined TARGET for %%i in ("%TARGET%\.") do set "TARGET=%%~fi"
