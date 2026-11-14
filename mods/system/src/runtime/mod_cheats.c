@@ -25,6 +25,9 @@
  *                                waits for buttons ("press SELECT") sees this console's own
  *   3 CLEAR  id                  stop cheat `id`
  *   4 CLEAR_ALL
+ *   5 SET_UNDO id, ops             as SET, and when the cheat is switched off again, every byte it wrote that still holds what
+ *                                it wrote gets its value from before back (big head, hidden party: the game itself would
+ *                                only put those back at the next battle or map change)
  * with each op as four words (address low, high, value low, high).
  */
 #include <stdint.h>
@@ -39,7 +42,7 @@
 #endif
 
 #define MC_MAGIC   0x43584451u         /* "DQXC" */
-#define MC_VERSION 3                   /* 2: codes that are on see the buttons; 128 at a time. 3: B reads [address + offset] */
+#define MC_VERSION 4                   /* 2: codes that are on see the buttons; 128 at a time. 3: B reads [address + offset]. 4: SET_UNDO */
 #define MC_RING    8192
 #define MC_EVENT   (1u << 30)
 #define MC_SLOTS   128
@@ -131,6 +134,35 @@ void lp_clear(void);
 #define MC_VANISH_KEYS  ((1 << 8) | (1 << 9) | (1 << 2))      /* R, L, SELECT */
 static uint8_t g_vanish_armed, g_vanish_on, g_vanish_prev;
 
+/* the undo journal of the cheat running now (SET_UNDO): each byte it wrote, what was there before and what it wrote last */
+typedef struct { uint32_t a; uint8_t orig, last; } McUndo;
+typedef struct { McUndo* u; int n, cap; } McJournal;
+#define MC_UNDO_MAX 8192
+static McJournal* g_journal;
+
+static void mc_note(uint32_t a, const uint8_t* in, size_t n) {
+    McJournal* j = g_journal;
+    for (size_t i = 0; i < n; i++) {
+        uint32_t x = (a + (uint32_t)i) & (MAIN_RAM_SIZE - 1); int k;
+        for (k = j->n - 1; k >= 0; k--) if (j->u[k].a == x) break;
+        if (k >= 0) { j->u[k].last = in[i]; continue; }
+        if (j->n >= MC_UNDO_MAX) continue;
+        if (j->n == j->cap) {
+            int cap = j->cap ? j->cap * 2 : 64; McUndo* nu = (McUndo*)realloc(j->u, (size_t)cap * sizeof *nu);
+            if (!nu) continue;
+            j->u = nu; j->cap = cap;
+        }
+        j->u[j->n].a = x; j->u[j->n].orig = g_main_ram[x]; j->u[j->n].last = in[i]; j->n++;
+    }
+}
+
+/* the cheat is switched off: a byte that still holds what the cheat wrote gets its old value back; one the game has changed
+ * since (or that now belongs to something else) is left alone */
+static void mc_undo(McJournal* j) {
+    for (int k = j->n - 1; k >= 0; k--) if (g_main_ram[j->u[k].a] == j->u[k].last) g_main_ram[j->u[k].a] = j->u[k].orig;
+    free(j->u); memset(j, 0, sizeof *j);
+}
+
 static int mc_write(void* u, uint32_t a, const void* in, size_t n) {
     (void)u;
     if ((a & 0x0FFFFFFFu) == MC_SWITCH_LOWEXP) { g_mod_lowexp = 1; return 1; }
@@ -140,20 +172,27 @@ static int mc_write(void* u, uint32_t a, const void* in, size_t n) {
     if (n == 4 && (a & 0x0FFFFFFFu) >= MC_LP_BASE && (a & 0x0FFFFFFFu) < MC_LP_BASE + 0x10000u) { uint32_t w; memcpy(&w, in, 4); return lp_set(a & 0x0FFFFFFFu, w); }
     a &= MAIN_RAM_SIZE - 1;
     if (a + n > MAIN_RAM_SIZE) return 0;
+    if (g_journal) mc_note(a, (const uint8_t*)in, n);
     memcpy(&g_main_ram[a], in, n); return 1;
 }
 static ArMem g_mem = { NULL, mc_read, mc_write };
 
 /* ---- this console's cheats: the same on every PC, because they only ever
  * change through its input stream ---- */
-typedef struct { int used; uint16_t id; int nops; ArOp* ops; } McSlot;
+typedef struct { int used; uint16_t id; int nops; ArOp* ops; int undo; McJournal j; } McSlot;
 static McSlot g_slot[MC_SLOTS];
 static uint16_t g_msg[MC_MAXLEN];
 static int g_type, g_len, g_got;       /* the message being received */
 static uint32_t g_done;
 
-static void mc_forget(void) {
-    for (int i = 0; i < MC_SLOTS; i++) { free(g_slot[i].ops); memset(&g_slot[i], 0, sizeof g_slot[i]); }
+static void mc_drop(McSlot* s, int undo) {
+    if (undo) mc_undo(&s->j);
+    free(s->j.u); free(s->ops); memset(s, 0, sizeof *s);
+}
+
+/* undo: the cheats' changes are put back (CLEAR_ALL); not when the game started again or a session began (RAM is new) */
+static void mc_forget_undo(int undo) {
+    for (int i = 0; i < MC_SLOTS; i++) mc_drop(&g_slot[i], undo && g_slot[i].used);
     g_type = g_len = g_got = 0;
     g_mod_lowexp = 0;
     g_mod_noflee = 0;
@@ -162,6 +201,7 @@ static void mc_forget(void) {
     lp_clear();
     g_vanish_armed = g_vanish_on = g_vanish_prev = 0;
 }
+static void mc_forget(void) { mc_forget_undo(0); }
 
 static ArOp* mc_ops(const uint16_t* w, int nops) {
     ArOp* ops = (ArOp*)calloc((size_t)(nops ? nops : 1), sizeof *ops);
@@ -181,22 +221,23 @@ static void mc_message(void) {
         free(ops);
         break;
     }
-    case 2: {
+    case 2: case 5: {
         if (g_len < 1) break;
         uint16_t id = g_msg[0]; int at = -1;
         for (int i = 0; i < MC_SLOTS; i++) if (g_slot[i].used && g_slot[i].id == id) { at = i; break; }
         for (int i = 0; i < MC_SLOTS && at < 0; i++) if (!g_slot[i].used) at = i;
         if (at < 0) break;
-        free(g_slot[at].ops);
-        g_slot[at].used = 1; g_slot[at].id = id; g_slot[at].nops = (g_len - 1) / 4;
+        free(g_slot[at].ops);                            /* the same cheat again: its journal is kept (the first values stay the old ones) */
+        if (!g_slot[at].used || g_type != 5) { if (g_slot[at].used) mc_undo(&g_slot[at].j); free(g_slot[at].j.u); memset(&g_slot[at].j, 0, sizeof g_slot[at].j); }
+        g_slot[at].used = 1; g_slot[at].id = id; g_slot[at].nops = (g_len - 1) / 4; g_slot[at].undo = g_type == 5;
         g_slot[at].ops = mc_ops(g_msg + 1, g_slot[at].nops);
-        if (!g_slot[at].ops) memset(&g_slot[at], 0, sizeof g_slot[at]);
+        if (!g_slot[at].ops) mc_drop(&g_slot[at], 1);
         break;
     }
     case 3:
-        for (int i = 0; i < MC_SLOTS; i++) if (g_len >= 1 && g_slot[i].used && g_slot[i].id == g_msg[0]) { free(g_slot[i].ops); memset(&g_slot[i], 0, sizeof g_slot[i]); }
+        for (int i = 0; i < MC_SLOTS; i++) if (g_len >= 1 && g_slot[i].used && g_slot[i].id == g_msg[0]) mc_drop(&g_slot[i], 1);
         break;
-    case 4: mc_forget(); break;
+    case 4: mc_forget_undo(1); break;
     }
     g_done++;
     g_type = g_len = g_got = 0;
@@ -205,7 +246,7 @@ static void mc_message(void) {
 static void mc_word(uint16_t w) {
     if (!g_type) {
         int t = w >> 12;
-        if (t < 1 || t > 4) return;                      /* not a header: skip it */
+        if (t < 1 || t > 5) return;                      /* not a header: skip it */
         g_type = t; g_len = w & 0xFFF; g_got = 0;
         if (!g_len) mc_message();
         return;
@@ -260,7 +301,11 @@ uint32_t mod_cheats_in(uint32_t v) {
     lp_clear();                                          /* the live code mods below set their sites again while they are on */
     g_vanish_armed = 0;
     int keys = (int)(v & 0xFFF);                         /* this console's buttons this frame: the same on every PC */
-    for (int i = 0; i < MC_SLOTS; i++) if (g_slot[i].used) ar_run(&g_mem, g_slot[i].ops, g_slot[i].nops, keys);
+    for (int i = 0; i < MC_SLOTS; i++) if (g_slot[i].used) {
+        g_journal = g_slot[i].undo ? &g_slot[i].j : NULL;
+        ar_run(&g_mem, g_slot[i].ops, g_slot[i].nops, keys);
+        g_journal = NULL;
+    }
     if (g_vanish_armed) {                                /* L+R+SELECT together: flip vanish (once per press) */
         int combo = (keys & MC_VANISH_KEYS) == MC_VANISH_KEYS;
         if (combo && !g_vanish_prev) {

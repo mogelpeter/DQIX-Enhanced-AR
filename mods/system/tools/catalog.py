@@ -63,8 +63,43 @@ PAGES = [
     (r"miscellaneous", "Miscellaneous", ""),
     (r"backlight|wfc|wi-?fi", "System", ""),
 ]
-PAGE_ORDER = ["Speed & comfort", "Experience & gold", "Party", "Battle", "Items", "Alchemy", "World",
+PAGE_ORDER = ["Speed & comfort", "Camera", "Experience & gold", "Party", "Battle", "Items", "Treasure maps", "Alchemy", "World",
               "Unlocks", "Records & quests", "Fun", "Miscellaneous"]
+
+# cheats that belong on another page than their folder's (matched against name, shown name and the choice's title)
+MOVES = [
+    (r"camera", "Camera"),
+    (r"bank|gold always|money in hand|unlimited money", "Experience & gold"),
+    (r"grotto|treasure map|blue chest", "Treasure maps"),
+    (r"regain wings", "Fun"),
+]
+# big pages in sections the window folds open and shut: (title, pattern), in the order shown. The first pattern that fits
+# wins; "." takes what no other section took.
+SECTIONS = {
+    "Party": [("Whole party", r"whole party|all party members|skill points? never run out|1 skill point added"),
+              ("Hero", r"\bhero\b|\(p1\)"),
+              ("Player 2", r"\bp2\b|player 2"),
+              ("Player 3", r"\bp3\b|player 3"),
+              ("Player 4", r"\bp4\b|player 4"),
+              ("Other", r".")],
+    "Battle": [("Party buffs", r"."),
+               ("Enemy debuffs", r"^enemy|enemy in |1 hit kill"),
+               ("Monster AI", r"flee|chase"),
+               ("Encounters", r"random battles|same monster|animation before|metal slimes|battle any monster|push enemy away|strike first")],
+}
+# cheats whose changes are put back when they are switched off (mod_cheats.c SET_UNDO): the game itself would keep the big head
+# or the hidden party until the next battle or map change
+UNDO = r"hide the party|invisible party|disable movement|big head|massive head|head \(hold|size modif|giant pair"
+
+
+def section_of(page, text):
+    rules = SECTIONS.get(page)
+    if not rules:
+        return ""
+    for title, pat in rules:
+        if pat != "." and re.search(pat, text, re.I):
+            return title
+    return next((t for t, pat in rules if pat == "."), "")
 
 REASONS = {
     "hook": "It adds a routine of its own to the game's program. This compiled version can't check such a routine, so it stays off.",
@@ -1059,6 +1094,35 @@ def build(root):
     for e in entries:
         if e["status"] == "untested" and (e["id"] in ok or (e.get("sig") and e["sig"] in ok)):
             e["status"] = "tested"
+
+    # ---- other pages, sections, undo (see MOVES, SECTIONS, UNDO)
+    gby = {g["id"]: g for g in groups}
+
+    def text(e):
+        g = gby.get(e["group"])
+        return " | ".join(x for x in (e["name"], e.get("option", ""), e.get("was", ""), g["title"] if g else "") if x)
+    for g in groups:
+        for pat, page in MOVES:
+            if re.search(pat, g["title"], re.I):
+                g["cat"] = page
+                break
+    for e in entries:
+        g = gby.get(e["group"])
+        if g:
+            e["cat"] = g["cat"]
+        else:
+            for pat, page in MOVES:
+                if re.search(pat, text(e), re.I):
+                    e["cat"] = page
+                    break
+        e["undo"] = "1" if e["kind"] == "live" and re.search(UNDO, text(e), re.I) else ""
+    for g in groups:
+        g["section"] = section_of(g["cat"], g["title"])
+    for e in entries:
+        g = gby.get(e["group"])
+        e["section"] = g["section"] if g else section_of(e["cat"], text(e))
+        if e["section"] and not g and e.get("option") == e["section"]:
+            e["option"] = e["name"]                         # "Hero" under the section Hero: "Max EXP in every vocation: Hero"
     return info, entries, groups
 
 
@@ -1089,13 +1153,17 @@ def write(root, info, entries, groups):
     pages.sort(key=lambda p: (PAGE_ORDER.index(p) if p in PAGE_ORDER else len(PAGE_ORDER) - 1.5, p))
     lines = [kv("info", **info)]
     lines += [kv("page", title=p) for p in pages]
-    lines += [kv("group", id=g["id"], cat=g["cat"], title=g["title"], note=g["note"], kind=g["kind"], about=g.get("about", "")) for g in groups]
+    lines += [kv("section", cat=p, title=t) for p in pages for t, _ in SECTIONS.get(p, [])
+              if any(e["cat"] == p and e.get("section") == t and e["kind"] != "blocked" for e in entries)]
+    lines += [kv("group", id=g["id"], cat=g["cat"], title=g["title"], note=g["note"], kind=g["kind"], about=g.get("about", ""),
+                 section=g.get("section", "")) for g in groups]
     for e in entries:
         lines.append(kv(
             "entry", id=e["id"], cat=e["cat"], group=e["group"], kind=e["kind"], status=e["status"], name=e["name"],
             option=e.get("option", ""), note=e["note"], reason=e["reason"], mode=e["mode"],
             keys=" / ".join(k for k in (key_text(k) for k in e["keys"]) if k), combos=str(len(e["keys"])) if e["keys"] else "",
             file=e["file"], on="1" if e["on"] else "", env=e["env"], also=e.get("also", ""), about=e.get("about", ""),
+            section=e.get("section", ""), undo=e.get("undo", ""),
             ops=",".join(f"{a:08X}:{b:08X}" for a, b in e["ops"]),
             patch=",".join(f"{n}:{a:08x}:{w:08x}" for n, a, w in e["patch"])))
     out = os.path.join(root, "mods", "system", "bin", "catalog.txt")

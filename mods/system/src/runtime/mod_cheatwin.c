@@ -26,13 +26,15 @@
 int mod_cheats_post(const uint16_t* w, int n);       /* mod_cheats.c: words into the mailbox's ring; 0 = full or no mailbox */
 uint32_t mod_cheats_gen(void);                       /* goes up whenever the game forgot every cheat */
 
-typedef struct { char *id, *cat, *group, *kind, *status, *name, *option, *note, *mode, *keys, *env, *also, *file; int on, nops; uint32_t* ops;
+typedef struct { char *id, *cat, *group, *kind, *status, *name, *option, *note, *mode, *keys, *env, *also, *file, *section; int on, nops, undo; uint32_t* ops;
                  int gi; char* hay; char* about; } Ent;                        /* gi: index into g_g or -1; hay: the search text, lower case */
 typedef struct { char *id, *cat, *title, *kind, *about; char* lt; int* mem; int nmem; } Grp;   /* lt: title lower case; mem: its entries */
+typedef struct { char *cat, *title; } Sec;                                      /* a section of a page (folds open and shut), in the order shown */
 
 static Ent* g_e; static int g_ne;
 static Grp* g_g; static int g_ng;
 static char** g_pg; static int g_npg;
+static Sec* g_sec; static int g_nsec;
 static char** g_st; static int g_nst;                /* the state file: lines "<kind> <id>" (live, code, launch, flag) */
 static char g_root[MAX_PATH * 2], g_statepath[MAX_PATH * 2];
 static CRITICAL_SECTION g_cs;
@@ -86,6 +88,9 @@ static void load_catalog(void) {
         if (nt >= 1 && !strcmp(tok[0], "page")) {
             if (g_npg == cap_p) { cap_p = cap_p ? cap_p * 2 : 16; g_pg = (char**)realloc(g_pg, (size_t)cap_p * sizeof *g_pg); }
             g_pg[g_npg++] = kv(tok + 1, nt - 1, "title");
+        } else if (nt >= 1 && !strcmp(tok[0], "section")) {
+            g_sec = (Sec*)realloc(g_sec, (size_t)(g_nsec + 1) * sizeof *g_sec);
+            g_sec[g_nsec].cat = kv(tok + 1, nt - 1, "cat"); g_sec[g_nsec].title = kv(tok + 1, nt - 1, "title"); g_nsec++;
         } else if (nt >= 1 && !strcmp(tok[0], "group")) {
             if (g_ng == cap_g) { cap_g = cap_g ? cap_g * 2 : 32; g_g = (Grp*)realloc(g_g, (size_t)cap_g * sizeof *g_g); }
             Grp* g = &g_g[g_ng++];
@@ -98,7 +103,9 @@ static void load_catalog(void) {
             e->id = kv(t, n, "id"); e->cat = kv(t, n, "cat"); e->group = kv(t, n, "group"); e->kind = kv(t, n, "kind"); e->status = kv(t, n, "status");
             e->name = kv(t, n, "name"); e->option = kv(t, n, "option"); e->note = kv(t, n, "note"); e->mode = kv(t, n, "mode"); e->keys = kv(t, n, "keys");
             e->env = kv(t, n, "env"); e->also = kv(t, n, "also"); e->file = kv(t, n, "file"); e->about = kv(t, n, "about");
+            e->section = kv(t, n, "section");
             char* on = kv(t, n, "on"); e->on = on[0] == '1'; free(on);
+            char* un = kv(t, n, "undo"); e->undo = un[0] == '1'; free(un);
             char* ops = kv(t, n, "ops");
             if (ops[0]) {
                 int cnt = 1; for (char* c = ops; *c; c++) if (*c == ',') cnt++;
@@ -198,7 +205,7 @@ static void send_set(int idx) {
     Ent* e = &g_e[idx]; int n = 1 + 4 * e->nops;
     if (n > 0xFFF || !e->nops) return;
     uint16_t* w = (uint16_t*)malloc((size_t)(n + 1) * 2); if (!w) return;
-    w[0] = (uint16_t)(2 << 12 | n); w[1] = (uint16_t)(idx + 1);
+    w[0] = (uint16_t)((e->undo ? 5 : 2) << 12 | n); w[1] = (uint16_t)(idx + 1);      /* 5: SET_UNDO, switching off puts its changes back */
     for (int i = 0; i < e->nops; i++) {
         uint32_t a = e->ops[i * 2], b = e->ops[i * 2 + 1];
         w[2 + i * 4] = (uint16_t)a; w[3 + i * 4] = (uint16_t)(a >> 16); w[4 + i * 4] = (uint16_t)b; w[5 + i * 4] = (uint16_t)(b >> 16);
@@ -231,7 +238,7 @@ static void resend_all(void) {
 }
 
 void mod_cheatwin_show(void);
-static char g_test_id[200], g_test_shot[MAX_PATH], g_test_search[400];
+static char g_test_id[200], g_test_shot[MAX_PATH], g_test_search[400], g_test_import[4000];
 static DWORD WINAPI agent(LPVOID unused) {
     (void)unused;
     uint32_t last = 0;
@@ -247,6 +254,11 @@ static DWORD WINAPI agent(LPVOID unused) {
         const char* c = strchr(t, ',');
         snprintf(g_test_search, sizeof g_test_search, "%.*s", c ? (int)(c - t) : (int)strlen(t), t);
         if (c) snprintf(g_test_shot, sizeof g_test_shot, "%s", c + 1);
+        Sleep(1500); mod_cheatwin_show();
+    }
+    t = getenv("DQIX_CHEATWIN_IMPORT");                  /* test hook: a shared line (or "-": the cheats that are on) -> Import, then Share (see test_step) */
+    if (t && *t && !g_test_id[0] && !g_test_search[0]) {
+        snprintf(g_test_import, sizeof g_test_import, "%s", t);
         Sleep(1500); mod_cheatwin_show();
     }
     for (;;) {
@@ -296,20 +308,44 @@ void mod_cheatwin_boot(void) {
 /* ---------------------------------------------------------------- the window
  * Left: the pages (owner-drawn list), the first one, "Enabled", lists everything that is on. Right: the page's rows in a scrolling panel. A row is a check box
  * (a cheat), a drop-down (a choice of which only one can be on: "Off" + the options). */
-enum { IDC_SIDE = 100, IDC_SEARCH, IDC_OFF, IDC_CLOSE, IDC_TITLE, IDC_COUNT, IDC_NOTE, IDC_ROW0 = 1000, WM_SHOW_CHEATS = WM_APP + 1 };
-enum { R_CHECK, R_ONCE, R_GROUP, R_KEY };
-typedef struct { int kind, idx, gi, y, h, nm, on, *members; HWND main, sub, right, combo, btn; } Row;
+enum { IDC_SIDE = 100, IDC_SEARCH, IDC_OFF, IDC_CLOSE, IDC_TITLE, IDC_COUNT, IDC_NOTE, IDC_SHARE, IDC_IMPORT, IDC_ROW0 = 1000, WM_SHOW_CHEATS = WM_APP + 1 };
+enum { R_CHECK, R_ONCE, R_GROUP, R_KEY, R_HEAD };                 /* R_HEAD: a section's title bar (click: open / shut); sec = its g_sec index */
+typedef struct { int kind, idx, gi, y, h, nm, on, sec, *members; HWND main, sub, right, combo, btn; } Row;
+
+/* ---- sections: a page's big lists folded into parts (catalog.py SECTIONS); which are open is kept in the state file ("open <page>/<section>") */
+static void sec_key(int s, char* out, size_t n) { snprintf(out, n, "%s/%s", g_sec[s].cat, g_sec[s].title); }
+static int sec_open(int s) { char k[300]; sec_key(s, k, sizeof k); return st_has("open", k); }
+static int sec_of(const char* page, const Ent* e) {                 /* the entry's section on this page, or -1 */
+    if (!e->section[0]) return -1;
+    for (int s = 0; s < g_nsec; s++) if (!strcmp(g_sec[s].cat, page) && !strcmp(g_sec[s].title, e->section)) return s;
+    return -1;
+}
+static int on_page(const Ent* e, const char* page) { return strcmp(e->kind, "blocked") && (!strcmp(e->cat, page) || !strcmp(e->also, page)); }
+/* how many cheats (a choice counts once) a page has, or one section of it (sec >= 0), and how many of them are on */
+static void page_count(const char* page, int sec, int* total, int* on) {
+    *total = *on = 0;
+    char* seen = (char*)calloc((size_t)g_ng + 1, 1); char* hit = (char*)calloc((size_t)g_ng + 1, 1);
+    for (int i = 0; i < g_ne; i++) {
+        const Ent* e = &g_e[i];
+        if (!on_page(e, page) || (sec >= 0 && sec_of(page, e) != sec)) continue;
+        int o = ent_on(e);
+        if (e->gi >= 0 && seen && hit) { if (!seen[e->gi]) { seen[e->gi] = 1; (*total)++; } if (o && !hit[e->gi]) { hit[e->gi] = 1; (*on)++; } continue; }
+        (*total)++; *on += o;
+    }
+    free(seen); free(hit);
+}
 static void card_hide(void);                      /* the hover card (below) */
 
 static HWND g_search;
 static int g_search_page;
 static HBRUSH g_box;
-static HWND g_win, g_side, g_host, g_title, g_count, g_note, g_off, g_close;
+static HWND g_win, g_side, g_host, g_title, g_count, g_note, g_off, g_close, g_share, g_import;
 static HFONT g_font, g_small, g_bold, g_head, g_mono;
 static HBRUSH g_white, g_gray;
 static HWND g_tip;
 static wchar_t g_tiptext[2100];
 static Row* g_rows; static int g_nrows, g_scroll, g_total, g_on_page, g_cur_page = -1;
+static int g_keep_scroll = -1;            /* build_page: scroll back to here (a section was folded) */
 static int g_found;                       /* search page: how many rows matched (only the first SEARCH_MAX are built) */
 static char g_last_q[200];                /* the search the page was last built for */
 #define SEARCH_MAX 60
@@ -525,8 +561,20 @@ static void draw_pill_button(const DRAWITEMSTRUCT* d) {
     cv_box(&c, 1.5f, 1.5f, (float)w - 1.5f, (float)h - 1.5f, r - 1, down ? RGB(40, 42, 47) : hot ? RGB(62, 64, 72) : RGB(49, 51, 57), 0);
     if ((d->itemState & ODS_FOCUS) && !(d->itemState & ODS_NOFOCUSRECT)) cv_box(&c, 0.5f, 0.5f, (float)w - 0.5f, (float)h - 0.5f, r, COL_ACCENT, 1.5f);
     wchar_t t[64]; GetWindowTextW(d->hwndItem, t, 64);
-    RECT tr = { 0, down ? 1 : 0, w, h + (down ? 1 : 0) };
-    cv_text(&c, t, tr, g_font, COL_TEXT, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+    int id = GetDlgCtrlID(d->hwndItem), icon = id == IDC_SHARE ? 1 : id == IDC_IMPORT ? 2 : 0;
+    if (icon) {                                              /* Share: an arrow out of a tray, Import: an arrow into it */
+        HGDIOBJ o = SelectObject(c.dc, g_font); SIZE z; GetTextExtentPoint32W(c.dc, t, (int)wcslen(t), &z); SelectObject(c.dc, o);
+        float x0 = (float)((w - (14 + 8 + z.cx)) / 2), cy = (float)h / 2 + (down ? 1 : 0), mx = x0 + 7;
+        COLORREF ic = hot ? COL_ACCENT : COL_TEXT;
+        cv_line(&c, x0 + 1, cy + 1, x0 + 1, cy + 6, 1.5f, ic); cv_line(&c, x0 + 1, cy + 6, x0 + 13, cy + 6, 1.5f, ic); cv_line(&c, x0 + 13, cy + 6, x0 + 13, cy + 1, 1.5f, ic);
+        if (icon == 1) { cv_line(&c, mx, cy + 2, mx, cy - 7, 1.5f, ic); cv_line(&c, mx - 4, cy - 3, mx, cy - 7, 1.5f, ic); cv_line(&c, mx, cy - 7, mx + 4, cy - 3, 1.5f, ic); }
+        else { cv_line(&c, mx, cy - 7, mx, cy + 2, 1.5f, ic); cv_line(&c, mx - 4, cy - 2, mx, cy + 2, 1.5f, ic); cv_line(&c, mx, cy + 2, mx + 4, cy - 2, 1.5f, ic); }
+        RECT tr = { (int)x0 + 22, down ? 1 : 0, w, h + (down ? 1 : 0) };
+        cv_text(&c, t, tr, g_font, COL_TEXT, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
+    } else {
+        RECT tr = { 0, down ? 1 : 0, w, h + (down ? 1 : 0) };
+        cv_text(&c, t, tr, g_font, COL_TEXT, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+    }
     cv_end(&c, d->hDC, rc.left, rc.top);
 }
 
@@ -607,6 +655,8 @@ static void update_count(void) {
         if (r->kind == R_CHECK) { cheats++; on += ent_on(&g_e[r->idx]); }
         else if (r->kind == R_GROUP) { cheats++; for (int k = 0; k < r->nm; k++) if (ent_on(&g_e[r->members[k]])) { on++; break; } }
     }
+    if (g_cur_page >= 0 && g_cur_page < g_npg) page_count(g_pg[g_cur_page], -1, &cheats, &on);     /* a page: shut sections count too */
+    for (int i = 0; i < g_nrows; i++) if (g_rows[i].kind == R_HEAD) InvalidateRect(g_rows[i].main, NULL, FALSE);
     char b[80]; if (g_cur_page == g_search_page) { if (g_found > cheats) snprintf(b, sizeof b, "%d found, first %d shown: type more words", g_found, cheats); else snprintf(b, sizeof b, "%d found, %d on", cheats, on); } else if (g_cur_page == g_on_page) snprintf(b, sizeof b, on ? "%d switched on (all pages)" : "Nothing is switched on", on); else snprintf(b, sizeof b, "%d of %d on", on, cheats);
     wchar_t* w = wide(b); SetWindowTextW(g_count, w); free(w);
 }
@@ -621,6 +671,12 @@ static void lay_rows(void) {
     HDWP dwp = BeginDeferWindowPos(g_nrows * 4 + 1);
     for (int i = 0; i < g_nrows; i++) {
         Row* r = &g_rows[i];
+        if (r->kind == R_HEAD) {                                    /* a section's title bar: the whole width */
+            r->y = y; r->h = 46;
+            dwp = defer(dwp, r->main, PAD_X - 6, y - g_scroll + 8, W - 2 * PAD_X + 12, 32);
+            if (g_tip) { TOOLINFOW ti; memset(&ti, 0, sizeof ti); ti.cbSize = sizeof ti; ti.hwnd = g_host; ti.uId = (UINT_PTR)i; ti.rect.right = W; ti.rect.top = y - g_scroll; ti.rect.bottom = ti.rect.top + r->h; SendMessageW(g_tip, TTM_NEWTOOLRECTW, 0, (LPARAM)&ti); }
+            y += r->h; continue;
+        }
         int rightw = r->kind == R_GROUP ? 230 : r->kind == R_KEY ? (W - 2 * PAD_X) * 42 / 100 : r->btn ? 112 : 0;
         int gap = rightw ? 14 : 0, textw = W - 2 * PAD_X - rightw - gap, indent = r->kind == R_CHECK ? 48 : 0;
         int subh = 0, rh = 0;
@@ -703,6 +759,61 @@ static int words_in(const char* a, const char* b) {
 }
 static int match_words(const Ent* e) { return words_in(e->hay, e->gi >= 0 ? g_g[e->gi].lt : NULL); }
 
+/* the row(s) of entry i on page p (a choice: one row for all its members, the first time one of them comes) */
+static void add_entry(int p, int i, char* seen) {
+    int special = p == g_on_page || p == g_search_page;
+    Ent* e = &g_e[i];
+    if (!strcmp(e->kind, "blocked")) return;
+    if (p == g_on_page) { if (!ent_on(e)) return; }          /* the Enabled page: everything that is on, from every page */
+    else if (p == g_search_page) { if (!match_words(e)) return; }
+    else if (strcmp(e->cat, g_pg[p]) && strcmp(e->also, g_pg[p])) return;
+    if (e->gi >= 0) {
+        int gi = e->gi;
+        {
+            if (seen[gi]) return;                      /* the whole choice is one row with a drop-down */
+            seen[gi] = 1;
+            if (p == g_search_page && ++g_found > SEARCH_MAX) return;
+            Grp* g = &g_g[gi];
+            /* searching: the members the words fit, or all of them when the choice's own title fits */
+            int all = p == g_search_page && words_in(g->lt, NULL);
+            Row* r = add_row(R_GROUP, -1, gi); int id = IDC_ROW0 + g_nrows - 1;
+            r->members = (int*)malloc((size_t)(g->nmem ? g->nmem : 1) * sizeof *r->members);
+            for (int j = 0; j < g->nmem && r->members; j++) {
+                Ent* m = &g_e[g->mem[j]];
+                if (p == g_search_page ? (all || match_words(m)) : (special || !strcmp(m->cat, g_pg[p]) || !strcmp(m->also, g_pg[p]))) r->members[r->nm++] = g->mem[j];
+            }
+            r->main = mk(L"STATIC", g_g[gi].title, SS_NOPREFIX | SS_ENDELLIPSIS | SS_CENTERIMAGE, g_bold, id);
+            { char st[200]; snprintf(st, sizeof st, "%s \xC2\xB7 Choose one: only one of these can be on.", who_group(g));
+              r->sub = mk(L"STATIC", st, SS_OWNERDRAW, g_small, id); SetWindowLongPtrW(r->sub, GWLP_USERDATA, 1); }
+            r->combo = mk(L"COMBOBOX", "", CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP, g_font, id); dark(r->combo, L"DarkMode_CFD");
+            SendMessageW(r->combo, CB_SETITEMHEIGHT, (WPARAM)-1, 24); SendMessageW(r->combo, CB_SETITEMHEIGHT, 0, 22);
+            SendMessageW(r->combo, CB_ADDSTRING, 0, (LPARAM)L"Off");
+            int cur = 0;
+            for (int k = 0; k < r->nm; k++) {
+                char t[300]; snprintf(t, sizeof t, "%s%s", label(&g_e[r->members[k]]), !strcmp(g_e[r->members[k]].status, "untested") ? "  (untested)" : "");
+                wchar_t* w = wide(t); SendMessageW(r->combo, CB_ADDSTRING, 0, (LPARAM)w); free(w);
+                if (ent_on(&g_e[r->members[k]])) cur = k + 1;
+            }
+            SendMessageW(r->combo, CB_SETCURSEL, (WPARAM)cur, 0);
+            SendMessageW(r->combo, CB_SETMINVISIBLE, 12, 0);
+            return;
+        }
+    }
+    if (p == g_search_page && ++g_found > SEARCH_MAX) return;
+    char shown[500]; snprintf(shown, sizeof shown, "%s", label(e));
+    if (p == g_on_page) { const Grp* gg = e->gi >= 0 ? &g_g[e->gi] : NULL; if (gg) snprintf(shown, sizeof shown, "%s: %s", gg->title, label(e)); else snprintf(shown, sizeof shown, "%s", e->name); }
+    int once = !strcmp(e->mode, "once"), both = !strcmp(e->kind, "live") && (once || !strcmp(e->mode, "both"));
+    Row* r = add_row(once ? R_ONCE : R_CHECK, i, -1); int id = IDC_ROW0 + g_nrows - 1;
+    if (once) r->main = mk(L"STATIC", shown, SS_NOPREFIX | SS_ENDELLIPSIS | SS_CENTERIMAGE, g_font, id);
+    else {
+        r->main = mk(L"BUTTON", shown, BS_OWNERDRAW | WS_TABSTOP, g_font, id);
+        r->on = ent_on(e);
+    }
+    char tag[700]; tag_text(e, tag, sizeof tag);
+    r->sub = mk(L"STATIC", tag, SS_OWNERDRAW, g_small, id); SetWindowLongPtrW(r->sub, GWLP_USERDATA, 1);
+    if (both) r->btn = mk(L"BUTTON", "Do it now", BS_OWNERDRAW | WS_TABSTOP, g_font, id);
+}
+
 static void build_page(void) {
     char q[200]; search_text(q, sizeof q);
     int sel = (int)SendMessageW(g_side, LB_GETCURSEL, 0, 0); if (sel < 0 && !q[0]) return;
@@ -713,69 +824,34 @@ static void build_page(void) {
     int special = p == g_on_page || p == g_search_page;
     g_found = 0;
     ShowWindow(g_host, SW_HIDE);                                  /* built out of sight, shown in one go: no controls flying in from the corner */
+    int keep = p == g_cur_page ? g_keep_scroll : -1; g_keep_scroll = -1;     /* a section folded open or shut: the page stays where it was */
     card_hide(); clear_rows(); g_scroll = 0; g_cur_page = p;
     SetWindowTextW(g_note, L"");
     { char ts[260]; if (p == g_search_page) snprintf(ts, sizeof ts, "Search: %s", q); else snprintf(ts, sizeof ts, "%s", p == g_on_page ? "Enabled" : g_pg[p]);
       wchar_t* tt = wide(ts); SetWindowTextW(g_title, tt); free(tt); }
     {
-
         char* seen = (char*)calloc((size_t)g_ng + 1, 1);
-        for (int i = 0; i < g_ne; i++) {
-            Ent* e = &g_e[i];
-            if (!strcmp(e->kind, "blocked")) continue;
-            if (p == g_on_page) { if (!ent_on(e)) continue; }          /* the Enabled page: everything that is on, from every page */
-            else if (p == g_search_page) { if (!match_words(e)) continue; }
-            else if (strcmp(e->cat, g_pg[p]) && strcmp(e->also, g_pg[p])) continue;
-            if (e->gi >= 0) {
-                int gi = e->gi;
-                {
-                    if (seen[gi]) continue;                      /* the whole choice is one row with a drop-down */
-                    seen[gi] = 1;
-                    if (p == g_search_page && ++g_found > SEARCH_MAX) continue;
-                    Grp* g = &g_g[gi];
-                    /* searching: the members the words fit, or all of them when the choice's own title fits */
-                    int all = p == g_search_page && words_in(g->lt, NULL);
-                    Row* r = add_row(R_GROUP, -1, gi); int id = IDC_ROW0 + g_nrows - 1;
-                    r->members = (int*)malloc((size_t)(g->nmem ? g->nmem : 1) * sizeof *r->members);
-                    for (int j = 0; j < g->nmem && r->members; j++) {
-                        Ent* m = &g_e[g->mem[j]];
-                        if (p == g_search_page ? (all || match_words(m)) : (special || !strcmp(m->cat, g_pg[p]) || !strcmp(m->also, g_pg[p]))) r->members[r->nm++] = g->mem[j];
-                    }
-                    r->main = mk(L"STATIC", g_g[gi].title, SS_NOPREFIX | SS_ENDELLIPSIS | SS_CENTERIMAGE, g_bold, id);
-                    { char st[200]; snprintf(st, sizeof st, "%s \xC2\xB7 Choose one: only one of these can be on.", who_group(g));
-                      r->sub = mk(L"STATIC", st, SS_OWNERDRAW, g_small, id); SetWindowLongPtrW(r->sub, GWLP_USERDATA, 1); }
-                    r->combo = mk(L"COMBOBOX", "", CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP, g_font, id); dark(r->combo, L"DarkMode_CFD");
-                    SendMessageW(r->combo, CB_SETITEMHEIGHT, (WPARAM)-1, 24); SendMessageW(r->combo, CB_SETITEMHEIGHT, 0, 22);
-                    SendMessageW(r->combo, CB_ADDSTRING, 0, (LPARAM)L"Off");
-                    int cur = 0;
-                    for (int k = 0; k < r->nm; k++) {
-                        char t[300]; snprintf(t, sizeof t, "%s%s", label(&g_e[r->members[k]]), !strcmp(g_e[r->members[k]].status, "untested") ? "  (untested)" : "");
-                        wchar_t* w = wide(t); SendMessageW(r->combo, CB_ADDSTRING, 0, (LPARAM)w); free(w);
-                        if (ent_on(&g_e[r->members[k]])) cur = k + 1;
-                    }
-                    SendMessageW(r->combo, CB_SETCURSEL, (WPARAM)cur, 0);
-                    SendMessageW(r->combo, CB_SETMINVISIBLE, 12, 0);
-                    continue;
-                }
+        if (special) { for (int i = 0; i < g_ne; i++) add_entry(p, i, seen); }
+        else {                                                   /* a page: what has no section on top, then each section's title bar and, when open, its rows */
+            const char* pg = g_pg[p];
+            for (int i = 0; i < g_ne; i++) if (sec_of(pg, &g_e[i]) < 0) add_entry(p, i, seen);
+            for (int s = 0; s < g_nsec; s++) {
+                if (strcmp(g_sec[s].cat, pg)) continue;
+                int open = sec_open(s);
+                Row* r = add_row(R_HEAD, -1, -1); r->sec = s; r->on = open;
+                r->main = mk(L"BUTTON", g_sec[s].title, BS_OWNERDRAW | WS_TABSTOP, g_bold, IDC_ROW0 + g_nrows - 1);
+                if (open) for (int i = 0; i < g_ne; i++) if (sec_of(pg, &g_e[i]) == s) add_entry(p, i, seen);
             }
-            if (p == g_search_page && ++g_found > SEARCH_MAX) continue;
-            char shown[500]; snprintf(shown, sizeof shown, "%s", label(e));
-            if (p == g_on_page) { const Grp* gg = e->gi >= 0 ? &g_g[e->gi] : NULL; if (gg) snprintf(shown, sizeof shown, "%s: %s", gg->title, label(e)); else snprintf(shown, sizeof shown, "%s", e->name); }
-            int once = !strcmp(e->mode, "once"), both = !strcmp(e->kind, "live") && (once || !strcmp(e->mode, "both"));
-            Row* r = add_row(once ? R_ONCE : R_CHECK, i, -1); int id = IDC_ROW0 + g_nrows - 1;
-            if (once) r->main = mk(L"STATIC", shown, SS_NOPREFIX | SS_ENDELLIPSIS | SS_CENTERIMAGE, g_font, id);
-            else {
-                r->main = mk(L"BUTTON", shown, BS_OWNERDRAW | WS_TABSTOP, g_font, id);
-                r->on = ent_on(e);
-            }
-            char tag[700]; tag_text(e, tag, sizeof tag);
-            r->sub = mk(L"STATIC", tag, SS_OWNERDRAW, g_small, id); SetWindowLongPtrW(r->sub, GWLP_USERDATA, 1);
-            if (both) r->btn = mk(L"BUTTON", "Do it now", BS_OWNERDRAW | WS_TABSTOP, g_font, id);
         }
         free(seen);
     }
     update_count();
     lay_rows();
+    if (keep > 0) {
+        RECT cr; GetClientRect(g_host, &cr); int max = g_total - cr.bottom;
+        if (keep > max) keep = max;
+        if (keep > 0) { g_scroll = keep; lay_rows(); }
+    }
     ShowWindow(g_host, SW_SHOW);
     RedrawWindow(g_host, NULL, NULL, RDW_INVALIDATE | RDW_ERASE | RDW_ALLCHILDREN | RDW_UPDATENOW);
 }
@@ -838,8 +914,10 @@ static void group_changed(Row* r, int sel) {
 static void layout(int cw, int ch) {
     MoveWindow(g_side, 0, SEARCH_H, SIDE_W, ch - SEARCH_H, TRUE);
     MoveWindow(g_search, 24, 14, SIDE_W - 48, 18, TRUE);
-    MoveWindow(g_title, SIDE_W + PAD_X, 12, cw - SIDE_W - 2 * PAD_X, 28, TRUE);
-    MoveWindow(g_count, SIDE_W + PAD_X, 41, cw - SIDE_W - 2 * PAD_X, 18, TRUE);
+    MoveWindow(g_title, SIDE_W + PAD_X, 12, cw - SIDE_W - 2 * PAD_X - 214, 28, TRUE);
+    MoveWindow(g_count, SIDE_W + PAD_X, 41, cw - SIDE_W - 2 * PAD_X - 214, 18, TRUE);
+    MoveWindow(g_import, cw - PAD_X - 102, 16, 102, 30, TRUE);
+    MoveWindow(g_share, cw - PAD_X - 102 - 8 - 100, 16, 100, 30, TRUE);
     MoveWindow(g_host, SIDE_W, 66, cw - SIDE_W, ch - 66 - 50, TRUE);
     MoveWindow(g_note, SIDE_W + PAD_X, ch - 34, cw - SIDE_W - 2 * PAD_X - 262, 18, TRUE);
     MoveWindow(g_off, cw - PAD_X - 150 - 10 - 92, ch - 42, 150, 32, TRUE);
@@ -916,6 +994,32 @@ static LRESULT CALLBACK cardproc(HWND h, UINT m, WPARAM wp, LPARAM lp) {
     return DefWindowProcW(h, m, wp, lp);
 }
 
+/* a section's title bar: an arrow (right: shut, down: open), the title, and how many of its cheats are on */
+static void draw_head(const DRAWITEMSTRUCT* d, const Row* r) {
+    RECT rc = d->rcItem; int w = rc.right - rc.left, ht = rc.bottom - rc.top, hot = g_hot == d->hwndItem; Cv c;
+    if (!cv_begin(&c, w, ht, COL_BG)) return;
+    int total = 0, on = 0; page_count(g_sec[r->sec].cat, r->sec, &total, &on);
+    cv_box(&c, 0.5f, 0.5f, (float)w - 0.5f, (float)ht - 0.5f, 9, hot ? RGB(56, 58, 66) : RGB(44, 46, 52), 0);
+    if ((d->itemState & ODS_FOCUS) && !(d->itemState & ODS_NOFOCUSRECT)) cv_box(&c, 0.5f, 0.5f, (float)w - 0.5f, (float)ht - 0.5f, 9, COL_ACCENT, 1.2f);
+    float ax = 18, ay = (float)ht / 2; COLORREF ac = on ? COL_ACCENT : COL_GRAY;
+    if (r->on) { cv_line(&c, ax - 4, ay - 2, ax, ay + 2, 1.7f, ac); cv_line(&c, ax, ay + 2, ax + 4, ay - 2, 1.7f, ac); }
+    else { cv_line(&c, ax - 2, ay - 4, ax + 2, ay, 1.7f, ac); cv_line(&c, ax + 2, ay, ax - 2, ay + 4, 1.7f, ac); }
+    wchar_t t[200]; GetWindowTextW(d->hwndItem, t, 200);
+    RECT tr = { 34, 0, w - 130, ht }; cv_text(&c, t, tr, g_bold, COL_TEXT, DT_SINGLELINE | DT_VCENTER | DT_END_ELLIPSIS);
+    wchar_t cnt[64]; if (on) swprintf(cnt, 64, L"%d of %d on", on, total); else swprintf(cnt, 64, L"%d cheat%ls", total, total == 1 ? L"" : L"s");
+    RECT cr = { w - 160, 0, w - 14, ht }; cv_text(&c, cnt, cr, g_small, on ? COL_ACCENT : COL_GRAY, DT_SINGLELINE | DT_VCENTER | DT_RIGHT);
+    cv_end(&c, d->hDC, rc.left, rc.top);
+}
+
+/* fold section s open or shut (posted: the clicked title bar is replaced by the new page's) */
+#define WM_TOGGLE_SECTION (WM_APP + 2)
+static void toggle_section(int s) {
+    char k[300]; sec_key(s, k, sizeof k);
+    EnterCriticalSection(&g_cs); st_set("open", k, !st_has("open", k)); st_save(); LeaveCriticalSection(&g_cs);
+    g_keep_scroll = g_scroll; build_page();
+    for (int i = 0; i < g_nrows; i++) if (g_rows[i].kind == R_HEAD && g_rows[i].sec == s) { SetFocus(g_rows[i].main); break; }
+}
+
 /* the scrolling panel */
 static LRESULT CALLBACK hostproc(HWND h, UINT m, WPARAM wp, LPARAM lp) {
     switch (m) {
@@ -937,6 +1041,7 @@ static LRESULT CALLBACK hostproc(HWND h, UINT m, WPARAM wp, LPARAM lp) {
             return TRUE;
         }
         if (r && r->btn == d->hwndItem) { draw_pill_button(d); return TRUE; }
+        if (r && r->kind == R_HEAD && r->main == d->hwndItem) { draw_head(d, r); return TRUE; }
         if (!r || r->main != d->hwndItem) break;
         {   /* the switch: a pill with a round knob, smooth edges; lighter under the mouse */
             RECT rc = d->rcItem; int w = rc.right - rc.left, ht = rc.bottom - rc.top, on = r->on, hot = g_hot == d->hwndItem; Cv c;
@@ -992,9 +1097,11 @@ static LRESULT CALLBACK hostproc(HWND h, UINT m, WPARAM wp, LPARAM lp) {
         }
         return 0;
     case WM_SIZE: if (g_nrows) lay_rows(); return 0;
+    case WM_TOGGLE_SECTION: toggle_section((int)wp); return 0;
     case WM_COMMAND: {
         Row* r = row_of_id(LOWORD(wp)); if (!r) break;
         int code = HIWORD(wp);
+        if (r->kind == R_HEAD && code == BN_CLICKED) { PostMessageW(h, WM_TOGGLE_SECTION, (WPARAM)r->sec, 0); return 0; }
         if (r->kind == R_GROUP && code == CBN_SELCHANGE) group_changed(r, (int)SendMessageW(r->combo, CB_GETCURSEL, 0, 0));
         else if (r->kind == R_CHECK && (HWND)lp == r->main && code == BN_CLICKED) {
             int on = !r->on;
@@ -1025,6 +1132,139 @@ static void draw_side(DRAWITEMSTRUCT* d) {
     SelectObject(dc, o);
 }
 
+/* ---- sharing the switches with friends: one line of text on the clipboard (paste it in a chat), Import reads it back.
+ * "DQIX-CHEATS/1/<base64 of the state file's lines>": live, code and launch lines only (not which sections are open). */
+#define SHARE_TAG "DQIX-CHEATS/1/"
+static const char b64[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+static char* b64_enc(const unsigned char* s, size_t n) {
+    char* o = (char*)malloc(n / 3 * 4 + 8); size_t k = 0; if (!o) return NULL;
+    for (size_t i = 0; i < n; i += 3) {
+        uint32_t v = (uint32_t)s[i] << 16 | (i + 1 < n ? (uint32_t)s[i + 1] << 8 : 0) | (i + 2 < n ? s[i + 2] : 0);
+        o[k++] = b64[v >> 18 & 63]; o[k++] = b64[v >> 12 & 63]; o[k++] = i + 1 < n ? b64[v >> 6 & 63] : '='; o[k++] = i + 2 < n ? b64[v & 63] : '=';
+    }
+    o[k] = 0; return o;
+}
+static char* b64_dec(const char* s, size_t* n) {                 /* stops at the first character that isn't base64 */
+    size_t len = 0; while (s[len] && (strchr(b64, s[len]) || s[len] == '=')) len++;
+    char* o = (char*)malloc(len / 4 * 3 + 4); size_t k = 0; uint32_t v = 0; int bits = 0; if (!o) return NULL;
+    for (size_t i = 0; i < len && s[i] != '='; i++) {
+        v = v << 6 | (uint32_t)(strchr(b64, s[i]) - b64); bits += 6;
+        if (bits >= 8) { bits -= 8; o[k++] = (char)(v >> bits & 255); }
+    }
+    o[k] = 0; *n = k; return o;
+}
+static int clip_put(const wchar_t* t) {
+    size_t n = (wcslen(t) + 1) * sizeof *t; HGLOBAL g = GlobalAlloc(GMEM_MOVEABLE, n); if (!g) return 0;
+    void* d = GlobalLock(g); if (!d) { GlobalFree(g); return 0; }
+    memcpy(d, t, n); GlobalUnlock(g);
+    if (!OpenClipboard(g_win)) { GlobalFree(g); return 0; }
+    EmptyClipboard(); int ok = SetClipboardData(CF_UNICODETEXT, g) != NULL; CloseClipboard();
+    if (!ok) GlobalFree(g);
+    return ok;
+}
+static char* clip_get(void) {                                    /* UTF-8, or NULL */
+    if (!OpenClipboard(g_win)) return NULL;
+    char* out = NULL; HANDLE g = GetClipboardData(CF_UNICODETEXT);
+    const wchar_t* w = g ? (const wchar_t*)GlobalLock(g) : NULL;
+    if (w) {
+        int n = WideCharToMultiByte(CP_UTF8, 0, w, -1, NULL, 0, NULL, NULL);
+        out = n > 0 ? (char*)malloc((size_t)n) : NULL;
+        if (out) WideCharToMultiByte(CP_UTF8, 0, w, -1, out, n, NULL, NULL);
+        GlobalUnlock(g);
+    }
+    CloseClipboard(); return out;
+}
+
+/* the line Share puts on the clipboard (NULL: nothing is on); *count = how many cheats */
+static char* share_line(int* count) {
+    size_t cap = 256, len = 0; char* txt = (char*)malloc(cap); *count = 0;
+    if (!txt) return NULL;
+    txt[0] = 0;
+    EnterCriticalSection(&g_cs);
+    for (int i = 0; i < g_ne; i++) {
+        if (!strcmp(g_e[i].kind, "blocked") || !ent_on(&g_e[i])) continue;
+        size_t need = strlen(g_e[i].id) + 12;
+        if (len + need >= cap) { char* nt = (char*)realloc(txt, cap = (cap + need) * 2); if (!nt) break; txt = nt; }
+        len += (size_t)snprintf(txt + len, cap - len, "%s %s\n", skind(&g_e[i]), g_e[i].id); (*count)++;
+    }
+    LeaveCriticalSection(&g_cs);
+    if (!*count) { free(txt); return NULL; }
+    char* enc = b64_enc((const unsigned char*)txt, len); free(txt); if (!enc) return NULL;
+    size_t n = strlen(enc) + 200; char* line = (char*)malloc(n);
+    if (line) snprintf(line, n, "DQIX Enhanced cheats (%d on) - copy this line, then press Import in the Cheats window: " SHARE_TAG "%s", *count, enc);
+    free(enc); return line;
+}
+
+static void share_settings(void) {
+    int count; char* line = share_line(&count);
+    if (!line) { SetWindowTextW(g_note, L"Nothing is switched on: there is nothing to share yet."); return; }
+    wchar_t* w = wide(line);
+    if (w && clip_put(w)) {
+        wchar_t note[160]; swprintf(note, 160, L"Copied %d cheat%ls to the clipboard: paste it to your friends, they press Import.", count, count == 1 ? L"" : L"s");
+        SetWindowTextW(g_note, note);
+    } else SetWindowTextW(g_note, L"The clipboard couldn't be used: try again.");
+    free(w); free(line);
+}
+
+/* text with SHARE_TAG in it -> want[i] = 1 for each entry it switches on; returns how many, *missing = ids this list doesn't have */
+static int read_shared(const char* text, int* want, int* missing) {
+    const char* at = text ? strstr(text, SHARE_TAG) : NULL; int found = 0; *missing = 0;
+    if (!at) return -1;
+    size_t n = 0; char* txt = b64_dec(at + strlen(SHARE_TAG), &n);
+    for (char* line = txt; txt && line && *line;) {
+        char* nl = strchr(line, '\n'); if (nl) *nl = 0;
+        char* sp = strchr(line, ' ');
+        if (sp) {
+            *sp = 0; int hit = -1;
+            for (int i = 0; i < g_ne && hit < 0; i++) if (!strcmp(g_e[i].id, sp + 1) && !strcmp(skind(&g_e[i]), line) && strcmp(g_e[i].kind, "blocked")) hit = i;
+            if (hit >= 0 && !want[hit]) { want[hit] = 1; found++; } else if (hit < 0) (*missing)++;
+        }
+        line = nl ? nl + 1 : NULL;
+    }
+    free(txt);
+    return found;
+}
+
+/* switch exactly the wanted entries on (and everything else off); -> an entry that needs a restart or rebuild, or -1 */
+static int apply_wanted(const int* want) {
+    int restart = -1;
+    for (int i = 0; i < g_ne; i++) {
+        int fixed = !strcmp(g_e[i].kind, "code") && g_e[i].file[0];      /* switched in its file: left as it is */
+        int now = ent_on(&g_e[i]), to = want[i];
+        if (fixed || now == to) continue;
+        if (strcmp(g_e[i].kind, "live") && restart < 0) restart = i;
+        if (!to) apply(i, 0);
+    }
+    for (int i = 0; i < g_ne; i++) if (want[i] && !ent_on(&g_e[i]) && !(!strcmp(g_e[i].kind, "code") && g_e[i].file[0])) apply(i, 1);
+    return restart;
+}
+
+static void import_settings(void) {
+    char* clip = clip_get();
+    int* want = (int*)calloc((size_t)g_ne + 1, sizeof *want); int missing = 0;
+    int found = want ? read_shared(clip, want, &missing) : -1;
+    free(clip);
+    if (found < 0) {
+        free(want);
+        MessageBoxW(g_win, L"The clipboard has no shared cheat settings.\n\nCopy the whole line a friend sent you (it has DQIX-CHEATS in it), then press Import again.", L"Import", MB_OK | MB_ICONINFORMATION);
+        return;
+    }
+    if (!found) {
+        free(want);
+        MessageBoxW(g_win, L"None of the shared cheats is in this game's list (a different game version or an older mods folder?).", L"Import", MB_OK | MB_ICONINFORMATION);
+        return;
+    }
+    wchar_t msg[400];
+    swprintf(msg, 400, L"Switch on the %d cheat%ls from the shared settings?\n\nEverything that is on now is switched off first.%ls", found, found == 1 ? L"" : L"s",
+             missing ? L"\n\nSome of the shared cheats aren't in this game's list: they are left out." : L"");
+    if (MessageBoxW(g_win, msg, L"Import", MB_YESNO | MB_ICONQUESTION) != IDYES) { free(want); return; }
+    int restart = apply_wanted(want);
+    free(want);
+    build_page();
+    wchar_t note[120]; swprintf(note, 120, L"Imported: %d cheat%ls on.", found, found == 1 ? L"" : L"s"); SetWindowTextW(g_note, note);
+    if (restart >= 0) maybe_restart(&g_e[restart]);
+}
+
 static LRESULT CALLBACK wndproc(HWND h, UINT m, WPARAM wp, LPARAM lp) {
     switch (m) {
     case WM_TIMER: KillTimer(h, wp); if (wp == IDT_SEARCH) build_page(); else test_step((int)wp); return 0;
@@ -1053,7 +1293,7 @@ static LRESULT CALLBACK wndproc(HWND h, UINT m, WPARAM wp, LPARAM lp) {
     case WM_MEASUREITEM: { MEASUREITEMSTRUCT* mi = (MEASUREITEMSTRUCT*)lp; if (mi->CtlID == IDC_SIDE) { mi->itemHeight = 32; return TRUE; } break; }
     case WM_DRAWITEM:
         if (wp == IDC_SIDE) { draw_side((DRAWITEMSTRUCT*)lp); return TRUE; }
-        if (wp == IDC_OFF || wp == IDC_CLOSE) { draw_pill_button((DRAWITEMSTRUCT*)lp); return TRUE; }
+        if (wp == IDC_OFF || wp == IDC_CLOSE || wp == IDC_SHARE || wp == IDC_IMPORT) { draw_pill_button((DRAWITEMSTRUCT*)lp); return TRUE; }
         break;
     case WM_COMMAND:
         switch (LOWORD(wp)) {
@@ -1063,6 +1303,8 @@ static LRESULT CALLBACK wndproc(HWND h, UINT m, WPARAM wp, LPARAM lp) {
             if (HIWORD(wp) == EN_SETFOCUS || HIWORD(wp) == EN_KILLFOCUS) { RECT t = { 0, 0, SIDE_W, SEARCH_H }; InvalidateRect(h, &t, FALSE); }
             return 0;
         case IDC_CLOSE: case IDCANCEL: ShowWindow(h, SW_HIDE); return 0;
+        case IDC_SHARE: share_settings(); return 0;
+        case IDC_IMPORT: import_settings(); return 0;
         case IDC_OFF:
             if (MessageBoxW(h, L"Switch every cheat off?", L"Cheats", MB_YESNO | MB_ICONQUESTION) == IDYES) { all_off(); build_page(); SetWindowTextW(g_note, L"Everything is off."); }
             return 0;
@@ -1099,7 +1341,11 @@ static void save_shot(HWND h, const char* path) {
 static void select_page_of(int idx) {
     for (int t = 0; t < (int)SendMessageW(g_side, LB_GETCOUNT, 0, 0); t++) {
         int p = (int)SendMessageW(g_side, LB_GETITEMDATA, (WPARAM)t, 0);
-        if (p != g_on_page && !strcmp(g_e[idx].cat, g_pg[p])) { SendMessageW(g_side, LB_SETCURSEL, (WPARAM)t, 0); build_page(); return; }
+        if (p != g_on_page && !strcmp(g_e[idx].cat, g_pg[p])) {
+            int s = sec_of(g_pg[p], &g_e[idx]);                  /* its section folded open (not saved) */
+            if (s >= 0 && !sec_open(s)) { char k[300]; sec_key(s, k, sizeof k); st_set("open", k, 1); }
+            SendMessageW(g_side, LB_SETCURSEL, (WPARAM)t, 0); build_page(); return;
+        }
     }
 }
 
@@ -1126,6 +1372,19 @@ static void test_search(void) {
 }
 
 static void test_step(int step) {
+    if (step == 1 && g_test_import[0]) {                    /* Import without the question, then what Share would copy */
+        if (strcmp(g_test_import, "-")) {
+            int* want = (int*)calloc((size_t)g_ne + 1, sizeof *want); int missing = 0;
+            int found = want ? read_shared(g_test_import, want, &missing) : -1;
+            if (found > 0) apply_wanted(want);
+            free(want);
+            fprintf(stderr, "cheatwin import: found=%d missing=%d\n", found, missing);
+        }
+        int count; char* line = share_line(&count);
+        fprintf(stderr, "cheatwin share: count=%d %s\n", count, line ? line : "");
+        free(line);
+        return;
+    }
     if (step == 1 && g_test_search[0]) test_search();
     else if (step == 1) {
         int now = !strncmp(g_test_id, "now:", 4);              /* "now:<id>": press its Do it now button instead of switching it on */
@@ -1259,7 +1518,10 @@ static DWORD WINAPI ui_thread(LPVOID unused) {
     g_note = CreateWindowExW(0, L"STATIC", L"Switches work at once while you play. Save your game first.", WS_CHILD | WS_VISIBLE | SS_NOPREFIX | SS_ENDELLIPSIS, 0, 0, 10, 10, g_win, (HMENU)(UINT_PTR)IDC_NOTE, hi, NULL);
     g_off = CreateWindowExW(0, L"BUTTON", L"Everything off", WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_OWNERDRAW, 0, 0, 10, 10, g_win, (HMENU)(UINT_PTR)IDC_OFF, hi, NULL);
     g_close = CreateWindowExW(0, L"BUTTON", L"Close", WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_OWNERDRAW, 0, 0, 10, 10, g_win, (HMENU)(UINT_PTR)IDC_CLOSE, hi, NULL);
-    hook(g_off); hook(g_close);
+    g_share = CreateWindowExW(0, L"BUTTON", L"Share", WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_OWNERDRAW, 0, 0, 10, 10, g_win, (HMENU)(UINT_PTR)IDC_SHARE, hi, NULL);
+    g_import = CreateWindowExW(0, L"BUTTON", L"Import", WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_OWNERDRAW, 0, 0, 10, 10, g_win, (HMENU)(UINT_PTR)IDC_IMPORT, hi, NULL);
+    hook(g_off); hook(g_close); hook(g_share); hook(g_import);
+    SendMessageW(g_share, WM_SETFONT, (WPARAM)g_font, TRUE); SendMessageW(g_import, WM_SETFONT, (WPARAM)g_font, TRUE);
     SendMessageW(g_title, WM_SETFONT, (WPARAM)g_head, TRUE); SendMessageW(g_count, WM_SETFONT, (WPARAM)g_small, TRUE); SendMessageW(g_note, WM_SETFONT, (WPARAM)g_small, TRUE);
     SendMessageW(g_off, WM_SETFONT, (WPARAM)g_font, TRUE); SendMessageW(g_close, WM_SETFONT, (WPARAM)g_font, TRUE); SendMessageW(g_side, WM_SETFONT, (WPARAM)g_font, TRUE);
     SendMessageW(g_side, LB_SETITEMHEIGHT, 0, 32);
@@ -1282,7 +1544,7 @@ static DWORD WINAPI ui_thread(LPVOID unused) {
     RECT r; GetClientRect(g_win, &r); layout(r.right, r.bottom);
     build_page();
     ShowWindow(g_win, SW_SHOWNORMAL); SetForegroundWindow(g_win);
-    if (g_test_id[0] || g_test_search[0]) { SetTimer(g_win, 1, 1500, NULL); SetTimer(g_win, 2, 4000, NULL); }
+    if (g_test_id[0] || g_test_search[0] || g_test_import[0]) { SetTimer(g_win, 1, 1500, NULL); SetTimer(g_win, 2, 4000, NULL); }
     MSG msg;
     while (GetMessageW(&msg, NULL, 0, 0) > 0) {
         if (msg.message == WM_MOUSEMOVE && msg.hwnd && (msg.hwnd == g_host || IsChild(g_host, msg.hwnd))) card_mouse(msg.pt);

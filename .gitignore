@@ -9,3 +9,7 @@ mods/system/AR-codes-*.txt
 mods/system/lang/rom-*.tsv
 mods/system/editor-lang.txt
 .claude/settings.local.json
+
+# Claude Code settings, hooks and memory: local to each PC, never in the repo
+.claude/
+CLAUDE.md

@@ -270,6 +270,8 @@ def runners(root, work):
         "cheatwin":       (fn("test_cheatwin.py", ["900"]), True, 60),             # the Cheats window inside the game (mod_cheatwin.c)
         "livepatch":      (fn("test_livepatch.py", ["4500"]), True, 400),         # live code mods; needs TEST_SAVE = a save with the hero in a dungeon
         "firststrike":    (fn("test_firststrike.py", []), True, 200),             # "Always strike first" (firststrike.c); needs TEST_SAVE as above
+        "vanish-walk":    (fn("test_vanish_walk.py", []), True, 200),             # Vanish in the field: no battle, no frozen monster (vanish.c); TEST_SAVE as above
+        "undo-fun":       (fn("test_undo_fun.py", []), True, 90),                 # Fun cheats switched off put the game back (SET_UNDO); TEST_SAVE as above
         # cheats with buttons, the buttons really pressed (test_keys.py); TEST_SAVE as above
         "keys":           (fn("test_keys.py", ["db:6fec10fd|Increase/Decrease Size", "A+L,A+R", "20"]), True, 120),
         "keys-bag":       (fn("test_keys.py", ["db:26b3f9a9|99 of the bag item under the cursor", "START+R", "10"],

@@ -60,6 +60,14 @@ send(1, None, [(0x94000130, 0xFDFF0000), (T + 4, 0x22222222), (0xD2000000, 0)]) 
 send(1, None, [(0xC0000000, 0xFFFFFFFF), (T + 8, 0x33333333), (0xD2000000, 0)])     # RUN: an endless loop must not freeze the game
 send(2, 3, [(T + 12, 0x44444444)])
 send(3, 3, [])                                                                    # CLEAR 3 again
+U = T + 0x20                                                                      # SET_UNDO (5): switched off, its changes go back
+send(5, 4, [(0x94000130, 0xFFFB0000), (U, 0x55555555), (0xD2000000, 0)])          # only while SELECT is held (after dump 1)
+send(5, 6, [(U + 4, 0x66666666)])
+while u(28) < d1 + 300 and p.poll() is None:                                      # SELECT was held d1+200..d1+240
+    time.sleep(0.005)
+send(1, None, [(0x20000000 | U, 0x77)])                                           # RUN: something else changes one of its bytes
+send(3, 4, [])                                                                    # CLEAR: U back to 0, but the changed byte stays
+send(3, 6, [])
 last, stalled = -1, time.time()
 while p.poll() is None:
     time.sleep(0.5)
@@ -95,6 +103,9 @@ try:
     check("fired once, key counted as held", ram(d1, T + 4), 0x22222222)
     check("endless loop wrote once and let go", ram(d1, T + 8), 0x33333333)
     check("cleared cheat stays", ram(d2, T + 12), 0x44444444)
+    check("undo cheat on", ram(d1, U + 4), 0x66666666)
+    check("undo cheat cleared: old value back", ram(d2, U + 4), 0)
+    check("undo cheat cleared: a byte changed since is kept", ram(d2, U), 0x77)
 except OSError as e:
     ok = False
     print("FAIL: no RAM dump:", e)

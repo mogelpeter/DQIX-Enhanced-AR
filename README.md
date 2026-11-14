@@ -91,7 +91,7 @@ The very first time after an update of the cheats the game is built once (a few 
 
 ## Using the cheats
 
-The cheat window has pages on the left: **Enabled** (everything that is on), then Speed & comfort, Experience & gold, Party, Battle, Items, Alchemy, World, Unlocks, Records & quests, Fun and Miscellaneous. The search box above them looks through every page (all words must fit; inside a choice like *Battle any monster you want* only the fitting options are offered; the first 60 hits are shown). Keep the window open while you play and switch cheats on the fly. The grey line under a cheat says who needs it in a session (*One player* in yellow, *All players* in pink), the buttons to hold (in blue) and its labels; hover a row for a longer explanation of what the cheat does.
+The cheat window has pages on the left: **Enabled** (everything that is on), then Speed & comfort, Camera, Experience & gold, Party, Battle, Items, Treasure maps, Alchemy, World, Unlocks, Records & quests, Fun and Miscellaneous. Big pages are folded into sections you click open (Party: Whole party, Hero, Player 2-4; Battle: Party buffs, Enemy debuffs, Monster AI, Encounters). The search box above them looks through every page (all words must fit; inside a choice like *Battle any monster you want* only the fitting options are offered; the first 60 hits are shown). Keep the window open while you play and switch cheats on the fly. The grey line under a cheat says who needs it in a session (*One player* in yellow, *All players* in pink), the buttons to hold (in blue) and its labels; hover a row for a longer explanation of what the cheat does.
 
 Each cheat is one of these:
 
@@ -111,7 +111,11 @@ The labels in the grey line:
 | `next start` | Takes effect the next time the game starts ("Battle any monster you want", "Metal slimes only", "Instant loading"...). The window offers to restart the game. |
 | *Only one player* / *All players* / *Your PC only* | How it behaves in a session with friends. |
 
-**Everything off** switches all of it off. You can also add your own cheats: put a text file in `mods\system\cheats` (see `mods\README.txt`, section "Make your own").
+**Everything off** switches all of it off. The Fun cheats (big head, size, hidden party) put the game back the moment they are switched off.
+
+**Share** copies what you have on as one line of text to the clipboard; paste it to your friends. They copy it and press **Import** to get exactly the same cheats on (what they had on before is switched off).
+
+You can also add your own cheats: put a text file in `mods\system\cheats` (see `mods\README.txt`, section "Make your own").
 
 ---
 

@@ -1,4 +1,4 @@
-# name: Normal attacks hit every enemy
+# name: Boomerang mode: normal attacks hit every enemy
 # enabled: no
 # category: Battle
 # replaces: Normal Atk equal Atk All|Normal Atk = Atk All

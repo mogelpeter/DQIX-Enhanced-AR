@@ -115,5 +115,25 @@ for tag, pick in (("five-a", lambda d: d["id"] == "file:cheats/once-nighttime.tx
     print("5  Do it now:", (d.get("option") or d["name"]), "| keys", d.get("keys", "-"), "| written:",
           ", ".join("%#x=%#x (want %#x)" % (0x02000000 + o, g, v) for o, n, v, g in got), "| still off:", d["id"] not in st5, "| exit", rc5, flush=True)
     ok &= bool(good)
+
+# 6: Share and Import (DQIX_CHEATWIN_IMPORT): a start with three cheats on (one of them a choice's member) shares them as one
+#    line; a start with something else on imports that line: exactly the three are on (the other one off), the gold is in RAM,
+#    and sharing again gives the same line. The second start also draws the Party page with a section open (Hero).
+pick = [i for i in ids[:1]] + ["file:cheats/max-gold.txt", "file:cheats/vanish.txt"]
+rc6, txt6, _, _ = run("six-a", ["live " + i for i in pick], lambda d: {"DQIX_CHEATWIN_IMPORT": "-"})
+line = next((l.split(" ", 3)[3] for l in txt6.splitlines() if l.startswith("cheatwin share: count=3 ")), "")
+hero = catalog_entry(lambda d: d.get("cat") == "Party" and d.get("section") == "Hero" and d.get("kind") == "live" and not d.get("group"))
+rc7, txt7, ram7, st7 = run("six-b", ["live file:cheats/max-mini-medals.txt"], lambda d: {"DQIX_CHEATWIN_IMPORT": line})
+on7 = sorted(l.split(" ", 1)[1] for l in st7.splitlines() if l.startswith("live "))
+again = next((l.split(" ", 3)[3] for l in txt7.splitlines() if l.startswith("cheatwin share: ")), "")
+s6 = rc6 == 0 and rc7 == 0 and "DQIX-CHEATS/1/" in line and "cheatwin import: found=3 missing=0" in txt7 and on7 == sorted(pick) \
+    and gold(ram7) == GOLD and again == line
+print("6  share -> import:", s6, "| shared:", line[:60] + "...", "| on after import:", on7, "| exit", rc6, rc7, flush=True)
+ok &= s6
+if hero:
+    rc8, txt8, _, st8 = run("seven", [], lambda d: {"DQIX_CHEATWIN_TEST": hero["id"] + "," + os.path.join(d, "shot.bmp")})
+    s7 = rc8 == 0 and "cheatwin test: switched on" in txt8 and ("live " + hero["id"]) in st8
+    print("7  a cheat inside a folded section (Party / Hero) switched on:", s7, "| picture:", os.path.join(work, "seven", "shot.bmp"), flush=True)
+    ok &= s7
 print("RESULT:", "PASS" if ok else "FAIL")
 sys.exit(0 if ok else 1)

@@ -56,12 +56,15 @@ What is in the mods folder:
 
 THE CHEATS WINDOW
 -----------------
-On the left the pages (Speed & comfort, Experience & gold, Party, Battle, Items, ...),
+On the left the pages (Speed & comfort, Camera, Experience & gold, Party, Battle, Items,
+Treasure maps, ...),
 first "Enabled": everything that is on now, from every page. The search box above them
 finds a cheat by the words of its name, option, note, page or keys (all words must fit;
 inside a choice only the fitting options are offered; the first 60 hits are shown). Under each cheat a grey line
 says who needs it in a session, the buttons to hold (in blue) and its labels; hover a row
 for a longer explanation of what it does. You can keep the window open while you play.
+Big pages are folded into sections (Party: Whole party, Hero, Player 2-4; Battle: Party buffs,
+Enemy debuffs, Monster AI, Encounters): click a section's bar to open or close it.
 
 Each cheat is one of these:
 
@@ -85,7 +88,14 @@ The labels in the grey line:
                    you want", "Metal slimes only", "Instant loading"...). The window
                    offers to restart the game.
 
-"Everything off" switches all of it off. Before the save editor writes your save, a copy
+"Everything off" switches all of it off. The Fun cheats (big head, size, hidden party) put
+the game back the moment they are switched off.
+
+"Share" copies what you have on as one line of text to the clipboard: paste it in a chat.
+A friend copies that line and presses "Import": the same cheats are on for them (what they
+had on before is switched off).
+
+Before the save editor writes your save, a copy
 goes to mods\system\save-backups (the last 30).
 
 
