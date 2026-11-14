@@ -31,7 +31,7 @@ The ROM and the game itself are never part of this repo.
 ## Quick install
 
 1. Build DQIX Enhanced once (its installer, or its `BUILD.bat`, with your own ROM).
-2. Double-click **`Install cheats.bat`** from this repo. It is a patcher: it finds your DQIX Enhanced folder itself (it asks only if it can't), copies the `mods` folder in, and builds the **Cheats** tab into the game (a few minutes the first time). No shortcut, nothing extra to start.
+2. Copy **`Install cheats.bat`** and the **`mods`** folder from this repo into your DQIX Enhanced folder (the one with `BUILD.bat` in it), then double-click **`Install cheats.bat`** there. It is a patcher: it builds the **Cheats** tab into the game (a few minutes the first time). No shortcut, nothing extra to start.
 3. Start the game as always with `game\dqix.exe`. Whether you want cheats is up to you: open **Cheats > Cheats...** in the menu bar and switch on what you like.
 
 Trouble? `mods\system\dev.bat doctor` says what is missing and how to fix it.
@@ -68,10 +68,19 @@ If it says it can't find your ROM, copy the `.nds` file (or a `.zip` that has it
 
 ### Step 4: Install the cheats
 
-1. In the extracted folder double-click **`Install cheats.bat`**.
-2. Again, if Windows says **"Windows protected your PC"**: **More info**, then **Run anyway**.
-3. It looks for your DQIX Enhanced folder on its own. If it can't find it, a window opens: pick the folder from Step 1 (the one with `BUILD.bat` in it).
-4. Wait. It copies the files and builds the **Cheats** tab into your game. **A few minutes the first time.** Do not close the window; it says *"Done."* when it's finished.
+1. Open the extracted cheats folder. You will see **`Install cheats.bat`** and a folder called **`mods`**.
+2. Select both, copy them (Ctrl+C), open your DQIX Enhanced folder from Step 1 (the one with `BUILD.bat` in it) and paste them there (Ctrl+V). If Windows asks about replacing files, choose **Replace**. It should now look like this:
+
+   ```
+   DQIX-Enhanced\
+       BUILD.bat
+       Install cheats.bat   <- here
+       mods\                <- here
+       game\
+       ...
+   ```
+3. In the DQIX Enhanced folder double-click **`Install cheats.bat`**. If Windows says **"Windows protected your PC"**: **More info**, then **Run anyway**.
+4. Wait. It builds the **Cheats** tab into your game. **A few minutes the first time.** Do not close the window; it says *"Done."* when it's finished.
 
 Make sure the game is **closed** while installing. If it is still running the installer tells you so; close the game and run **`Install cheats.bat`** again.
 
@@ -128,7 +137,7 @@ The game's menu bar (Game, Graphics, Screen, View, Wireless, Modern, Mods, **Che
 The tab is not a copy of the game's files: it is a handful of small, clearly marked changes (`>>> mods ... <<< mods`) that `mods\system\tools\apply_runtime_mod.py` puts into the game's source before it is built. An update of the game replaces those files, so:
 
 - **Update from inside the game (Help > Check for updates):** the updater also runs `mods\Apply cheats.bat apply` (the patcher) before it rebuilds, so the new game comes out with the tab, the cheats and your switches again. Nothing to do.
-- **Update by hand (a new download):** run **`Install cheats.bat`** or **`mods\Apply cheats.bat`** once; every change is put back and the game is rebuilt.
+- **Update by hand (a new download):** copy the new `Install cheats.bat` and `mods` folder over the old ones (replace), then run **`Install cheats.bat`** once; every change is put back and the game is rebuilt.
 - **A place the new version wrote differently:** it is skipped with a message and the rest still works.
 - The update never deletes the `mods` folder, so what you switched on stays (`mods\system\menu-state.txt`).
 
@@ -142,7 +151,7 @@ The cheats work in sessions as long as every player's game has them built in.
 
 In a session every PC runs every player's DS, and they must all compute exactly the same. So a cheat can't just be written into your PC's memory. It travels with your button presses instead: your game sends it to the others like a button, and every PC carries it out for your DS in the same frame.
 
-1. Give every player this download; each runs `Install cheats.bat` once.
+1. Give every player this download; each copies `Install cheats.bat` and `mods` into their DQIX Enhanced folder and runs `Install cheats.bat` once.
 2. Host and join as usual (Wireless > Play with friends).
 3. Use the cheats as when alone. They only change your own DS (hero, gold, bag), on every PC at once. Friends don't need the same cheats on.
 
@@ -183,7 +192,7 @@ The cheat list comes from the community's R4 database (DeadSkullzJr's NDS(i) Che
 | Problem | What to do |
 |---|---|
 | *"Windows protected your PC"* | Click **More info**, then **Run anyway**. The files are plain batch scripts you can open in Notepad. |
-| The installer can't find the game folder | Choose the folder with `BUILD.bat` in the window that opens. It must be built first (`game\dqix.exe` exists). |
+| The installer says *"This file is not in your DQIX Enhanced folder"* or *"The mods folder is missing"* | `Install cheats.bat` and the `mods` folder must both sit directly in your DQIX Enhanced folder, next to `BUILD.bat`. The game must be built first (`game\dqix.exe` exists). |
 | *"The game is still running"* | Close the game, run `Install cheats.bat` again. |
 | The **Cheats** tab is missing in the game | The game was built without it (for example after a hand-made update). Run `Install cheats.bat` or `mods\Apply cheats.bat` once, wait for the build. |
 | *"cmp: command not found"* at the end of a build | Harmless. To silence it: open the MSYS2 UCRT64 terminal and run `pacman -S diffutils`. |
@@ -211,7 +220,7 @@ See [docs/WORKFLOW.md](docs/WORKFLOW.md) (fast loop, which test for which change
 Layout:
 
 ```
-Install cheats.bat          one-click installer (copies mods\ into the game folder, then runs Apply cheats.bat)
+Install cheats.bat          one-click installer (put it and mods\ into the game folder, then run it: it runs Apply cheats.bat)
 mods\Apply cheats.bat       the patcher: cheat list for your ROM, cheats into the game's source, build, save editor helper
                             (also run by the game's updater and by the Cheats window for a rebuild)
 mods\settings.txt           sync_cheats

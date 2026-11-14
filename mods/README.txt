@@ -26,20 +26,23 @@ anyway (other spacing or line breaks, the newer menu bar made from a table). If 
 doesn't build with one of them, that one is left out and the game is built without it (the
 window says which; mods\system\bin\build.log has the build's output, repatch.txt how each
 place was found). It is tried again with the next update of the game or of the mods.
-If you update by hand (a new download), run Install cheats.bat once more.
+If you update by hand (a new download), copy Install cheats.bat and this mods folder over
+the old ones and run Install cheats.bat once more.
 
 
 INSTALL
 -------
-Build the game once the normal way first (if you haven't already). Then double-click
-"Install cheats.bat" in the folder you downloaded. It finds your DQIX Enhanced folder,
-copies this "mods" folder next to BUILD.bat and builds the Cheats tab into the game
-(a few minutes the first time):
+Build the game once the normal way first (if you haven't already). Then copy
+"Install cheats.bat" and this "mods" folder from the download into your DQIX Enhanced
+folder, next to BUILD.bat (replace the files if Windows asks), and double-click
+"Install cheats.bat" there. It builds the Cheats tab into the game (a few minutes the
+first time):
 
     DQIX Enhanced\
         BUILD.bat
+        Install cheats.bat   <- here
         game\
-        mods\          <- here
+        mods\                <- here
 
 What is in the mods folder:
 
@@ -180,7 +183,8 @@ sends it to the others like a button, and every PC carries it out for your DS in
 frame. Code mods switched in the window travel the same way.
 
 What to do:
-1. Give every player this download. Each runs Install cheats.bat once.
+1. Give every player this download. Each copies Install cheats.bat and the mods folder
+   into their DQIX Enhanced folder and runs Install cheats.bat once.
 2. Host and join as usual.
 3. Use the cheats as when alone. They only change your own DS (your hero, your gold,
    your bag), on every PC at once. Your friends don't need the same cheats on, and can

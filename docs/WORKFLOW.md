@@ -49,7 +49,7 @@ One rule: **do the cheapest check that can catch the mistake, and never repeat a
 
 1. Install Python 3.8+ (or just build the game once: the MSYS2 tools bring their own).
 2. Build the game once with the project's `BUILD.bat` (needs your own ROM in `rom\`).
-3. Run `Install cheats.bat` from this repo (it asks for the folder, or takes it as an argument).
+3. Copy `Install cheats.bat` and `mods\` from this repo into the game folder (next to `BUILD.bat`) and run `Install cheats.bat` there.
 4. `mods\system\dev.bat doctor` lists anything still missing and how to fix it.
 5. Working from the repo on that PC: `mods\system\dev-root.txt` (one line, the game folder) or `set DQIX_ROOT=...`.
 
