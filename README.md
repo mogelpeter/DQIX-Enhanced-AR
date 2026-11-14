@@ -2,7 +2,7 @@
 
 A cheat list and code mods for [DQIX Enhanced](https://github.com/sackchief/dqix-enhanced) (Dragon Quest IX on PC), in the style of an R4 / Action Replay cheat menu, built into the game's own menu bar.
 
-- **218 cheats that switch while you play** (code mods included; none needs a rebuild), and launch options such as *Battle any monster you want* (288 monsters). All are checked against your own ROM before they can run, so they cannot crash the game, and all but three were tried out in the game (see *untested* below).
+- **218 cheats that switch while you play** (code mods included; none needs a rebuild), and launch options such as *Battle any monster you want* (288 monsters). All are checked against your own ROM before they can run, so they cannot crash the game, and every one of them was tried out in the game (the *untested* label is only for codes you add yourself or a newer R4 list).
 - **A "Cheats" tab inside the game's own menu bar**: *Cheats...* opens the cheat list in a window of the game itself, and a switch works at once while you play: no restart, no rebuild, code mods included. There is no separate cheat program. *Save editor...* and *Treasure maps...* open the web tools. The tab is put back automatically after the game updates itself.
 - **Works alone and in sessions with friends** (cheats travel with the buttons, so every PC stays in sync).
 - **Save editor** and **Treasure maps**: the DQIX project's browser editor opens with your save already loaded (downloaded on first use, needs the internet once; not part of this repo), and the map search website.

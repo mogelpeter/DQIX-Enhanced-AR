@@ -175,7 +175,7 @@ Sending takes a moment (a fifth of a second for a short code, a few seconds for 
 "99 of every..." ones); the stylus is lifted while it lasts.
 
 If one player's game doesn't have the cheats in it (or an older version of them: this one
-is version 2), the first cheat puts the session out of sync (the title bar says so).
+is version 3), the first cheat puts the session out of sync (the title bar says so).
 Without cheats such a session plays normally.
 
 A code mod that needs a rebuild (none of the shipped ones) would change how the game

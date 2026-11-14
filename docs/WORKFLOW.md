@@ -20,6 +20,7 @@ One rule: **do the cheapest check that can catch the mistake, and never repeat a
 | `catalog.py`, `cheats\` | `dev test static` then `dev test all-quick` | static reads every catalog line in 0.1 s; all-quick sends 12 cheats to a headless game |
 | `mod_cheats.c`, `ar_engine.h` | `dev test live session all-single all-session` after a build | the only code that runs inside the game and inside friends' sessions |
 | `firststrike.c`, `noflee.c`, `vanish.c` (switches that wrap a game function) | `dev test firststrike` / `test_noflee.py` / `test_vanish.py` (`TEST_SAVE` = a save in a dungeon) | the wrapped function is reached in a real battle start |
+| `ar_engine.h`, a cheat with buttons | `dev test keys keys-bag zoom-grotto` (`TEST_SAVE`) | the buttons really pressed in the field / bag / during Zoom, RAM against `tests/ar_port.py` |
 | `livepatch.c`, a live code mod | `dev test livepatch` (needs `TEST_SAVE` = a save in a dungeon) | runs patched functions in the interpreter, compares with the compiled code |
 | a code mod (patch) | `dev scratch` (add `--rounds` for the x4/x8/Always Fail alternatives) | builds in a scratch copy in about a minute, your `game\` is not touched |
 | only tests / docs | `dev test static` | nothing in the game changed |

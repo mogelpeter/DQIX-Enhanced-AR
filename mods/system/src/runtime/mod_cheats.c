@@ -39,7 +39,7 @@
 #endif
 
 #define MC_MAGIC   0x43584451u         /* "DQXC" */
-#define MC_VERSION 2                   /* 2: codes that are on see the buttons; 128 at a time */
+#define MC_VERSION 3                   /* 2: codes that are on see the buttons; 128 at a time. 3: B reads [address + offset] */
 #define MC_RING    8192
 #define MC_EVENT   (1u << 30)
 #define MC_SLOTS   128

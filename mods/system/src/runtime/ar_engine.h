@@ -76,8 +76,8 @@ static void ar_run(ArMem* m, const ArOp* ops, int n, int keys) {
         }
 
         if (t <= 0x2 || (t >= 0x3 && t <= 0xA) || t == 0xB) {
-            if (t <= 0x2) addr += offset;
-            else if (addr == 0) addr = offset;   /* conditions and B on address 0 use the offset */
+            if (t <= 0x2 || t == 0xB) addr += offset;   /* B: offset = word at [address + offset] (Action Replay DS) */
+            else if (addr == 0) addr = offset;   /* conditions on address 0 use the offset */
         }
         switch (t) {
         case 0x0: ar_w32(m, addr, b); break;

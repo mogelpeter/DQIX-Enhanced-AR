@@ -182,3 +182,8 @@ db:cc6e2e02  # Hero is a Giant Pair of Trousers: in RAM after firing it (field /
 db:5dc783c9  # Big Head: in RAM after firing it alone (field)
 db:976a8fb9  # Massive Head: in RAM after firing it alone (field)
 db:0a4a78a6  # Unlock All Extra Quests V1: in RAM after firing it alone (field)
+
+# With the buttons really pressed (tests/test_keys.py, test_zoom_grotto.py; 2026-11-14, NOTES (32)):
+db:6fec10fd  # Increase/Decrease Size: A+L grew all six scale values by 20 in 20 frames, A+R shrank them back exactly
+db:26b3f9a9  # Highlight an item in the bag: in the bag, START+R made the herb under the cursor 99 (10 before; seen after reopening)
+db:933b3879  # Zoom -> Grotto: in treasure-map mode, Zoom to Zere with R held landed at the map's location (Stornway); without: Zere
