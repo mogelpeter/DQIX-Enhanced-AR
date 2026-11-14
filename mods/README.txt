@@ -193,7 +193,7 @@ Live cheat (mods\system\cheats\anything.txt): any Action Replay DS code that wri
     # name: What the window shows
     # mode: always          (a switch; or: once = a "Do it now" button)
     # about: optional note
-    # category: Party       (the page; without it: "Custom")
+    # category: Party       (the page; without it: "Miscellaneous")
     020F6D48 0098967F
 
 Code mod (mods\system\cheats\anything.txt, with "patch" lines):

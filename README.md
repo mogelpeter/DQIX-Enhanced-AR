@@ -91,7 +91,7 @@ The very first time after an update of the cheats the game is built once (a few 
 
 ## Using the cheats
 
-The cheat window has pages on the left: **Enabled** (everything that is on), then Speed & comfort, Experience & gold, Party, Battle, Items, Alchemy, World, Unlocks, Records & quests, Fun, Miscellaneous and Custom. The search box above them looks through every page (all words must fit; inside a choice like *Battle any monster you want* only the fitting options are offered; the first 60 hits are shown). Keep the window open while you play and switch cheats on the fly. The grey line under a cheat says who needs it in a session, the buttons to hold (in blue) and its labels; hover a row for a longer explanation of what the cheat does.
+The cheat window has pages on the left: **Enabled** (everything that is on), then Speed & comfort, Experience & gold, Party, Battle, Items, Alchemy, World, Unlocks, Records & quests, Fun and Miscellaneous. The search box above them looks through every page (all words must fit; inside a choice like *Battle any monster you want* only the fitting options are offered; the first 60 hits are shown). Keep the window open while you play and switch cheats on the fly. The grey line under a cheat says who needs it in a session (in yellow: *One player* or *All players*), the buttons to hold (in blue) and its labels; hover a row for a longer explanation of what the cheat does.
 
 Each cheat is one of these:
 

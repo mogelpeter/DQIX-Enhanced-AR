@@ -62,7 +62,7 @@ PAGES = [
     (r"backlight|wfc|wi-?fi", "System", ""),
 ]
 PAGE_ORDER = ["Speed & comfort", "Experience & gold", "Party", "Battle", "Items", "Alchemy", "World",
-              "Unlocks", "Records & quests", "Fun", "Miscellaneous", "Custom"]
+              "Unlocks", "Records & quests", "Fun", "Miscellaneous"]
 
 REASONS = {
     "hook": "It adds a routine of its own to the game's program. This compiled version can't check such a routine, so it stays off.",
@@ -85,7 +85,7 @@ LAUNCH = [
     ("launch:card", "Instant loading", "DQIX_CARD_INSTANT=1",
      "Skips the DS cartridge's reading delays. Only while you play alone: in a session with friends the game keeps the real delays by itself, so everyone stays in sync. Takes effect the next time the game starts.", "Speed & comfort", ""),
     ("launch:metal", "Metal slimes only, in the areas that have them", "DQIX_MOD_METAL=1",
-     "In every area where metal monsters live, only metal monsters appear. Areas without them stay as they are. The game reads this once when it starts.", "Battle", "Custom"),
+     "In every area where metal monsters live, only metal monsters appear. Areas without them stay as they are. The game reads this once when it starts.", "Battle", ""),
 ]
 
 
@@ -594,7 +594,7 @@ def read_cheat_file(path):
                 if k == "name":
                     name = v
                 elif k == "about":
-                    about = v
+                    about = (about + " " + v).strip()
                 elif k == "mode":
                     mode = "once" if v.lower() == "once" else "always"
                 elif k == "category":
@@ -610,11 +610,15 @@ def read_cheat_file(path):
 
 
 def file_header(path, key):
+    """the value of "# key: ..." in a file; several "# about:" lines are one text"""
+    out = []
     for line in open(path, encoding="utf-8-sig"):
         m = re.match(r"#\s*(\w+)\s*:\s*(.*)", line.strip())
         if m and m.group(1).lower() == key:
-            return m.group(2).strip()
-    return ""
+            out.append(m.group(2).strip())
+            if key != "about":
+                break
+    return " ".join(out)
 
 
 def fit_code_file(rom, checks, patches):
@@ -673,6 +677,58 @@ RENAME_IDS = {
     "db:3c7d9957": "Unlock All Extra Quests V1, with the Wi-Fi quests",
     "db:e7e837f8": "Unlock All Extra Quests V2, with the Wi-Fi quests",
 }
+# the R4 list's names, as the window shows them: typos and unclear names fixed (the hover texts in about.tsv are found by
+# the old name as well). Group titles lose a trailing "Code"/"Codes" by themselves.
+LABELS = {
+    "Hold [A] To Walkthrough Walls": "Walk through walls",           # always on while switched on: nothing to hold
+    "Highlight an item in the bag": "99 of the bag item under the cursor",
+    "All Boot and Shoe": "All Boots and Shoes",
+    "All shield": "All Shields",
+    "Hero Size Modifer": "Hero Size Modifier",
+    "Hide The Party": "Hide the Party",
+    "All Charaters All Stats 999": "All Characters All Stats 999",
+    "Alchemy Recipies - Not Forged": "Alchemy Recipes - Not Forged",
+    "Alchemy Recipies - Forged": "Alchemy Recipes - Forged",
+    "Palladin": "Paladin",
+    "360 Camera Angle WorldMap": "360 Camera Angle World Map",
+    "Fill in All ? ? ? of Extra Quest": "Fill in All ??? of Extra Quests",
+    "All Member in Party Skill Points x500": "All Party Members Skill Points x500",
+    "Battle Won Max": "Battles Won Max",
+    "Quest Completed Max": "Quests Completed Max",
+    "Treasure Hunted Max": "Treasures Hunted Max",
+    "Max WiFi Time": "Max Wi-Fi Time",
+    "Hero MAX ATK/DEF/AGIL": "Hero Max ATK/DEF/AGI",
+    "Hold [L/R] Walkthrough A Door/Stairs to Go Observatory/Stornway": "Hold [L/R] Walk Through a Door/Stairs to Go to the Observatory/Stornway",
+    "To View Character Animation Before A Battle": "View Character Animation Before a Battle",
+    "Kracking w/o Ingredients": "Kracking without Ingredients",
+    "Disabling Movement of P2": "Disable Movement of P2",
+    "Night Time, push Start and Down": "Nighttime, push Start and Down",
+}
+# the grey line's notes from the R4 list, in plain words (part of a note -> the new words)
+NOTES = {
+    "Regain Wings in Angel Falls, push L+R+START+Up, enter or exit house then,L+R+START+Down, then enter or exit house again, must have 3 or less in the party and might require to reactivate the codes after certain and save loading.Special Thanks to dsrules":
+        "Push L+R+START+UP, enter or leave a house, then push L+R+START+DOWN and enter or leave a house again. Three or fewer in the party; after loading a save it may have to be switched on again. Thanks to dsrules.",
+    "Used at own risk": "Use at your own risk.",
+    "It makes the rest of the character stay on ground": "The other characters stay on the ground.",
+    "It makes all monsters item drop count to 127": "Sets every monster's item drop count to 127.",
+    "Note:- open a chest, enter/exit battle records (or equipment) or re-enter same floor to close chest": "Open a chest, then open and close the battle records (or the equipment screen) or enter the floor again: the chest is closed.",
+    "::: use after completed Quests 2, 117 & 120, do not go on Nintendo Wifi": "Use after completing quests 2, 117 and 120. Don't go on Nintendo Wi-Fi.",
+    "use it on a new game before accepting any quests, do not go on Nintendo Wifi": "Use it on a new game before accepting any quest. Don't go on Nintendo Wi-Fi.",
+    "use it on a new game before accepting any quests": "Use it on a new game before accepting any quest.",
+    "use after completed all 120 Normal Quests": "Use after completing all 120 normal quests.",
+    "face value": "",
+    "Option Is Still Grey in Colour": "The option still looks grey.",
+    "Activate Before Attack": "Switch it on before attacking.",
+    "Fight 3 of the Same Monster, Hold A and Right Before Engaging Battle": "Hold A and RIGHT just before a battle starts.",
+    "activate it when you want to see the animation on your next 1 battle": "Switch it on to see the animation in your next battle.",
+    "Enter Treasure Maps mode, push R when Zooming to zoom to the exact location of the cave": "In treasure map mode, push R while zooming to go to the exact spot of the grotto.",
+    "Highlight an item in the bag, activate code, and get 99 - Press Start + R to activate. Note:- only use for items in bag. doesn't work while in stornway inn":
+        "Move the cursor to an item in the bag and press START+R: you get 99 of it. Only for items in the bag; not in the Stornway inn.",
+    "Need to reactivate after leveling up, or equipment change.": "Switch it on again after a level-up or a change of equipment.",
+    "location=spot after screen blacks out (in/out door, exit Battle Records)": "The spot is where you are when the screen blacks out (through a door, leaving the battle records).",
+    "It might not contain all consumable items": "It might not have every consumable item.",
+}
+
 # codes another entry does the same as, better: the [L/R] toggle wrote the roll itself (R: never, L: always, the opposite
 # of its name), and "Always Alchemiracle" sets the result flag afterwards; "Every time" / "Never" set the chance.
 # "Debug Code" changes two constants of a boot function (main 02000ec8/02000ef0) to an effect nobody describes: left out.
@@ -824,7 +880,7 @@ def build(root):
     # ---- the files no database code matched
     for e in files:
         if e["id"] not in used:
-            e["cat"] = e["cat"] or "Custom"
+            e["cat"] = e["cat"] or "Miscellaneous"
             e["option"] = e["name"]
             entries.append(e)
 
@@ -886,6 +942,18 @@ def build(root):
             e["name"] = e["option"] = RENAME_IDS[e["id"]]
     for g in groups:
         g["title"] = RENAME_GROUPS.get((g["cat"], g["title"]), g["title"])
+    for e in entries:
+        e["was"] = e.get("option") or e["name"]
+        for k in ("name", "option"):
+            if e.get(k) in LABELS:
+                e[k] = LABELS[e[k]]
+        for old, new in NOTES.items():
+            if old in e["note"]:
+                e["note"] = clean(e["note"].replace(old, new))
+    for g in groups:
+        g["was"] = g["title"]
+        g["title"] = re.sub(r"\s+Codes?$", "", g["title"])
+        g["title"] = LABELS.get(g["title"], g["title"])
     entries = [e for e in entries if not (e["id"].startswith("db:") and (e["cat"], e["name"]) in HIDE)]
 
     for old in [g for g in groups if not any(e["group"] == g["id"] for e in entries)]:
@@ -904,7 +972,7 @@ def build(root):
         for num, mname in mons:
             # tested: tests/test_force_data.c (all 288 hand out exactly that monster) and the 288-run crash check (NOTES 2026-11-13)
             entries.append(dict(id=f"launch:monster:{num}", name=mname, note="", cat="Battle", group=gid, kind="launch", status="tested",
-                                mode="", ops=[], keys=[], reason="", file="", on=False, patch=[], env=f"DQIX_MOD_FORCE={num}", option=mname, also="Custom"))
+                                mode="", ops=[], keys=[], reason="", file="", on=False, patch=[], env=f"DQIX_MOD_FORCE={num}", option=mname, also=""))
 
     # ---- how the game is started
     for lid, name, env, note, cat, also in LAUNCH:
@@ -930,10 +998,10 @@ def build(root):
     # repeats the grey line's note says nothing new and is left out.
     about = read_about(root)
     for e in entries:
-        t = about.get(e["name"].lower()) or about.get(e.get("option", "").lower(), "")
+        t = about.get(e["name"].lower()) or about.get(e.get("option", "").lower()) or about.get(e.get("was", "").lower(), "")
         e["about"] = "" if repeats(t, e["note"]) else t
     for g in groups:
-        g["about"] = about.get(g["title"].lower(), "")
+        g["about"] = about.get(g["title"].lower()) or about.get(g.get("was", "").lower(), "")
 
     # ---- cheats whose effect an automated test confirmed (mods/system/verified.txt) count as tried out
     try:

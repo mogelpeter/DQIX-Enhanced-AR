@@ -75,5 +75,45 @@ s4 &= res.get("slime", {}).get("members", 0) > 0 and res.get("a", {}).get("rows"
 s4 &= res.get("zzqx", {}).get("rows") == 0 and 0 < res.get("gold max", {}).get("rows", 0) < res.get("a", {}).get("found", 0)
 print("4  search works:", s4, "| exit", rc4, flush=True)
 ok &= s4
+
+
+# 5: "Do it now" (the button, clicked): a once-only cheat without keys, and a cheat whose code waits for buttons (START+R,
+#    SELECT...): the button carries it out once as if those were held. Its writes are in RAM; nothing is switched on.
+def catalog_entry(pick):
+    for l in open(os.path.join(root, "mods", "system", "bin", "catalog.txt"), encoding="utf-8"):
+        if l.startswith("entry\t"):
+            d = dict(x.split("=", 1) for x in l.rstrip("\n").split("\t")[1:] if "=" in x)
+            if pick(d):
+                return d
+    return None
+
+
+def writes(ops):
+    """the plain writes of a code (0/1/2 = 32/16/8 bit), after a button check: [(offset in RAM, size, value)]"""
+    out = []
+    for op in ops.split(","):
+        a, v = (int(x, 16) for x in op.split(":"))
+        t = a >> 28
+        if t in (0, 1, 2) and (a & 0x0FFFFFFF) >> 24 == 2:
+            n = (4, 2, 1)[t]
+            out.append(((a & 0x00FFFFFF), n, v & ((1 << 8 * n) - 1)))
+        elif t not in (9,) and a >> 24 != 0xD2:
+            return []                                      # anything else (loops, pointers): not a plain write
+    return out
+
+
+for tag, pick in (("five-a", lambda d: d["id"] == "file:cheats/once-nighttime.txt"),
+                  ("five-b", lambda d: d.get("kind") == "live" and d.get("mode") == "both" and d.get("keys") and writes(d["ops"])
+                   and d["ops"].startswith("94000130:")
+                   and any(int.from_bytes(ram[o:o + n], "little") != v for o, n, v in writes(d["ops"])))):   # not already so in the save
+    d = catalog_entry(pick)
+    if not d:
+        print("5  Do it now: no entry for", tag); ok = False; continue
+    rc5, txt5, ram5, st5 = run(tag, [], lambda w, i=d["id"]: {"DQIX_CHEATWIN_TEST": "now:" + i})
+    got = [(o, n, v, int.from_bytes(ram5[o:o + n], "little")) for o, n, v in writes(d["ops"])]
+    good = rc5 == 0 and "cheatwin test: did it now" in txt5 and got and all(v == g for o, n, v, g in got) and d["id"] not in st5
+    print("5  Do it now:", (d.get("option") or d["name"]), "| keys", d.get("keys", "-"), "| written:",
+          ", ".join("%#x=%#x (want %#x)" % (0x02000000 + o, g, v) for o, n, v, g in got), "| still off:", d["id"] not in st5, "| exit", rc5, flush=True)
+    ok &= bool(good)
 print("RESULT:", "PASS" if ok else "FAIL")
 sys.exit(0 if ok else 1)

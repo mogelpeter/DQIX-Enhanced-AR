@@ -1,5 +1,5 @@
 # name: Walk through walls
 # enabled: no
-# about: Always on while this mod is on (the Action Replay code is "hold A"). You can walk out of the map: save first.
+# about: Works the whole time it is switched on: no need to hold A as with the Action Replay code. You can walk out of the map: save first.
 check 02193140 E5882008
 patch 02193144 E1A00000

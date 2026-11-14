@@ -1,7 +1,6 @@
 # name: Monsters don't chase you
 # enabled: yes
 # category: Battle
-# also: Custom
 # replaces: Hold [A] Enemy Wil Never Chase After You|Enemies Will Not Chase You
 # about: Monsters never notice you. The game has two look-for-the-player routines (one for monsters that
 # about: wander and chase at short range, one for the long-range ones); both are switched off.

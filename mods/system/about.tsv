@@ -100,7 +100,7 @@ Enable Coup de Grace - 4th Character (Press X)	Press X in battle: the fourth par
 To View Character Animation Before A Battle	Switch it on right before a battle to see the characters' entrance animation in that one battle.
 Grotto Caves Code	Helps with treasure maps: in treasure map mode, press R while you zoom (Zoom) and the cursor jumps to the exact spot of the grotto's entrance on the world map.
 EXP Multiplier	Battles give 2, 4, 8... up to 128 times the experience. Pick one option; it only changes what you are given after a battle.
-Gold Multiplier	Battles give 2, 4 or 8 times the gold. Pick one option.
+Gold Multiplier	Battles give 2, 4, 8... up to 128 times the gold. Pick one option.
 Skill points never run out	Spending skill points does not use them up: you can put points into every skill and take them back at will.
 1 Skill Point Added Equal To All Skills Max	Adds one skill point to every skill of the character until each skill is at its maximum.
 Hero Skill Point x500 (P1)	Gives the hero 500 skill points to spend.
@@ -130,7 +130,7 @@ Enemy MP 0: Enemy 4	In battle, enemy number 4 has no MP left.
 Enemy MP 0: Enemy 5	In battle, enemy number 5 has no MP left.
 Enemy MP 0: Enemy 6	In battle, enemy number 6 has no MP left.
 Hero Big Head Mode Codes	The hero's head is much bigger. Pick the size; Start+L/R can change it while you play.
-Hero Size Modifer Codes	Changes the hero's whole body size on the field; Hold A and L or R changes it while you play.
+Hero Size Modifer Codes	Changes the hero's whole body size on the field; hold A and L or R to change it while you play.
 Lower-level characters get more experience	Experience from a battle is handed out the other way round: the party member with the lowest level gets what the highest one would have got, and the other way round. Good for catching up a weak character.
 Metal slimes only, in the areas that have them	In every area where metal monsters (metal slime, liquid metal slime, metal king slime...) roam, only they appear. Areas without metal monsters stay as they are. The game reads its encounter tables once when it starts, so this takes effect the next time the game starts (the window offers to restart it). In a session with friends everybody has to start with the same choice.
 Vanish: walk through monsters until you vanish again	Switch it on, then press L + R + SELECT together in the game to vanish: monsters can no longer start a battle by touching you, so you walk straight through them. Press L + R + SELECT again to show up again. Switching the cheat off also ends the vanishing.
@@ -156,4 +156,4 @@ Alchemiracle (great success in the Krak Pot)	Decides the Krak Pot's great succes
 Treasure map bosses always drop their chest	The boss at the bottom of a treasure map (grotto) leaves its treasure chest every time you defeat it, so you never have to fight it again for the chest. Which item is inside is still the game's choice.
 Normal attacks hit every enemy	The plain Attack command of every party member damages all enemies in the battle at once, like a sweeping attack. Damage per enemy is worked out as usual. Switching it off makes attacks single-target again at once.
 Unlock All Extra Quests V1, with the Wi-Fi quests	Like V1, but also opens the extra quests that the game used to download over Nintendo Wi-Fi. Use it on a new game before you accept any quest, and do not connect to Wi-Fi afterwards.
-Unlock All Extra Quests V2, with the Wi-Fi quests	Like V2, but also opens the extra quests that the game used to download over Nintendo Wi-Fi. Use it on a new game before you accept any quest, and do not connect to Wi-Fi afterwards.
+Unlock All Extra Quests V2, with the Wi-Fi quests	Like V2, but also opens the extra quests that the game used to download over Nintendo Wi-Fi. Use it after you have finished quests 2, 117 and 120, and do not connect to Wi-Fi afterwards.

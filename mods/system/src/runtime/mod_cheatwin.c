@@ -348,9 +348,9 @@ static const char* label(const Ent* e) { return e->option[0] ? e->option : e->na
 
 /* the small grey line under a cheat: who needs it, the keys to hold, status, note */
 static const char* who_short(const Ent* e) {
-    if (!strcmp(e->kind, "live")) return "Only one player needs it enabled";
-    if (!strcmp(e->kind, "launch")) return !strncmp(e->env, "DQIX_MOD_", 9) ? "All players need it enabled \xC2\xB7 next start" : "Your PC only \xC2\xB7 next start";
-    return "All players need it enabled \xC2\xB7 needs a rebuild";
+    if (!strcmp(e->kind, "live")) return "One player";                   /* (in yellow: rich_text) */
+    if (!strcmp(e->kind, "launch")) return !strncmp(e->env, "DQIX_MOD_", 9) ? "All players \xC2\xB7 next start" : "Your PC only \xC2\xB7 next start";
+    return "All players \xC2\xB7 needs a rebuild";
 }
 
 /* the grey line under a cheat */
@@ -370,6 +370,7 @@ static void hover_text(const char* about, wchar_t* out, size_t n) {
 /* ---- the grey line, drawn by hand: word-wrapped like DrawText, with the DS buttons in it (hold L+R, START+UP, [R],
  * L + R + SELECT...) in their own colour. rich_text(..., draw=0) only measures (the row height). */
 #define COL_KEY RGB(122, 178, 255)
+#define COL_WHO RGB(230, 196, 92)                                 /* "One player" / "All players" / "Your PC only" at the start */
 static int key_part(const wchar_t* p, int n, int loose) {     /* one button name; loose: also "Start", "Up"... */
     static const wchar_t* up[] = { L"A", L"B", L"X", L"Y", L"L", L"R", L"START", L"SELECT", L"UP", L"DOWN", L"LEFT", L"RIGHT" };
     static const wchar_t* cap[] = { L"Start", L"Select", L"Up", L"Down", L"Left", L"Right" };
@@ -394,6 +395,9 @@ static int rich_text(HDC dc, const wchar_t* t, RECT rc, int draw) {
     SIZE z; GetTextExtentPoint32W(dc, L" ", 1, &z); sp = z.cx;
     int x = 0, y = 0, W = rc.right - rc.left, prevkey = 0, prevctx = 0;
     const wchar_t* p = t;
+    static const wchar_t* who[] = { L"One player", L"All players", L"Your PC only" };
+    const wchar_t* who_end = t;                                      /* the who-needs-it words at the start: yellow */
+    for (int i = 0; i < 3; i++) if (!wcsncmp(t, who[i], wcslen(who[i]))) who_end = t + wcslen(who[i]);
     if (draw) SetBkMode(dc, TRANSPARENT);
     while (*p) {
         int gap = 0; while (*p == L' ') { p++; gap++; }
@@ -412,8 +416,16 @@ static int rich_text(HDC dc, const wchar_t* t, RECT rc, int draw) {
         else if ((b - a) == 1 && *a == L'+' && prevkey) key = 1;       /* the "+" of "L + R" */
         GetTextExtentPoint32W(dc, p, n, &z);
         if (x > 0 && x + z.cx > W) { x = 0; y += lh; }
-        if (draw) {
-            SetTextColor(dc, key ? COL_KEY : COL_GRAY);
+        if (draw && p < who_end) {
+            SetTextColor(dc, COL_WHO);
+            TextOutW(dc, rc.left + x, rc.top + y, p, n);
+        } else if (draw && key) {                                   /* only the button in blue: brackets, quotes, commas stay grey */
+            SIZE za, zb; GetTextExtentPoint32W(dc, p, (int)(a - p), &za); GetTextExtentPoint32W(dc, p, (int)(b - p), &zb);
+            SetTextColor(dc, COL_GRAY); TextOutW(dc, rc.left + x, rc.top + y, p, (int)(a - p));
+            SetTextColor(dc, COL_KEY); TextOutW(dc, rc.left + x + za.cx, rc.top + y, a, (int)(b - a));
+            SetTextColor(dc, COL_GRAY); TextOutW(dc, rc.left + x + zb.cx, rc.top + y, b, (int)(q - b));
+        } else if (draw) {
+            SetTextColor(dc, COL_GRAY);
             TextOutW(dc, rc.left + x, rc.top + y, p, n);
         }
         x += z.cx + sp;
@@ -868,9 +880,21 @@ static void test_search(void) {
 static void test_step(int step) {
     if (step == 1 && g_test_search[0]) test_search();
     else if (step == 1) {
-        int idx = -1; for (int i = 0; i < g_ne; i++) if (!strcmp(g_e[i].id, g_test_id)) idx = i;
-        if (idx < 0) { fprintf(stderr, "cheatwin test: no entry %s\n", g_test_id); return; }
+        int now = !strncmp(g_test_id, "now:", 4);              /* "now:<id>": press its Do it now button instead of switching it on */
+        const char* id = g_test_id + (now ? 4 : 0);
+        int idx = -1; for (int i = 0; i < g_ne; i++) if (!strcmp(g_e[i].id, id)) idx = i;
+        if (idx < 0) { fprintf(stderr, "cheatwin test: no entry %s\n", id); return; }
         select_page_of(idx);
+        for (int i = 0; i < g_nrows && now; i++) {
+            Row* r = &g_rows[i];
+            if ((r->kind == R_CHECK || r->kind == R_ONCE) && r->idx == idx) {
+                if (!r->btn) { fprintf(stderr, "cheatwin test: no Do it now button for %s\n", id); return; }
+                SendMessageW(r->btn, BM_CLICK, 0, 0);
+                fprintf(stderr, "cheatwin test: did it now %s\n", id);
+                return;
+            }
+        }
+        if (now) { fprintf(stderr, "cheatwin test: no row for %s\n", id); return; }
         for (int i = 0; i < g_nrows; i++) {
             Row* r = &g_rows[i]; int k = -1;
             if (r->kind == R_CHECK && r->idx == idx) { r->on = 1; InvalidateRect(r->main, NULL, FALSE); entry_changed(r, idx, 1); k = 0; }
