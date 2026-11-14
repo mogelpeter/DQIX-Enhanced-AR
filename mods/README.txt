@@ -16,7 +16,8 @@ Start the game as always (game\dqix.exe). In its menu bar (next to Mods and Help
   mods too. What you tick is saved in mods\system\menu-state.txt and sent again by itself
   when the game starts. Nothing is on until you switch it on.
 - Cheats > Save editor...  opens your save in the editor website (the language box is in the
-  page, at the bottom right). Close the game before you export.
+  page, at the bottom right). Export puts the edited save into the game, which starts again
+  with it (the old save is kept in save-backups next to the game).
 - Cheats > Treasure maps...  opens the treasure map search website.
 
 When the game updates itself (Help > Check for updates) the tab is put back automatically.

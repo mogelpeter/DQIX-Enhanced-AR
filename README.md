@@ -19,13 +19,12 @@ The ROM and the game itself are never part of this repo.
 2. [Step by step for complete beginners](#step-by-step-for-complete-beginners)
 3. [Using the cheats](#using-the-cheats)
 4. [How the Cheats tab works, and why it survives updates](#how-the-cheats-tab-works)
-5. [Plugins](#plugins)
-6. [Playing with friends](#playing-with-friends)
-7. [Why the cheats can't break your game](#why-the-cheats-cant-break-your-game)
-8. [Settings](#settings)
-9. [Troubleshooting](#troubleshooting)
-10. [Uninstall](#uninstall)
-11. [For development](#for-development)
+5. [Playing with friends](#playing-with-friends)
+6. [Why the cheats can't break your game](#why-the-cheats-cant-break-your-game)
+7. [Settings](#settings)
+8. [Troubleshooting](#troubleshooting)
+9. [Uninstall](#uninstall)
+10. [For development](#for-development)
 
 ---
 
@@ -118,7 +117,7 @@ The labels in the grey line:
 
 ## How the Cheats tab works
 
-The game's menu bar (Game, Graphics, Screen, View, Wireless, Modern, Mods, **Cheats**, **Plugins**, Help) gets two more entries with **Cheats...** (the window inside the game), **Save editor...** and **Treasure maps...**. Under the hood the window sends the cheats through a mailbox in the game, so they also work in a session with friends. Code mods work because the game is built once with a wrapper around every function a code mod touches; while a mod is on, that function runs in the game's ARM interpreter with the mod's instruction in it (`mods\system\src\runtime\livepatch.c`).
+The game's menu bar (Game, Graphics, Screen, View, Wireless, Modern, Mods, **Cheats**, Help) gets one more entry with **Cheats...** (the window inside the game), **Save editor...** and **Treasure maps...**. Under the hood the window sends the cheats through a mailbox in the game, so they also work in a session with friends. Code mods work because the game is built once with a wrapper around every function a code mod touches; while a mod is on, that function runs in the game's ARM interpreter with the mod's instruction in it (`mods\system\src\runtime\livepatch.c`).
 
 ### Why it survives updates of the game
 
@@ -130,22 +129,6 @@ The tab is not a copy of the game's files: it is a handful of small, clearly mar
 - The update never deletes the `mods` folder, so what you switched on stays (`mods\system\menu-state.txt`).
 
 To take everything out of the game again see [Uninstall](#uninstall).
-
----
-
-## Plugins
-
-The menu bar also gets a **Plugins** tab: plugins change the emulator itself. A plugin is a `.dll` file in `mods\plugins`, loaded when the game starts. It can read and change the game's memory, see and press the buttons every frame, and add its own items to the Plugins tab (each plugin gets a submenu).
-
-- **Add one:** Plugins > *Open plugins folder*, put the `.dll` there, start the game again. **Remove one:** delete its `.dll`.
-- What happened at start (loaded, or why not) is in `mods\plugins\plugins.log`.
-- A plugin is a program with all the game's rights: only use plugins you trust.
-- While you play with friends, plugins can't change the game (it would put the session out of sync); their menu items still work.
-
-**Making one:** the whole interface is `mods\plugins\sdk\dqix_plugin.h`. The DLL exports `dqix_plugin_init(host, me)`, fills in its name and an optional `on_frame(keys)`, and adds menu items with `host->menu_item`. Plugin sources live in `mods\plugins\src\<name>\`; **`mods\plugins\Build plugins.bat`** builds each into `mods\plugins\<name>.dll` with the game's own compiler (MSYS2). Two come with this repo:
-
-- **Performance**: makes Windows run the game smoothly. *Higher priority* (background programs wait for the game), *No power throttling* (Windows 11 doesn't slow the game down when its window isn't in front), *Game thread scheduling (MMCSS)* (the game's thread is scheduled like a game or audio program), and *Frame times...* (average, slowest 1 %, late frames since the last reset, to compare a switch on and off). It doesn't change the game itself, so it is fine with friends. It can't make the game faster than your PC; it removes stutter that comes from Windows.
-- **Example**: *Turbo A* and *Show gold*, the smallest plugin to start from.
 
 ---
 

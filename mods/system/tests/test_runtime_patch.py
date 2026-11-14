@@ -17,7 +17,6 @@ try:
     shutil.copytree(os.path.join(root, "runtime"), os.path.join(tmp, "runtime"))
     shutil.copy2(os.path.join(root, "wrap.txt"), tmp)
     shutil.copytree(src_dir, os.path.join(tmp, "mods", "system", "src"))
-    shutil.copytree(os.path.join(os.path.dirname(__file__), "..", "..", "plugins", "sdk"), os.path.join(tmp, "mods", "plugins", "sdk"))
 
     def run(setting):
         os.makedirs(os.path.join(tmp, "mods"), exist_ok=True)
@@ -27,7 +26,7 @@ try:
 
     def snap():
         d = {}
-        for n in ("input.c", "card.c", "menu_win32.c", "frontend_sdl.c", "update.c", "mod_menu.c", "mod_cheats.c", "mod_plugins.c", "dqix_plugin.h", "noflee.c", "lowexp.c", "firststrike.c"):
+        for n in ("input.c", "card.c", "menu_win32.c", "frontend_sdl.c", "update.c", "mod_menu.c", "mod_cheats.c", "noflee.c", "lowexp.c", "firststrike.c"):
             p = os.path.join(tmp, "runtime", n)
             d[n] = open(p, "rb").read() if os.path.isfile(p) else None
         return d
@@ -46,12 +45,8 @@ try:
         errors.append("mod_menu.c not put in")
     if b"&Cheats..." not in on1["menu_win32.c"] or b"&Save editor..." not in on1["menu_win32.c"] or b"&Treasure maps..." not in on1["menu_win32.c"]:
         errors.append("the Cheats tab is missing an item in the menu bar (Cheats..., Save editor..., Treasure maps...)")
-    if b'L"&Plugins"' not in on1["menu_win32.c"] or b"mod_plugins_command" not in on1["frontend_sdl.c"]:
-        errors.append("the Plugins tab is missing in the menu bar or its items do nothing")
-    if on1["mod_plugins.c"] is None or on1["dqix_plugin.h"] is None:
-        errors.append("mod_plugins.c / dqix_plugin.h not put in")
-    if b"mod_plugins_frame" not in (on1["mod_cheats.c"] or b""):
-        errors.append("plugins get no frames (mod_cheats.c has no mod_plugins_frame call)")
+    if b"case 364:" not in on1["frontend_sdl.c"] or b"mod_editor_take" not in on1["frontend_sdl.c"] or b"mod_editor_take" not in (on1["mod_menu.c"] or b""):
+        errors.append("the game doesn't take the save editor's export (menu command 364, mod_editor_take)")
     if b"Apply cheats.bat" not in on1["update.c"]:
         errors.append("the updater does not put the mods back")
     if on1["noflee.c"] is None:

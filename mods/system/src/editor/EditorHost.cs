@@ -46,9 +46,11 @@ function note(t,bad){var d=document.getElementById('dqix-note');if(!d){d=documen
 d.style.cssText='position:fixed;left:50%;top:12px;transform:translateX(-50%);z-index:99999;padding:9px 16px;border-radius:3px;font:13px sans-serif;color:#fff;box-shadow:0 2px 12px #0008;max-width:80%';document.body.appendChild(d);}
 d.style.background=bad?'#a5322d':'#2f6f3e';d.textContent=t;d.style.display='block';clearTimeout(d._t);d._t=setTimeout(function(){d.style.display='none';},bad?15000:7000);}
 var ac=HTMLAnchorElement.prototype.click;
-HTMLAnchorElement.prototype.click=function(){if(this.download&&lastBlob){var x=new XMLHttpRequest();x.open('POST','/__export');x.setRequestHeader('X-Token',T);
-x.onload=function(){note(x.status==200?'Saved into your game save. The old one is in mods/system/save-backups.':(x.responseText||'Could not save.'),x.status!=200);};
-x.onerror=function(){note('The editor helper has closed: use Cheats > Save editor in the game again.',true);};x.send(lastBlob);return;}
+function send(b,restart){var x=new XMLHttpRequest();x.open('POST','/__export');x.setRequestHeader('X-Token',T);if(restart)x.setRequestHeader('X-Restart','1');
+x.onload=function(){if(x.status==428){if(confirm(x.responseText))send(b,true);return;}
+note(x.status==200?x.responseText:(x.responseText||'Could not save.'),x.status!=200);};
+x.onerror=function(){note('The editor helper has closed: use Cheats > Save editor in the game again.',true);};x.send(b);}
+HTMLAnchorElement.prototype.click=function(){if(this.download&&lastBlob){note('Saving...',false);send(lastBlob,false);return;}
 return ac.apply(this,arguments);};
 var tab=((location.hash||'').match(/tab=([a-z]+)/)||[])[1],tries=0;
 function gotoTab(){if(!tab)return;var t=0;(function w(){var ul=document.querySelector('nav ul');
@@ -196,6 +198,79 @@ loadSave();})();</script>";
 
         /* the editor's item names in the game's own words (read from the ROM into mods/system/lang/rom-itemname-<lang>.tsv) */
         public Func<string> LangOf;
+
+        /* ---- Export while the game runs: the game takes the save (mod_editor_take in mod_menu.c) and starts again ---- */
+        public string HandDir;                          /* mods\system\bin: where the game looks for the save */
+        public Func<IntPtr> GameWindow;                 /* the game's window, or zero */
+        byte[] served;                                  /* the save the page got: the game compares it with its own */
+        static readonly object handLock = new object();
+
+        [System.Runtime.InteropServices.DllImport("user32.dll")] static extern bool PostMessageW(IntPtr h, uint msg, IntPtr w, IntPtr l);
+        delegate bool EnumProc(IntPtr h, IntPtr l);
+        [System.Runtime.InteropServices.DllImport("user32.dll")] static extern bool EnumWindows(EnumProc f, IntPtr l);
+        [System.Runtime.InteropServices.DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid);
+        [System.Runtime.InteropServices.DllImport("user32.dll")] static extern bool IsWindowVisible(IntPtr h);
+        [System.Runtime.InteropServices.DllImport("user32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
+        static extern int GetClassNameW(IntPtr h, StringBuilder s, int n);
+
+        /* the game's own window (SDL's window class) of a running dqix.exe */
+        public static IntPtr FindGameWindow()
+        {
+            List<uint> pids = new List<uint>();
+            foreach (Process p in Process.GetProcessesByName("dqix")) { pids.Add((uint)p.Id); p.Dispose(); }
+            IntPtr found = IntPtr.Zero;
+            EnumWindows(delegate (IntPtr h, IntPtr l)
+            {
+                uint pid; GetWindowThreadProcessId(h, out pid);
+                if (!pids.Contains(pid) || !IsWindowVisible(h)) return true;
+                StringBuilder s = new StringBuilder(64); GetClassNameW(h, s, 64);
+                if (s.ToString() != "SDL_app") return true;
+                found = h; return false;
+            }, IntPtr.Zero);
+            return found;
+        }
+
+        int HandOver(IntPtr win, byte[] body, out string said)
+        {
+            lock (handLock)
+            {
+                string ed = Path.Combine(HandDir, "editor-export.sav"), loaded = Path.Combine(HandDir, "editor-loaded.sav"), answer = Path.Combine(HandDir, "editor-export.txt");
+                Directory.CreateDirectory(HandDir);
+                try { File.Delete(answer); } catch (Exception) { }
+                File.WriteAllBytes(loaded, served ?? new byte[0]);
+                File.WriteAllBytes(ed + ".tmp", body);
+                if (File.Exists(ed)) File.Delete(ed);
+                File.Move(ed + ".tmp", ed);
+                PostMessageW(win, 0x0111 /* WM_COMMAND */, (IntPtr)364, IntPtr.Zero);
+                DateTime t0 = DateTime.UtcNow;
+                while (File.Exists(ed) && (DateTime.UtcNow - t0).TotalSeconds < 10) Thread.Sleep(100);
+                if (File.Exists(ed))
+                {
+                    try { File.Delete(ed); File.Delete(loaded); } catch (Exception) { }
+                    said = "The game didn't take the save (it may be busy in a menu, or built before this editor). Close the game, then press export again.";
+                    return 409;
+                }
+                string r = null;
+                while (r == null && (DateTime.UtcNow - t0).TotalMinutes < 10 && gameRunning())   /* the game may ask first: wait for the answer */
+                {
+                    Thread.Sleep(150);
+                    try { if (File.Exists(answer)) r = File.ReadAllText(answer).Trim(); } catch (Exception) { }
+                }
+                try { File.Delete(answer); } catch (Exception) { }
+                switch (r)
+                {
+                    case "ok":
+                        served = body;
+                        said = "Saved: the game starts again with the edited save. The old save is in the save-backups folder next to the game.";
+                        return 200;
+                    case "cancel": said = "Not saved: you kept the save of the game."; return 409;
+                    case "session": said = "Not saved: leave the session first (Wireless menu), then press export again."; return 409;
+                    case "bad": said = "Not saved: the game says this isn't a Dragon Quest IX save."; return 400;
+                    case "nobackup": said = "Not saved: the game couldn't keep a copy of the current save in save-backups."; return 500;
+                    default: said = "The game didn't answer. Check whether it started again with the edited save."; return 504;
+                }
+            }
+        }
         public string LangDir = "";
         readonly Dictionary<string, Dictionary<int, string>> romNames = new Dictionary<string, Dictionary<int, string>>();
         readonly Dictionary<string, byte[]> localized = new Dictionary<string, byte[]>();
@@ -375,17 +450,32 @@ button{white-space:normal}
                     byte[] sav;
                     using (FileStream fs = new FileStream(savePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
                     using (MemoryStream m = new MemoryStream()) { fs.CopyTo(m); sav = m.ToArray(); }
+                    served = sav;
                     Reply(c, 200, "application/octet-stream", sav);
                     return;
                 }
                 if (path == "/__export" && c.Request.HttpMethod == "POST")
                 {
                     if (!Allowed(c)) { Say(c, 403, "No."); return; }
-                    if (gameRunning()) { Say(c, 409, "The game is running. Close it first, then press export again: a save written under a running game is lost."); return; }
                     byte[] body;
                     using (MemoryStream m = new MemoryStream()) { c.Request.InputStream.CopyTo(m); body = m.ToArray(); }
                     long want = File.Exists(savePath) ? new FileInfo(savePath).Length : 65536;
                     if (body.Length != want) { Say(c, 400, "That isn't a save of this size (" + body.Length + " bytes, expected " + want + "). Nothing was written."); return; }
+                    if (gameRunning())
+                    {
+                        /* a save written under the running game would be overwritten by it: the game takes the save itself and starts again */
+                        IntPtr win = GameWindow != null ? GameWindow() : IntPtr.Zero;
+                        if (win == IntPtr.Zero || HandDir == null) { Say(c, 409, "The game is running. Close it first, then press export again: a save written under a running game is lost."); return; }
+                        if (c.Request.Headers["X-Restart"] != "1")
+                        {
+                            Say(c, 428, "The game starts again with the edited save.\n\nAnything since you last saved in the game is lost. Go on?");
+                            return;
+                        }
+                        string said;
+                        int code = HandOver(win, body, out said);
+                        Say(c, code, said);
+                        return;
+                    }
                     Directory.CreateDirectory(backupDir);
                     if (File.Exists(savePath)) File.Copy(savePath, Path.Combine(backupDir, "dqix-editor-" + DateTime.Now.ToString("yyyyMMdd-HHmmss") + ".sav"), true);
                     string tmp = savePath + ".tmp";
@@ -524,6 +614,8 @@ button{white-space:normal}
             EditorHost host = new EditorHost(Path.Combine(mods, "system", "bin", "editor-cache"), Path.Combine(root, "game", "dqix.sav"), Path.Combine(mods, "system", "save-backups"),
                 delegate { return Process.GetProcessesByName("dqix").Length > 0; });
             host.LangDir = Path.Combine(mods, "system", "lang");
+            host.HandDir = Path.Combine(mods, "system", "bin");
+            host.GameWindow = EditorHost.FindGameWindow;
             host.LangOf = delegate { return langNow; };
             host.SetLang = delegate (string l) { langNow = l; try { File.WriteAllText(langFile, l); } catch (Exception) { } };
             if (!host.Start() || !host.Prepare()) { Complain(root, host.LastError); return 1; }

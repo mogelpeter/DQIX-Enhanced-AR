@@ -83,10 +83,6 @@ MENU_PATCHED = MENU_BEGIN + """\
     item(cheats, 363, L"&Treasure maps...");
     sep(cheats);
     item(cheats, 361, L"&What is this?");
-    {   /* plugins: the DLLs in mods/plugins, each with its own items (400-503: mod_plugins.c) */
-        void mod_plugins_menu(void* m);
-        mod_plugins_menu(sub(g_bar, L"&Plugins"));
-    }
 """ + MENU_ORIGINAL + END
 
 ACT_BEGIN = "    /* >>> mods: what the Cheats tab does (mods/tools/apply_runtime_mod.py; an update removes this, Play with mods.bat puts it back) */\n"
@@ -101,7 +97,7 @@ ACT_PATCHED = ACT_BEGIN + r"""
             info_box(SDL_MESSAGEBOX_INFORMATION, "Cheats",
                 "Cheats... opens the cheat list in a window of its own: every cheat is a switch, and it works at once while you play "
                 "(no restart, no rebuild). Pick one of several (experience x2, x4...) where the list says so.\n\n"
-                "Save editor opens your save in the editor website (close the game before you export). Treasure maps opens the map search website.\n\n"
+                "Save editor opens your save in the editor website; Export there puts the edited save into the game, which starts again with it. Treasure maps opens the map search website.\n\n"
                 "Your save is not touched by the cheats (copies go to mods\system\save-backups). Updating the game from the Help menu keeps this tab.", g_win);
             break;
         }
@@ -110,7 +106,34 @@ ACT_PATCHED = ACT_BEGIN + r"""
         mod_cheatwin_show();
         break;
     }
-    case 400 ... 503: { void mod_plugins_command(int); mod_plugins_command(id); break; }   /* the Plugins tab (mod_plugins.c) */
+    case 364: {   /* the save editor pressed Export while the game runs (dqix-editor.exe, mod_menu.c): take the save, start again with it */
+        static uint8_t ed[0x10000], base[0x10000];
+        uint32_t en = 0, bn = 0, cn = 0;
+        int mod_editor_take(uint8_t*, uint32_t*, uint8_t*, uint32_t*);
+        void mod_editor_result(const char*);
+        if (!mod_editor_take(ed, &en, base, &bn)) break;
+        if (session_requested()) {
+            mod_editor_result("session");
+            info_box(SDL_MESSAGEBOX_INFORMATION, "Save editor", "Leave the session first (Wireless menu), then press Export in the editor again.", g_win);
+            break;
+        }
+        if (backup_check_image(ed, en) == 0) { mod_editor_result("bad"); break; }
+        const uint8_t* cur = backup_image(&cn);
+        if (bn != cn || memcmp(base, cur, cn)) {   /* the game saved after the editor read the save */
+            if (!ask_yes("Save editor", "You saved in the game after the editor opened your save.\n\nUse the editor's save anyway? "
+                         "What you saved since then is lost (your current save is kept as a copy in the save-backups folder, next to the game).", "Use the editor's save")) {
+                mod_editor_result("cancel");
+                break;
+            }
+        }
+        char kept[300];
+        save_backup_copy(kept, sizeof kept);
+        if (!kept[0]) { mod_editor_result("nobackup"); break; }
+        mod_editor_result("ok");
+        backup_replace(ed, en);
+        restart_with(NULL);
+        break;
+    }
 """ + ACT_ORIGINAL + END
 ACT_PATCHED = ACT_PATCHED.replace(ACT_BEGIN + "\n", ACT_BEGIN, 1)
 
@@ -131,9 +154,9 @@ SITES = [
     ("frontend_sdl.c", ACT_ORIGINAL, ACT_PATCHED, ACT_BEGIN, "Cheats tab: what it does"),
     ("update.c", UPD_ORIGINAL, UPD_PATCHED, UPD_BEGIN, "Cheats stay after an update of the game"),
 ]
-FILES = ["mod_cheats.c", "ar_engine.h", "mod_data.c", "livepatch.c", "mod_cheatwin.c", "mod_plugins.c", "dqix_plugin.h"]   # belong to the first site
-SRC_DIR = {"dqix_plugin.h": ("mods", "plugins", "sdk")}      # files kept elsewhere than mods/system/src/runtime
+FILES = ["mod_cheats.c", "ar_engine.h", "mod_data.c", "livepatch.c", "mod_cheatwin.c"]       # belong to the first site
 MENU_FILES = ["mod_menu.c"]                                  # belong to the "what it does" site (frontend_sdl.c)
+GONE = ["mod_plugins.c", "dqix_plugin.h"]                   # files of earlier versions of the mods: taken out of runtime/ again
 
 
 def read(path):
@@ -187,7 +210,7 @@ def wrap_site(root, on, extra=""):
     for f in WRAP_FILES:
         dst = os.path.join(root, "runtime", f)
         if on:
-            src = read(os.path.join(root, *SRC_DIR.get(f, ("mods", "system", "src", "runtime")), f))
+            src = read(os.path.join(root, "mods", "system", "src", "runtime", f))
             if not os.path.isfile(dst) or read(dst) != src:
                 write(dst, src)
                 changed = True
@@ -320,7 +343,7 @@ def main():
         for f in files:          # the mods' own files go with their call in the game: without it they would be dead weight
             dst = os.path.join(root, "runtime", f)
             if state == "on":
-                src = read(os.path.join(root, *SRC_DIR.get(f, ("mods", "system", "src", "runtime")), f))
+                src = read(os.path.join(root, "mods", "system", "src", "runtime", f))
                 if not os.path.isfile(dst) or read(dst) != src:
                     write(dst, src)
                     changed = True
@@ -333,6 +356,11 @@ def main():
             print(f"   [skipped] {what}: this version of the game has runtime\\{name} written differently."
                   + ("  Cheats still work when you play alone." if i == 0 else "  Cheats can still be switched in the files (see mods\\README.txt)."
                      if name in ("menu_win32.c", "frontend_sdl.c", "update.c") else "  \"Instant loading\" stays off."))
+    for f in GONE:
+        dst = os.path.join(root, "runtime", f)
+        if os.path.isfile(dst):
+            os.remove(dst)
+            changed = True
     lp_changed, lp_wrap, nfn, nsite = livepatch_files(root, on)
     changed |= lp_changed
     if wrap_site(root, on, lp_wrap):
