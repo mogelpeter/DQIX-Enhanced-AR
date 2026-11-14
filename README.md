@@ -221,3 +221,13 @@ mods\system\cheats\         the cheat lists (R4 database + hand-made, yours too)
 ```
 
 The marked places in the game's source are listed in `SITES` in `apply_runtime_mod.py`; `mods\system\tests\test_runtime_patch.py` checks that they go in, out and in again identically.
+
+---
+
+## License
+
+The mods and tools in this repo are licensed under the **GNU General Public License v3.0 or later** (see [`LICENSE`](LICENSE)), the same license as [DQIX Enhanced](https://github.com/sackchief/dqix-enhanced), which they are built into.
+
+- The JetBrains Mono fonts in `mods/system/fonts` are under the SIL Open Font License (see `LICENSE-JetBrainsMono.txt` next to them).
+- The save editor is the DQIX project's own editor. It is downloaded on first use and is not part of this repo or this license.
+- The ROM and the game itself are never part of this repo.
