@@ -126,7 +126,7 @@ def ram(frame, addr, n=2):
     return int.from_bytes(b[addr - B:addr - B + n], "little")
 
 
-names_present = [ram(dumps[0], BASE[i], 1) != 0 for i in range(4)]
+names_present = [ram(dumps[0], BASE[i], 1) != 0 and any(ram(dumps[0], 0x022BBD10 + k * 0x116C0, 4) == BASE[i] for k in range(4)) for i in range(4)]     # in the party: one of the game's party objects points at the record
 problems = []
 
 

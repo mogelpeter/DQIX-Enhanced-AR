@@ -44,7 +44,7 @@ static int g_cs_init, g_loaded;
 static int g_mode;                                  /* 0 Cheats, 1 Nuzlocke */
 /* who is really there (mod_cheats.c mod_roster), polled while the window is open: a cheat for party member 2..4 or for an enemy is shown only
  * while that member / enemy exists; the live battle cheats only in a battle */
-typedef struct { int inbattle; uint8_t party[4], enemy[6]; char name[4][12]; int enemy_hp[6]; } ModRoster;
+typedef struct { int inbattle; uint8_t party[4], enemy[6]; char name[4][12]; int enemy_hp[6]; int hp[4], mp[4], hpmax[4], mpmax[4], enemy_max_hp[6], enemy_max_mp[6]; } ModRoster;
 void mod_roster(ModRoster* r);
 static ModRoster g_ro;
 static int who_ok(const Ent* e) {
@@ -363,6 +363,8 @@ static void page_count(const char* page, int sec, int* total, int* on) {
 static void card_hide(void);                      /* the hover card (below) */
 
 static HWND g_search;
+static HWND g_bp;                                  /* the battle window's panel (face 2): cards for the party and the enemies */
+static void bp_refresh(void);
 static int g_search_page;
 static HBRUSH g_box;
 static HWND g_win, g_side, g_host, g_title, g_count, g_note, g_off, g_close, g_share, g_import;
@@ -860,6 +862,7 @@ static void sec_label(const char* title, char* out, size_t n) {
 }
 
 static void build_page(void) {
+    if (g_mode == 2) { bp_refresh(); return; }
     char q[200]; search_text(q, sizeof q);
     int sel = (int)SendMessageW(g_side, LB_GETCURSEL, 0, 0); if (sel < 0 && !q[0]) return;
     int p = q[0] ? g_search_page : (int)SendMessageW(g_side, LB_GETITEMDATA, (WPARAM)sel, 0);
@@ -960,14 +963,16 @@ static void group_changed(Row* r, int sel) {
 }
 
 static void layout(int cw, int ch) {
+    int sw = g_mode == 2 ? 0 : SIDE_W;                 /* the battle window has no sidebar */
     MoveWindow(g_side, 0, SEARCH_H, SIDE_W, ch - SEARCH_H, TRUE);
     MoveWindow(g_search, 24, 14, SIDE_W - 48, 18, TRUE);
-    MoveWindow(g_title, SIDE_W + PAD_X, 12, cw - SIDE_W - 2 * PAD_X - 214, 28, TRUE);
-    MoveWindow(g_count, SIDE_W + PAD_X, 41, cw - SIDE_W - 2 * PAD_X - 214, 18, TRUE);
+    MoveWindow(g_title, sw + PAD_X, 12, cw - sw - 2 * PAD_X - 214, 28, TRUE);
+    MoveWindow(g_count, sw + PAD_X, 41, cw - sw - 2 * PAD_X - 214, 18, TRUE);
     MoveWindow(g_import, cw - PAD_X - 102, 16, 102, 30, TRUE);
     MoveWindow(g_share, cw - PAD_X - 102 - 8 - 100, 16, 100, 30, TRUE);
-    MoveWindow(g_host, SIDE_W, 66, cw - SIDE_W, ch - 66 - 50, TRUE);
-    MoveWindow(g_note, SIDE_W + PAD_X, ch - 34, cw - SIDE_W - 2 * PAD_X - 262, 18, TRUE);
+    MoveWindow(g_host, sw, 66, cw - sw, ch - 66 - 50, TRUE);
+    if (g_bp) MoveWindow(g_bp, 0, 66, cw, ch - 66 - 50, TRUE);
+    MoveWindow(g_note, sw + PAD_X, ch - 34, cw - sw - 2 * PAD_X - 262, 18, TRUE);
     MoveWindow(g_off, cw - PAD_X - 150 - 10 - 92, ch - 42, 150, 32, TRUE);
     MoveWindow(g_close, cw - PAD_X - 92, ch - 42, 92, 32, TRUE);
     if (g_nrows) lay_rows();
@@ -1314,6 +1319,204 @@ static void import_settings(void) {
     if (restart >= 0) maybe_restart(&g_e[restart]);
 }
 
+/* ======================================================================== the battle window: cards for the party and the enemies
+ * Only who is really in the fight gets a card (the party members the game has in its party, the enemies with HP left). A card has the member's
+ * letter in a colour, the name, HP and MP bars with the numbers as they are now, and one big button per cheat (a glyph and a short word): a click
+ * does it at once; a gold button is a switch that stays on. Enemy names come from mods\system\bin\monsters.tsv (the species whose maximum HP and
+ * MP match the enemy's record, when that is unique), else "Enemy n". */
+typedef struct { RECT r; int ent; } BBtn;
+typedef struct { RECT r; int who; } BCard;
+static BBtn g_bb[160]; static int g_nbb;
+static BCard g_bc[12]; static int g_nbc;
+static int g_bp_scroll, g_bp_total, g_bp_hot = -1, g_bp_flash = -1, g_bp_ehdr = -1;
+static HFONT g_sym;
+typedef struct { int hp, mp; char* name; } MonName;
+static MonName* g_mn; static int g_nmn, g_mn_loaded;
+
+static void load_monsters(void) {
+    if (g_mn_loaded) return;
+    g_mn_loaded = 1;
+    char path[MAX_PATH * 2 + 64]; snprintf(path, sizeof path, "%s\\mods\\system\\bin\\monsters.tsv", g_root);
+    char* t = slurp(path, NULL); if (!t) return;
+    for (char* line = t; line && *line;) {
+        char* nl = strchr(line, '\n'); if (nl) *nl = 0;
+        int hp, mp; char nm[80];
+        if (sscanf(line, "%d\t%d\t%79[^\r\n]", &hp, &mp, nm) == 3) {
+            g_mn = (MonName*)realloc(g_mn, (size_t)(g_nmn + 1) * sizeof *g_mn);
+            g_mn[g_nmn].hp = hp; g_mn[g_nmn].mp = mp; g_mn[g_nmn].name = xdup(nm, strlen(nm)); g_nmn++;
+        }
+        line = nl ? nl + 1 : NULL;
+    }
+    free(t);
+}
+static const char* enemy_name(int n) {
+    load_monsters();
+    for (int i = 0; i < g_nmn; i++) if (g_mn[i].hp == g_ro.enemy_max_hp[n] && g_mn[i].mp == g_ro.enemy_max_mp[n]) return g_mn[i].name;
+    return NULL;
+}
+
+static const wchar_t* glyph_of(const Ent* e) {
+    static const struct { const char* s; const wchar_t* g; } k[] = {
+        { ":keep", L"∞" }, { ":max", L"♥" }, { ":tension", L"⚡" }, { ":coup", L"⚔" }, { ":invincible", L"✦" },
+        { ":defeat", L"☠" }, { ":hp1", L"♡" }, { ":mp0", L"✖" }, { ":sleep", L"☾" }, { ":poison", L"☣" },
+        { ":stun", L"✺" }, { ":confuse", L"?" } };
+    for (size_t i = 0; i < sizeof k / sizeof *k; i++) if (strstr(e->id, k[i].s)) return k[i].g;
+    return L"•";
+}
+
+/* one card (who 0..3 a party member, 4..9 an enemy) at x, y, width w; returns its bottom. The buttons are collected too. */
+static int bp_card(int who, int x, int y, int w, HDC mdc) {
+    int enemy = who >= 4;
+    char tag[3] = { enemy ? 'e' : 'p', (char)('1' + (enemy ? who - 4 : who)), 0 };
+    int cx = x + 14, cy = y + 68, last = cy;
+    for (int i = 0; i < g_ne; i++) {
+        const Ent* e = &g_e[i];
+        if (strcmp(e->cat, "Live battle") || strcmp(e->who, tag)) continue;
+        wchar_t* lw = wide(e->name); SIZE sz; GetTextExtentPoint32W(mdc, lw, (int)wcslen(lw), &sz); free(lw);
+        int bw = 30 + sz.cx + 14;
+        if (cx + bw > x + w - 14 && cx > x + 14) { cx = x + 14; cy += 38; }
+        if (g_nbb < 160) { RECT r = { cx, cy, cx + bw, cy + 32 }; g_bb[g_nbb].r = r; g_bb[g_nbb].ent = i; g_nbb++; }
+        cx += bw + 8; last = cy + 32;
+    }
+    int bottom = last + 14;
+    if (g_nbc < 12) { RECT r = { x, y, x + w, bottom }; g_bc[g_nbc].r = r; g_bc[g_nbc].who = who; g_nbc++; }
+    return bottom;
+}
+
+/* the cards and buttons for a panel of width w (rectangles in the panel's own coordinates, before scrolling) */
+static void bp_build(int w) {
+    g_nbb = g_nbc = 0; g_bp_total = 0; g_bp_ehdr = -1;
+    if (!g_ro.inbattle) return;
+    HDC mdc = GetDC(NULL); HGDIOBJ old = SelectObject(mdc, g_font);
+    int pad = 16, gap = 12, two = w >= 640, colw = two ? (w - 3 * pad) / 2 : w - 2 * pad;
+    int yp = 40, ye = 40, anye = 0;
+    for (int n = 0; n < 6; n++) anye |= g_ro.enemy[n];
+    for (int i = 0; i < 4; i++) if (g_ro.party[i]) yp = bp_card(i, pad, yp, colw, mdc) + gap;
+    if (!two) { ye = yp + 4; if (anye) { g_bp_ehdr = ye; ye += 28; } }
+    for (int n = 0; n < 6; n++) if (g_ro.enemy[n]) ye = bp_card(4 + n, two ? 2 * pad + colw : pad, ye, colw, mdc) + gap;
+    g_bp_total = (yp > ye ? yp : ye) + 6;
+    SelectObject(mdc, old); ReleaseDC(NULL, mdc);
+}
+
+static COLORREF who_color(int who) {
+    static const COLORREF c[4] = { RGB(226, 178, 66), RGB(110, 160, 255), RGB(110, 210, 150), RGB(235, 130, 190) };
+    return who < 4 ? c[who] : RGB(226, 96, 96);
+}
+static void bar(Cv* c, float x, float y, float w, float h, int cur, int mx, COLORREF col) {
+    cv_box(c, x, y, x + w, y + h, h / 2, RGB(30, 31, 35), 0);
+    if (mx <= 0) return;
+    float f = (float)cur / (float)mx; if (f > 1) f = 1; if (f < 0) f = 0;
+    if (f > 0) cv_box(c, x, y, x + fmaxf(h, w * f), y + h, h / 2, col, 0);
+}
+static COLORREF hp_color(int cur, int mx) { return mx <= 0 || cur * 2 > mx ? RGB(96, 200, 120) : cur * 4 > mx ? RGB(232, 190, 80) : RGB(232, 96, 96); }
+static void put(Cv* c, const char* s, RECT r, HFONT f, COLORREF col, UINT fmt) { wchar_t* w = wide(s); cv_text(c, w, r, f, col, fmt); free(w); }
+
+static void bp_paint(HWND h) {
+    PAINTSTRUCT ps; HDC dc = BeginPaint(h, &ps); RECT cr; GetClientRect(h, &cr);
+    bp_build(cr.right);
+    int maxs = g_bp_total - cr.bottom; if (maxs < 0) maxs = 0; if (g_bp_scroll > maxs) g_bp_scroll = maxs; if (g_bp_scroll < 0) g_bp_scroll = 0;
+    int oy = -g_bp_scroll;
+    Cv c;
+    if (cv_begin(&c, cr.right, cr.bottom, COL_BG)) {
+        if (!g_ro.inbattle) {
+            RECT r = { 20, cr.bottom / 2 - 44, cr.right - 20, cr.bottom / 2 - 8 };
+            cv_text(&c, L"No battle right now", r, g_head, COL_TEXT, DT_CENTER | DT_SINGLELINE);
+            RECT r2 = { 20, cr.bottom / 2 + 2, cr.right - 20, cr.bottom / 2 + 50 };
+            cv_text(&c, L"Start a fight: your party and the enemies show up here, ready to click.", r2, g_font, COL_GRAY, DT_CENTER | DT_WORDBREAK);
+        } else {
+            int two = cr.right >= 640, colw = two ? (cr.right - 48) / 2 : cr.right - 32;
+            { RECT r = { 18, 12 + oy, 18 + colw, 34 + oy }; put(&c, "PARTY", r, g_bold, COL_GRAY, DT_SINGLELINE); }
+            if (two) { RECT r = { 32 + colw, 12 + oy, cr.right - 10, 34 + oy }; put(&c, "ENEMIES", r, g_bold, COL_GRAY, DT_SINGLELINE); }
+            else if (g_bp_ehdr >= 0) { RECT r = { 18, g_bp_ehdr + oy, cr.right - 10, g_bp_ehdr + 22 + oy }; put(&c, "ENEMIES", r, g_bold, COL_GRAY, DT_SINGLELINE); }
+            for (int k = 0; k < g_nbc; k++) {
+                const BCard* bc = &g_bc[k]; int who = bc->who, enemy = who >= 4, n = who - 4;
+                float x0 = (float)bc->r.left, y0 = (float)(bc->r.top + oy), x1 = (float)bc->r.right, y1 = (float)(bc->r.bottom + oy);
+                if (y1 < 0 || y0 > cr.bottom) continue;
+                cv_box(&c, x0, y0, x1, y1, 12, COL_LINE, 1.0f); cv_box(&c, x0 + 1, y0 + 1, x1 - 1, y1 - 1, 11, COL_BOX, 0);
+                cv_box(&c, x0 + 14, y0 + 12, x0 + 58, y0 + 56, 22, who_color(who), 0);
+                char nm[40]; const char* name = enemy ? enemy_name(n) : g_ro.name[who];
+                if (!name || !name[0]) snprintf(nm, sizeof nm, "Enemy %d", n + 1); else snprintf(nm, sizeof nm, "%s", name);
+                RECT lr = { (int)x0 + 14, (int)y0 + 12, (int)x0 + 58, (int)y0 + 56 };
+                if (enemy) cv_text(&c, L"☠", lr, g_sym, RGB(40, 24, 24), DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+                else { char l[2] = { nm[0], 0 }; put(&c, l, lr, g_head, RGB(30, 30, 34), DT_CENTER | DT_VCENTER | DT_SINGLELINE); }
+                RECT nr = { (int)x0 + 68, (int)y0 + 10, (int)x1 - 110, (int)y0 + 30 };
+                put(&c, nm, nr, g_bold, COL_TEXT, DT_SINGLELINE | DT_END_ELLIPSIS);
+                { char sub[40]; if (enemy) snprintf(sub, sizeof sub, "Enemy %d", n + 1); else if (who == 0) snprintf(sub, sizeof sub, "Hero"); else snprintf(sub, sizeof sub, "Player %d", who + 1);
+                  RECT sr = { (int)x1 - 104, (int)y0 + 11, (int)x1 - 14, (int)y0 + 30 }; put(&c, sub, sr, g_small, COL_GRAY, DT_RIGHT | DT_SINGLELINE); }
+                int hp = enemy ? g_ro.enemy_hp[n] : g_ro.hp[who], hm = enemy ? g_ro.enemy_max_hp[n] : g_ro.hpmax[who];
+                float bx = x0 + 68, bw = x1 - 14 - bx - 74;
+                bar(&c, bx, y0 + 38, bw, 8, hp, hm, hp_color(hp, hm));
+                { char t[40]; if (hm > 0) snprintf(t, sizeof t, "HP %d/%d", hp, hm); else snprintf(t, sizeof t, "HP %d", hp);
+                  RECT tr = { (int)(bx + bw + 8), (int)y0 + 33, (int)x1 - 8, (int)y0 + 49 }; put(&c, t, tr, g_small, COL_TEXT, DT_SINGLELINE); }
+                if (!enemy) {
+                    int mp = g_ro.mp[who], mm = g_ro.mpmax[who];
+                    bar(&c, bx, y0 + 52, bw, 8, mp, mm, RGB(104, 160, 240));
+                    char t[40]; if (mm > 0) snprintf(t, sizeof t, "MP %d/%d", mp, mm); else snprintf(t, sizeof t, "MP %d", mp);
+                    RECT tr = { (int)(bx + bw + 8), (int)y0 + 47, (int)x1 - 8, (int)y0 + 63 }; put(&c, t, tr, g_small, COL_GRAY, DT_SINGLELINE);
+                }
+            }
+            for (int b = 0; b < g_nbb; b++) {
+                const Ent* e = &g_e[g_bb[b].ent]; RECT r = g_bb[b].r;
+                if (r.bottom + oy < 0 || r.top + oy > cr.bottom) continue;
+                int on = ent_on(e), hot = b == g_bp_hot, flash = b == g_bp_flash;
+                COLORREF fill = on || flash ? COL_ACCENT : hot ? RGB(92, 94, 104) : RGB(64, 66, 74), ink = on || flash ? RGB(32, 28, 16) : COL_TEXT;
+                cv_box(&c, (float)r.left, (float)(r.top + oy), (float)r.right, (float)(r.bottom + oy), 16, fill, 0);
+                RECT gr = { r.left + 2, r.top + oy, r.left + 30, r.bottom + oy };
+                cv_text(&c, glyph_of(e), gr, g_sym, on || flash ? ink : COL_ACCENT, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+                RECT tr = { r.left + 30, r.top + oy, r.right - 6, r.bottom + oy };
+                put(&c, e->name, tr, g_font, ink, DT_VCENTER | DT_SINGLELINE);
+            }
+        }
+        cv_end(&c, dc, 0, 0);
+    }
+    EndPaint(h, &ps);
+}
+
+static int bp_hit(int x, int y) {
+    POINT p = { x, y + g_bp_scroll };
+    for (int b = 0; b < g_nbb; b++) if (PtInRect(&g_bb[b].r, p)) return b;
+    return -1;
+}
+static void bp_note(int hit) {
+    if (hit < 0) { SetWindowTextW(g_note, L"Click a button to use it. Gold buttons are switches that stay on."); return; }
+    const Ent* e = &g_e[g_bb[hit].ent];
+    char t[300]; snprintf(t, sizeof t, "%s%s%s", e->name, e->note[0] ? ": " : "", e->note);
+    wchar_t* w = wide(t); SetWindowTextW(g_note, w); free(w);
+}
+static void bp_click(HWND h, int hit) {
+    int idx = g_bb[hit].ent; Ent* e = &g_e[idx];
+    if (!strcmp(e->mode, "once")) { send_run(idx); g_bp_flash = hit; SetTimer(h, 1, 220, NULL); }
+    else apply(idx, !ent_on(e));
+    InvalidateRect(h, NULL, FALSE);
+}
+static LRESULT CALLBACK bpproc(HWND h, UINT m, WPARAM wp, LPARAM lp) {
+    switch (m) {
+    case WM_ERASEBKGND: return 1;
+    case WM_PAINT: bp_paint(h); return 0;
+    case WM_MOUSEMOVE: {
+        int hit = bp_hit((short)LOWORD(lp), (short)HIWORD(lp));
+        if (hit != g_bp_hot) { g_bp_hot = hit; bp_note(hit); InvalidateRect(h, NULL, FALSE); }
+        TRACKMOUSEEVENT tme = { sizeof tme, TME_LEAVE, h, 0 }; TrackMouseEvent(&tme);
+        return 0;
+    }
+    case WM_MOUSELEAVE: if (g_bp_hot >= 0) { g_bp_hot = -1; bp_note(-1); InvalidateRect(h, NULL, FALSE); } return 0;
+    case WM_LBUTTONDOWN: { int hit = bp_hit((short)LOWORD(lp), (short)HIWORD(lp)); if (hit >= 0) bp_click(h, hit); return 0; }
+    case WM_MOUSEWHEEL: g_bp_scroll -= (short)HIWORD(wp) / 2; InvalidateRect(h, NULL, FALSE); return 0;
+    case WM_SIZE: InvalidateRect(h, NULL, FALSE); return 0;
+    case WM_TIMER: KillTimer(h, wp); g_bp_flash = -1; InvalidateRect(h, NULL, FALSE); return 0;
+    }
+    return DefWindowProcW(h, m, wp, lp);
+}
+
+static void bp_refresh(void) {
+    SetWindowTextW(g_title, L"Battle cheats");
+    char b[100];
+    int np = g_ro.party[0] + g_ro.party[1] + g_ro.party[2] + g_ro.party[3], ne = g_ro.enemy[0] + g_ro.enemy[1] + g_ro.enemy[2] + g_ro.enemy[3] + g_ro.enemy[4] + g_ro.enemy[5];
+    if (g_ro.inbattle) snprintf(b, sizeof b, "In a battle: %d in your party, %d enem%s", np, ne, ne == 1 ? "y" : "ies"); else snprintf(b, sizeof b, "Not in a battle");
+    wchar_t* w = wide(b); SetWindowTextW(g_count, w); free(w);
+    if (g_bp) InvalidateRect(g_bp, NULL, FALSE);
+}
+
 /* every half second: has who is there changed (a member joined, a battle began, an enemy fell)? Then the page is built again, where it was */
 #define IDT_ROSTER 77
 static void roster_tick(void) {
@@ -1322,6 +1525,7 @@ static void roster_tick(void) {
     if (!memcmp(&r, &g_ro, sizeof r)) return;
     int hp_only = r.inbattle == g_ro.inbattle && !memcmp(r.party, g_ro.party, 4) && !memcmp(r.enemy, g_ro.enemy, 6) && !memcmp(r.name, g_ro.name, sizeof r.name);
     g_ro = r;
+    if (g_mode == 2) { bp_refresh(); return; }
     if (getenv("DQIX_CHEATWIN_TEST")) fprintf(stderr, "cheatwin roster: battle=%d party=%d%d%d%d enemies=%d%d%d%d%d%d\n", r.inbattle, r.party[0], r.party[1], r.party[2], r.party[3],
                                               r.enemy[0], r.enemy[1], r.enemy[2], r.enemy[3], r.enemy[4], r.enemy[5]);
     if (hp_only && g_mode != 2) return;                        /* only an enemy's HP moved: it matters just for the titles of the battle window */
@@ -1335,7 +1539,7 @@ static LRESULT CALLBACK wndproc(HWND h, UINT m, WPARAM wp, LPARAM lp) {
         KillTimer(h, wp); if (wp == IDT_SEARCH) build_page(); else test_step((int)wp); return 0;
     case WM_PAINT: {
         PAINTSTRUCT ps; HDC dc = BeginPaint(h, &ps); Cv c;              /* the search box: a pill */
-        if (cv_begin(&c, SIDE_W, SEARCH_H, COL_SIDE)) {
+        if (cv_begin(&c, SIDE_W, SEARCH_H, g_mode == 2 ? COL_BG : COL_SIDE)) {
             int focus = GetFocus() == g_search;
             if (!g_mode) {                                              /* the Nuzlocke window has no search */
                 cv_box(&c, 10.5f, 7.5f, SIDE_W - 10.5f, 37.5f, 15, focus ? COL_ACCENT : COL_LINE, 0);
@@ -1410,8 +1614,12 @@ static void apply_mode(void) {
     SetWindowTextW(g_win, g_mode == 1 ? L"Nuzlocke" : g_mode == 2 ? L"Battle cheats" : L"Cheats");
     SendMessageW(g_search, 0x1501 /*EM_SETCUEBANNER*/, TRUE, (LPARAM)L"Search cheats");
     ShowWindow(g_search, g_mode ? SW_HIDE : SW_SHOW);
-    SetWindowTextW(g_note, g_mode == 2 ? L"These work on the fight that is going on. Members and enemies that aren't there aren't listed." : L"Switches work at once while you play. Save your game first.");
+    SetWindowTextW(g_note, g_mode == 2 ? L"Click a button to use it. Gold buttons are switches that stay on." : L"Switches work at once while you play. Save your game first.");
     SetWindowTextW(g_search, L"");
+    ShowWindow(g_side, g_mode == 2 ? SW_HIDE : SW_SHOW); ShowWindow(g_host, g_mode == 2 ? SW_HIDE : SW_SHOW);
+    ShowWindow(g_share, g_mode == 2 ? SW_HIDE : SW_SHOW); ShowWindow(g_import, g_mode == 2 ? SW_HIDE : SW_SHOW);
+    if (g_bp) ShowWindow(g_bp, g_mode == 2 ? SW_SHOW : SW_HIDE);
+    { RECT lr; GetClientRect(g_win, &lr); layout(lr.right, lr.bottom); }
     SetWindowTextW(g_off, L"Everything off");
     SendMessageW(g_side, LB_RESETCONTENT, 0, 0);
     if (!g_mode) { int at0 = (int)SendMessageW(g_side, LB_ADDSTRING, 0, (LPARAM)L"Enabled"); SendMessageW(g_side, LB_SETITEMDATA, (WPARAM)at0, g_on_page); }
@@ -1480,6 +1688,10 @@ static void test_step(int step) {
         const char* id = g_test_id + (now ? 4 : 0);
         int idx = -1; for (int i = 0; i < g_ne; i++) if (!strcmp(g_e[i].id, id)) idx = i;
         if (idx < 0) { fprintf(stderr, "cheatwin test: no entry %s\n", id); return; }
+        if (g_mode == 2) {                                      /* the battle window has cards, not rows */
+            if (now) { send_run(idx); fprintf(stderr, "cheatwin test: did it now %s\n", id); } else { apply(idx, 1); fprintf(stderr, "cheatwin test: switched on %s\n", id); }
+            InvalidateRect(g_bp, NULL, FALSE); return;
+        }
         select_page_of(idx);
         for (int i = 0; i < g_nrows && now; i++) {
             Row* r = &g_rows[i];
@@ -1583,6 +1795,7 @@ static DWORD WINAPI ui_thread(LPVOID unused) {
     load_fonts();
     g_font = ui_font(12, FW_NORMAL); g_small = ui_font(11, FW_NORMAL); g_bold = ui_font(12, FW_SEMIBOLD);
     g_head = ui_font(18, FW_SEMIBOLD); g_mono = ui_font(11, FW_SEMIBOLD);
+    g_sym = CreateFontW(-16, 0, 0, 0, FW_NORMAL, 0, 0, 0, DEFAULT_CHARSET, 0, 0, CLEARTYPE_QUALITY, 0, L"Segoe UI Symbol");
     g_box = CreateSolidBrush(COL_BOX); g_white = CreateSolidBrush(COL_BG); g_gray = CreateSolidBrush(COL_SIDE);
     HINSTANCE hi = GetModuleHandleW(NULL);
     WNDCLASSW wc; memset(&wc, 0, sizeof wc);
@@ -1595,6 +1808,7 @@ static DWORD WINAPI ui_thread(LPVOID unused) {
     RegisterClassW(&wc);
     wc.hIcon = NULL;
     wc.lpfnWndProc = hostproc; wc.lpszClassName = L"DqixCheatPage"; RegisterClassW(&wc);
+    wc.lpfnWndProc = bpproc; wc.lpszClassName = L"DqixBattlePanel"; RegisterClassW(&wc);
     g_win = CreateWindowExW(0, L"DqixCheatWindow", L"Cheats", WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN, CW_USEDEFAULT, CW_USEDEFAULT, 800, 560, NULL, NULL, hi, NULL);
     if (ico_big) SendMessageW(g_win, WM_SETICON, ICON_BIG, (LPARAM)ico_big);
     if (ico_small) SendMessageW(g_win, WM_SETICON, ICON_SMALL, (LPARAM)ico_small);
@@ -1604,6 +1818,7 @@ static DWORD WINAPI ui_thread(LPVOID unused) {
     g_title = CreateWindowExW(0, L"STATIC", L"", WS_CHILD | WS_VISIBLE | SS_NOPREFIX | SS_ENDELLIPSIS, 0, 0, 10, 10, g_win, (HMENU)(UINT_PTR)IDC_TITLE, hi, NULL);
     g_count = CreateWindowExW(0, L"STATIC", L"", WS_CHILD | WS_VISIBLE | SS_NOPREFIX, 0, 0, 10, 10, g_win, (HMENU)(UINT_PTR)IDC_COUNT, hi, NULL);
     g_host = CreateWindowExW(WS_EX_CONTROLPARENT, L"DqixCheatPage", L"", WS_CHILD | WS_VISIBLE | WS_CLIPCHILDREN, 0, 0, 10, 10, g_win, NULL, hi, NULL);
+    g_bp = CreateWindowExW(0, L"DqixBattlePanel", L"", WS_CHILD, 0, 0, 10, 10, g_win, NULL, hi, NULL);
     g_note = CreateWindowExW(0, L"STATIC", L"Switches work at once while you play. Save your game first.", WS_CHILD | WS_VISIBLE | SS_NOPREFIX | SS_ENDELLIPSIS, 0, 0, 10, 10, g_win, (HMENU)(UINT_PTR)IDC_NOTE, hi, NULL);
     g_off = CreateWindowExW(0, L"BUTTON", L"Everything off", WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_OWNERDRAW, 0, 0, 10, 10, g_win, (HMENU)(UINT_PTR)IDC_OFF, hi, NULL);
     g_close = CreateWindowExW(0, L"BUTTON", L"Close", WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_OWNERDRAW, 0, 0, 10, 10, g_win, (HMENU)(UINT_PTR)IDC_CLOSE, hi, NULL);
@@ -1624,7 +1839,7 @@ static DWORD WINAPI ui_thread(LPVOID unused) {
     dark_title(g_win); dark(g_host, L"DarkMode_Explorer");
     g_on_page = g_npg; g_search_page = g_npg + 1;                                            /* the Enabled entry: a page number past the real ones */
     apply_mode();
-    SetTimer(g_win, IDT_ROSTER, 500, NULL);
+    SetTimer(g_win, IDT_ROSTER, 300, NULL);
     RECT r; GetClientRect(g_win, &r); layout(r.right, r.bottom);
     build_page();
     ShowWindow(g_win, SW_SHOWNORMAL); SetForegroundWindow(g_win);
@@ -1635,6 +1850,7 @@ static DWORD WINAPI ui_thread(LPVOID unused) {
         else if (msg.message == WM_LBUTTONDOWN || msg.message == WM_RBUTTONDOWN || msg.message == WM_KEYDOWN) card_hide();
         if (msg.message == WM_MOUSEWHEEL) {                      /* the wheel scrolls the page, whatever has the focus (a drop-down must not change by it) */
             POINT pt = { (short)LOWORD(msg.lParam), (short)HIWORD(msg.lParam) }; HWND under = WindowFromPoint(pt);
+            if (under == g_bp) { SendMessageW(g_bp, WM_MOUSEWHEEL, msg.wParam, msg.lParam); continue; }
             if (under == g_host || (under && IsChild(g_host, under))) { SendMessageW(g_host, WM_MOUSEWHEEL, msg.wParam, msg.lParam); continue; }
         }
         if (!IsDialogMessageW(g_win, &msg)) { TranslateMessage(&msg); DispatchMessageW(&msg); }

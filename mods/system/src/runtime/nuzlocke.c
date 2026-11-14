@@ -241,6 +241,13 @@ static int g_loaded, g_cmd;
 static uint32_t g_deaths;
 
 static uint8_t* ram(uint32_t a) { return &g_main_ram[a & (MAIN_RAM_SIZE - 1)]; }
+/* Is the character whose record is number i (0 = the hero, the next ones 0x964 lower) in the party? The game keeps one object per party member at
+ * 0x022BBD10 + k * 0x116C0 whose first word is the address of that member's record. */
+int mod_in_party(int i) {
+    uint32_t rec = NZ_PARTY0 - (uint32_t)i * NZ_STRIDE;
+    for (int k = 0; k < 4; k++) if (nrd32(ram(0x022BBD10u + (uint32_t)k * 0x116C0u)) == rec) return 1;
+    return 0;
+}
 static const char* run_path(void) { return "nuzlocke-run.txt"; }
 
 static uint32_t name_hash(uint32_t base) {
@@ -301,7 +308,7 @@ void nz_frame(uint32_t flags, int session) {
         uint32_t b = NZ_PARTY0 - (uint32_t)i * NZ_STRIDE;
         uint32_t h = name_hash(b);
         NzSlot* s = &g_s[i];
-        if (!h) { memset(s, 0, sizeof *s); continue; }
+        if (!h || !mod_in_party(i)) { memset(s, 0, sizeof *s); continue; }
         if (s->hash != h) { memset(s, 0, sizeof *s); s->hash = h; s->dead = is_dead_name(h); }
         if (s->dead) { pin(i); continue; }
         int inb = nrd16(ram(b + NZ_BMAX)) != 0;

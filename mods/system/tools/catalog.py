@@ -184,23 +184,23 @@ def battle_entries():
         copy = lambda cur, mx: [(0xA2000000 | cur, 0), (0xDA000000, cur), (0xD7000000, mx), (0xD2000000, 0)]
         keep = copy(*hp) + copy(*mp)
         out += [
-            ("live:battle:%s:keep" % who, "HP and MP never go down", who, keep, "always", "The R4 database's \"HP never decrease\" code, for this member only."),
-            ("live:battle:%s:max" % who, "HP and MP 9999", who, [(W16 | b + 0x58, 9999), (W16 | b + 0x5C, 9999), (W16 | b + 0x5A, 9999), (W16 | b + 0x5E, 9999)], "once",
+            ("live:battle:%s:keep" % who, "Never go down", who, keep, "always", "The R4 database's \"HP never decrease\" code, for this member only."),
+            ("live:battle:%s:max" % who, "HP/MP 9999", who, [(W16 | b + 0x58, 9999), (W16 | b + 0x5C, 9999), (W16 | b + 0x5A, 9999), (W16 | b + 0x5E, 9999)], "once",
              "Their maximum and current HP and MP become 9999 for this battle."),
             ("live:battle:%s:tension" % who, "High tension", who, [(W8 | b + 0x6F, 1), (W8 | b + 0x7C, 4)], "once", "Their tension goes to the top."),
-            ("live:battle:%s:coup" % who, "Coup de Grace ready", who, [(W8 | b + 0x93, 0x98)], "once", "They can use Coup de Grace this turn."),
+            ("live:battle:%s:coup" % who, "Coup ready", who, [(W8 | b + 0x93, 0x98)], "once", "They can use Coup de Grace this turn."),
         ]
         if i:
-            out.append(("live:battle:%s:invincible" % who, "Invincible (Soul Asylum)", who, [(W8 | b + 0x70, 0x40)], "once", "The game's own \"invincible\" flag, as the R4 code sets it."))
-    status = [("sleep", "Put to sleep", [(0x14, 0x10)]), ("poison", "Poison", [(0x14, 0x02), (0x22, 0x02)]),
+            out.append(("live:battle:%s:invincible" % who, "Invincible", who, [(W8 | b + 0x70, 0x40)], "once", "The game's own \"invincible\" flag, as the R4 code sets it."))
+    status = [("sleep", "Sleep", [(0x14, 0x10)]), ("poison", "Poison", [(0x14, 0x02), (0x22, 0x02)]),
               ("stun", "Stun", [(0x14, 0x08)]), ("confuse", "Confuse", [(0x14, 0x20)])]
     for n in range(6):
         b = ENEMY0 + n * ENEMY_STRIDE
         who = "e%d" % (n + 1)
         out += [
             ("live:battle:%s:defeat" % who, "Defeat", who, [(W16 | b, 0)], "once", "HP to 0."),
-            ("live:battle:%s:hp1" % who, "HP to 1", who, [(W16 | b, 1)], "once", ""),
-            ("live:battle:%s:mp0" % who, "MP to 0", who, [(W16 | b + 4, 0)], "once", ""),
+            ("live:battle:%s:hp1" % who, "HP 1", who, [(W16 | b, 1)], "once", ""),
+            ("live:battle:%s:mp0" % who, "MP 0", who, [(W16 | b + 4, 0)], "once", ""),
         ]
         for sid, sname, writes in status:
             out.append(("live:battle:%s:%s" % (who, sid), sname, who, [(W8 | b + off, v) for off, v in writes], "once", ""))
@@ -1338,6 +1338,32 @@ def write(root, info, entries, groups):
     return out
 
 
+def write_monsters(root):
+    """mods/system/bin/monsters.tsv for the battle window: an enemy's record holds its species' maximum HP and MP (fld_mondata.bin values 5 and 6), so
+    "maxhp<TAB>maxmp<TAB>name" for every ordinary species whose pair is unique tells the window what it is fighting"""
+    import rom_text
+    nds = rom_text.Nds(os.path.join(root, "game", "data", "dqix.nds"))
+    names = dict(rom_text.monsters(nds))
+    pairs = {}
+    for t, v in rom_text.tagged_records(nds.read("data/prm/fld_mondata.bin")):
+        if t == 0x65 and len(v) >= 7 and v[2] != 0:
+            pairs.setdefault((v[5], v[6]), set()).add(v[0] & 0xFFF)
+    lines = []
+    for (hp, mp), nums in sorted(pairs.items()):
+        found = {names[n] for n in nums if n in names}
+        if len(found) == 1 and all(n in names for n in nums):            # every species with these numbers has the same name
+            lines.append("%d\t%d\t%s" % (hp, mp, next(iter(found))))
+    out = os.path.join(root, "mods", "system", "bin", "monsters.tsv")
+    text = "\n".join(lines) + "\n"
+    try:
+        if open(out, encoding="utf-8", newline="").read() == text:
+            return
+    except OSError:
+        pass
+    with open(out, "w", encoding="utf-8", newline="") as f:
+        f.write(text)
+
+
 def main():
     args = [a for a in sys.argv[1:] if not a.startswith("--")]
     root = os.path.abspath(args[0] if args else os.path.join(os.path.dirname(__file__), "..", "..", ".."))
@@ -1346,6 +1372,11 @@ def main():
         return 1
     info, entries, groups = build(root)
     write(root, info, entries, groups)
+    try:
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        write_monsters(root)
+    except Exception as ex:
+        print(f"   (enemy names for the battle window: {ex})")
     n = {k: sum(1 for e in entries if e["kind"] == k) for k in ("live", "code", "blocked", "launch")}
     print(f"   Cheat list: {n['live']} live, {n['code']} built into the game, {n['blocked']} that can't work here"
           + ("" if info["database"] else f"  (no mods\\system\\cheats\\r4-{info['game']}.txt: only your own files)"))

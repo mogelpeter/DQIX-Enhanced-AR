@@ -104,21 +104,36 @@ int mod_cheats_post(const uint16_t* w, int n) {
 /* Who is really there, for the Cheats window (mod_cheatwin.c): the party members (their record, with the name, is at 0x020F54B4 - i * 0x964; a
  * battle fills the battle copy at +0x58 on) and, in a battle, the enemies (HP at 0x022A4638 + n * 0xA4). Read from this console's own memory,
  * only for display: the cheats themselves still travel through the mailbox. */
-typedef struct { int inbattle; uint8_t party[4], enemy[6]; char name[4][12]; int enemy_hp[6]; } ModRoster;
+typedef struct { int inbattle; uint8_t party[4], enemy[6]; char name[4][12]; int enemy_hp[6]; int hp[4], mp[4], hpmax[4], mpmax[4], enemy_max_hp[6], enemy_max_mp[6]; } ModRoster;
+int mod_in_party(int i);                                       /* nuzlocke.c */
+static uint16_t ram16(uint32_t a) { uint16_t v; memcpy(&v, &g_main_ram[a & (MAIN_RAM_SIZE - 1)], 2); return v; }
 void mod_roster(ModRoster* r) {
+    static int hpseen[4], mpseen[4];                           /* the most HP / MP a member had in this battle (the record has no maximum to read) */
     memset(r, 0, sizeof *r);
     for (int i = 0; i < 4; i++) {
         uint32_t b = (0x020F54B4u - (uint32_t)i * 0x964u) & (MAIN_RAM_SIZE - 1);
-        if (!g_main_ram[b]) continue;
+        if (!g_main_ram[b] || !mod_in_party(i)) continue;
         r->party[i] = 1;
         int k = 0; for (; k < 10 && g_main_ram[b + (uint32_t)k] >= 32 && g_main_ram[b + (uint32_t)k] < 127; k++) r->name[i][k] = (char)g_main_ram[b + (uint32_t)k];
         r->name[i][k] = 0;
     }
-    if (r->party[0]) { uint16_t mx; memcpy(&mx, &g_main_ram[(0x020F54B4u + 0x58u) & (MAIN_RAM_SIZE - 1)], 2); r->inbattle = mx != 0; }
+    if (r->party[0]) r->inbattle = ram16(0x020F54B4u + 0x58u) != 0;
+    for (int i = 0; i < 4; i++) {
+        uint32_t b = 0x020F54B4u - (uint32_t)i * 0x964u;
+        if (!r->party[i]) { hpseen[i] = mpseen[i] = 0; continue; }
+        r->hp[i] = r->inbattle ? ram16(b + 0x5C) : ram16(b + 0x30);
+        r->mp[i] = r->inbattle ? ram16(b + 0x5E) : ram16(b + 0x32);
+        if (!r->inbattle) { hpseen[i] = r->hp[i]; mpseen[i] = r->mp[i]; }
+        if (r->hp[i] > hpseen[i]) hpseen[i] = r->hp[i];
+        if (r->mp[i] > mpseen[i]) mpseen[i] = r->mp[i];
+        r->hpmax[i] = hpseen[i]; r->mpmax[i] = mpseen[i];
+    }
     if (r->inbattle)
         for (int n = 0; n < 6; n++) {
-            uint16_t hp; memcpy(&hp, &g_main_ram[(0x022A4638u + (uint32_t)n * 0xA4u) & (MAIN_RAM_SIZE - 1)], 2);
+            uint32_t e = 0x022A4638u + (uint32_t)n * 0xA4u;
+            uint16_t hp = ram16(e);
             r->enemy_hp[n] = hp; r->enemy[n] = hp > 0;
+            r->enemy_max_hp[n] = ram16(e + 8); r->enemy_max_mp[n] = ram16(e + 10);       /* the enemy record carries its maximums (the field's stats of the species) */
         }
 }
 
