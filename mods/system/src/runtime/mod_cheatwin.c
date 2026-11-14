@@ -487,6 +487,7 @@ static void cv_text(Cv* c, const wchar_t* t, RECT r, HFONT f, COLORREF col, UINT
 
 /* the grey line under a cheat */
 static void tag_text(const Ent* e, char* out, size_t n) {
+    if (!strcmp(e->kind, "ui")) { snprintf(out, n, "%s", e->note); return; }
     if (!strcmp(e->mode, "once") && !strcmp(e->kind, "live")) {      /* no switch: who needs it and "once" are no news */
         snprintf(out, n, "%s%s%s", !strcmp(e->status, "untested") ? "untested" : "", !strcmp(e->status, "untested") && e->note[0] ? " \xC2\xB7 " : "", e->note);
         return;
@@ -583,12 +584,21 @@ static HWND g_hot;                                                 /* the contro
 static LRESULT CALLBACK hot_proc(HWND h, UINT m, WPARAM wp, LPARAM lp);
 static void hook(HWND h) { SetPropW(h, L"dqix.old", (HANDLE)SetWindowLongPtrW(h, GWLP_WNDPROC, (LONG_PTR)hot_proc)); }
 
-/* a pill button (Everything off, Close, Do it now) */
+/* a pill button (Everything off, Close, Share, Import; "Use" on a row in green) */
 static void draw_pill_button(const DRAWITEMSTRUCT* d) {
     RECT rc = d->rcItem; int w = rc.right - rc.left, h = rc.bottom - rc.top; Cv c;
     if (!cv_begin(&c, w, h, COL_BG)) return;
     int hot = g_hot == d->hwndItem, down = (d->itemState & ODS_SELECTED) != 0;
+    int bid = GetDlgCtrlID(d->hwndItem), use = bid != IDC_OFF && bid != IDC_CLOSE && bid != IDC_SHARE && bid != IDC_IMPORT;     /* a row's button: "Use" */
     float r = (float)h / 2;
+    if (use) {                                               /* green: it does something now (the gold is for switches that are on) */
+        cv_box(&c, 0.5f, 0.5f, (float)w - 0.5f, (float)h - 0.5f, r, down ? RGB(48, 128, 94) : hot ? RGB(112, 214, 164) : RGB(84, 184, 138), 0);
+        wchar_t ut[64]; GetWindowTextW(d->hwndItem, ut, 64);
+        RECT ur = { 0, down ? 1 : 0, w, h + (down ? 1 : 0) };
+        cv_text(&c, ut, ur, g_bold, RGB(10, 32, 22), DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+        cv_end(&c, d->hDC, rc.left, rc.top);
+        return;
+    }
     cv_box(&c, 0.5f, 0.5f, (float)w - 0.5f, (float)h - 0.5f, r, hot ? RGB(96, 99, 108) : RGB(70, 72, 80), 0);
     cv_box(&c, 1.5f, 1.5f, (float)w - 1.5f, (float)h - 1.5f, r - 1, down ? RGB(40, 42, 47) : hot ? RGB(62, 64, 72) : RGB(49, 51, 57), 0);
     if ((d->itemState & ODS_FOCUS) && !(d->itemState & ODS_NOFOCUSRECT)) cv_box(&c, 0.5f, 0.5f, (float)w - 0.5f, (float)h - 0.5f, r, COL_ACCENT, 1.5f);
@@ -840,7 +850,7 @@ static void add_entry(int p, int i, char* seen) {
     if (p == g_search_page && ++g_found > SEARCH_MAX) return;
     char shown[500]; snprintf(shown, sizeof shown, "%s", label(e));
     if (p == g_on_page) { const Grp* gg = e->gi >= 0 ? &g_g[e->gi] : NULL; if (gg) snprintf(shown, sizeof shown, "%s: %s", gg->title, label(e)); else snprintf(shown, sizeof shown, "%s", e->name); }
-    int once = !strcmp(e->mode, "once"), both = !strcmp(e->kind, "live") && (once || !strcmp(e->mode, "both"));
+    int once = !strcmp(e->mode, "once"), both = (!strcmp(e->kind, "live") && (once || !strcmp(e->mode, "both"))) || !strcmp(e->kind, "ui");
     Row* r = add_row(once ? R_ONCE : R_CHECK, i, -1); int id = IDC_ROW0 + g_nrows - 1;
     if (once) r->main = mk(L"STATIC", shown, SS_NOPREFIX | SS_ENDELLIPSIS | SS_CENTERIMAGE, g_font, id);
     else {
@@ -849,7 +859,7 @@ static void add_entry(int p, int i, char* seen) {
     }
     char tag[700]; tag_text(e, tag, sizeof tag);
     r->sub = mk(L"STATIC", tag, SS_OWNERDRAW, g_small, id); SetWindowLongPtrW(r->sub, GWLP_USERDATA, 1);
-    if (both) r->btn = mk(L"BUTTON", "Do it now", BS_OWNERDRAW | WS_TABSTOP, g_font, id);
+    if (both) r->btn = mk(L"BUTTON", !strcmp(e->kind, "ui") ? "Open" : "Use", BS_OWNERDRAW | WS_TABSTOP, g_font, id);
 }
 
 /* a section's title in the battle window: who it is for, as it is now */
@@ -1161,6 +1171,8 @@ static LRESULT CALLBACK hostproc(HWND h, UINT m, WPARAM wp, LPARAM lp) {
             int on = !r->on;
             if (entry_changed(r, r->idx, on)) r->on = on;
             InvalidateRect(r->main, NULL, FALSE);
+        } else if (r->btn && (HWND)lp == r->btn && code == BN_CLICKED && !strcmp(g_e[r->idx].kind, "ui")) {
+            g_mode = 2; mod_roster(&g_ro); PostMessageW(g_win, WM_SHOW_CHEATS, 0, 0);          /* the battle window (cards) */
         } else if (r->btn && (HWND)lp == r->btn && code == BN_CLICKED && !strcmp(g_e[r->idx].kind, "live")) {
             EnterCriticalSection(&g_cs); send_run(r->idx); LeaveCriticalSection(&g_cs);
         }

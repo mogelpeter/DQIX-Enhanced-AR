@@ -13,3 +13,5 @@ mods/system/editor-lang.txt
 # Claude Code settings, hooks and memory: local to each PC, never in the repo
 .claude/
 CLAUDE.md
+
+mods/system/tools/pac-out/

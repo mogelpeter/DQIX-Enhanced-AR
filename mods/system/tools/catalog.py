@@ -1191,6 +1191,9 @@ def build(root):
     for n in range(1, NZ_SEEDS + 1):
         entries.append(dict(id=f"launch:nz-seed:{n}", name=f"Seed {n}", note="", cat="Nuzlocke", group=gid, kind="launch", status=NZ_STATUS,
                             mode="", ops=[], keys=[], reason="", file="", on=False, patch=[], env=f"DQIX_MOD_NZ_SEED={n}", option=f"Seed {n}", also=""))
+    # ---- a button on the Battle page that opens the battle window (the cards); kind "ui": no code, the window opens the window
+    entries.append(dict(id="ui:battle-window", name="Battle window", option="Battle window", note="A window with a card for every party member and enemy in the fight, and big buttons for buffs and debuffs.",
+                        cat="Battle", group="", kind="ui", status="tested", mode="once", ops=[], keys=[], reason="", file="", on=False, patch=[], env="", also=""))
     # ---- the live battle cheats (see BATTLE_PAGE): the database's codes that write the same bytes are replaced by them
     bad = battle_addr_set()
 
@@ -1277,7 +1280,7 @@ def build(root):
         g["who"] = who_of(g["title"])
     for e in entries:
         g = gby.get(e["group"])
-        e["section"] = g["section"] if g else section_of(e["cat"], text(e))
+        e["section"] = g["section"] if g else "" if e["kind"] == "ui" else section_of(e["cat"], text(e))
         if not e.get("who"):
             e["who"] = (g["who"] if g else "") or who_of(e["name"], e.get("option", ""), e.get("was", ""))
         if e["section"] and not g and e.get("option") == e["section"]:

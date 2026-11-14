@@ -86,7 +86,7 @@ Make sure the game is **closed** while installing. If it is still running the in
 
 ### Step 5: Play with cheats
 
-Start the game (`game\dqix.exe`). In the menu bar at the top of the window open **Cheats > Cheats...**. A window opens (the game keeps running): pick a page, tick a cheat, and it is on at once. *Do it now* carries out a "once" cheat. Choices (experience x2, x4...) are a drop-down with *Off* and the options. Cheats that use buttons say which ones to hold ("hold L+R"). The **Enabled** page lists everything that is on, and the search box finds any cheat. What you tick is saved and sent again by itself the next time the game starts. *Cheats > Save editor...* and *Treasure maps...* open the editor / the map search in your browser; the editor's language box is in the page.
+Start the game (`game\dqix.exe`). In the menu bar at the top of the window open **Cheats > Cheats...**. A window opens (the game keeps running): pick a page, tick a cheat, and it is on at once. *Use* carries out a "once" cheat. Choices (experience x2, x4...) are a drop-down with *Off* and the options. Cheats that use buttons say which ones to hold ("hold L+R"). The **Enabled** page lists everything that is on, and the search box finds any cheat. What you tick is saved and sent again by itself the next time the game starts. *Cheats > Save editor...* and *Treasure maps...* open the editor / the map search in your browser; the editor's language box is in the page.
 
 The very first time after an update of the cheats the game is built once (a few minutes). After that, switching cheats, including almost all code mods, needs no rebuild. (Options for the *next start*, like "Battle any monster", are applied when the game starts; the window offers to restart it.)
 
@@ -107,9 +107,9 @@ Each cheat is one of these:
 | Kind | What it does |
 |---|---|
 | **Switch** | On = it works from now on, every frame, like a ticked code on an R4. |
-| **Do it now** | Carries the code out one time, now (99 of every shield, all Zoom places...). |
+| **Use** | Carries the code out one time, now (99 of every shield, all Zoom places...). |
 | **Choice** | Experience x2 / x4 / ... / x128, movement speed, a vocation: only one can be on. |
-| **With buttons** ("hold SELECT", "hold L+R"...) | Works like on a DS: switch it on, then hold those buttons in the game. *Do it now* does it right away without the buttons. |
+| **With buttons** ("hold SELECT", "hold L+R"...) | Works like on a DS: switch it on, then hold those buttons in the game. *Use* does it right away without the buttons. |
 
 The labels in the grey line:
 

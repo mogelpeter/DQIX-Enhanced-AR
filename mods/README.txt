@@ -15,7 +15,7 @@ Start the game as always (game\dqix.exe). In its menu bar (next to Mods and Help
   running. Tick a cheat and it is on at once: no restart, and no rebuild for almost all code
   mods too. What you tick is saved in mods\system\menu-state.txt and sent again by itself
   when the game starts. Nothing is on until you switch it on.
-- Cheats > Battle cheats...  the live battle window: for every party member and every enemy
+- Cheats > Battle cheats...  (or the Open button at the top of the Cheats window's Battle page)  the live battle window: for every party member and every enemy
   that is really in the fight (it looks every half second, so a member who joins or an enemy
   who falls appears or goes by itself) buttons like High tension, Coup de Grace ready,
   HP and MP 9999, Invincible, HP to 1, Put to sleep, Poison, Stun, Confuse, Defeat and a
@@ -80,13 +80,13 @@ Each cheat is one of these:
 
 - A switch (check box). On = it works from now on, every frame, like a code that is
   ticked on an R4.
-- "Do it now": carries the code out one time, now (99 of every shield, all Zoom
+- "Use": carries the code out one time, now (99 of every shield, all Zoom
   places, max records...). A one-time cheat has only this button: there is nothing to
   switch on or off, and no buttons to hold.
 - A choice (Experience x2 / x4 / ... / x128, movement speed, a vocation...): a drop-down
   with "Off" and the options; only one of them can be on.
 - A cheat with buttons ("hold SELECT", "hold L+R"...) works as on a DS: switch it on,
-  then hold those buttons in the game. "Do it now" does it right away without them.
+  then hold those buttons in the game. "Use" does it right away without them.
 
 The labels in the grey line:
 
@@ -129,7 +129,7 @@ Rules (switches, live: no restart, they also work in a session with friends)
                            rule on this page needs this one.
   The hero's death ends the run     when the hero falls, the whole party falls with them.
   Soul link                members 1 and 2 (hero + 2nd) and members 3 and 4 fall together.
-  Start a new run          ("Do it now") empties the list of the fallen. Their HP is whatever
+  Start a new run          ("Use") empties the list of the fallen. Their HP is whatever
                            the game has: use an inn or a church. (Deleting nuzlocke-run.txt
                            does the same when the game is not running.)
 Punishments (switches, on top of Permadeath)
@@ -267,7 +267,7 @@ MAKE YOUR OWN
 Live cheat (mods\system\cheats\anything.txt): any Action Replay DS code that writes data.
 
     # name: What the window shows
-    # mode: always          (a switch; or: once = a "Do it now" button)
+    # mode: always          (a switch; or: once = a "Use" button)
     # about: optional note
     # category: Party       (the page; without it: "Miscellaneous")
     020F6D48 0098967F

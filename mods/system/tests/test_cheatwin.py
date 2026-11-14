@@ -77,7 +77,7 @@ print("4  search works:", s4, "| exit", rc4, flush=True)
 ok &= s4
 
 
-# 5: "Do it now" (the button, clicked): a once-only cheat without keys, and a cheat whose code waits for buttons (START+R,
+# 5: "Use" (the button, clicked): a once-only cheat without keys, and a cheat whose code waits for buttons (START+R,
 #    SELECT...): the button carries it out once as if those were held. Its writes are in RAM; nothing is switched on.
 def catalog_entry(pick):
     for l in open(os.path.join(root, "mods", "system", "bin", "catalog.txt"), encoding="utf-8"):
@@ -108,11 +108,11 @@ for tag, pick in (("five-a", lambda d: d["id"] == "file:cheats/once-nighttime.tx
                    and any(int.from_bytes(ram[o:o + n], "little") != v for o, n, v in writes(d["ops"])))):   # not already so in the save
     d = catalog_entry(pick)
     if not d:
-        print("5  Do it now: no entry for", tag); ok = False; continue
+        print("5  Use: no entry for", tag); ok = False; continue
     rc5, txt5, ram5, st5 = run(tag, [], lambda w, i=d["id"]: {"DQIX_CHEATWIN_TEST": "now:" + i})
     got = [(o, n, v, int.from_bytes(ram5[o:o + n], "little")) for o, n, v in writes(d["ops"])]
     good = rc5 == 0 and "cheatwin test: did it now" in txt5 and got and all(v == g for o, n, v, g in got) and d["id"] not in st5
-    print("5  Do it now:", (d.get("option") or d["name"]), "| keys", d.get("keys", "-"), "| written:",
+    print("5  Use:", (d.get("option") or d["name"]), "| keys", d.get("keys", "-"), "| written:",
           ", ".join("%#x=%#x (want %#x)" % (0x02000000 + o, g, v) for o, n, v, g in got), "| still off:", d["id"] not in st5, "| exit", rc5, flush=True)
     ok &= bool(good)
 

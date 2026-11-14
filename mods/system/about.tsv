@@ -27,8 +27,8 @@ Hide The Party Codes	Makes the party members invisible on the field (you still m
 Hold [A] Enemy Wil Never Chase After You	Monsters stop chasing you while you hold A. Battle still starts if you walk into one.
 No Random Battles, Push Start+Right for Instant Battle	Switches random battles off, so nothing attacks you on the ship. Press START+RIGHT to start a battle whenever you want one.
 L+R to push enemy away	Press L+R and monsters near you are pushed away, so you can slip past them. According to the author it works on the world map and in caves.
-Daytime, push Start and Up	While it is on, press START+UP in the game and the in-game clock jumps to daytime. Do it now does it at once.
-Night Time, push Start and Down	While it is on, press START+DOWN in the game and the in-game clock jumps to night. Do it now does it at once.
+Daytime, push Start and Up	While it is on, press START+UP in the game and the in-game clock jumps to daytime. Use does it at once.
+Night Time, push Start and Down	While it is on, press START+DOWN in the game and the in-game clock jumps to night. Use does it at once.
 Enable Zoom	Teaches every party member the Zoom spell, which teleports you to any place you have visited (you cast it outdoors, from the spell menu). Normally only the hero learns Zoom, so this gives everyone more than the game does, and pressing it again won't take it back. It does not unlock new places by itself.
 Every Zoom destination	Adds every place in the game to the Zoom list, so you can teleport anywhere, also to places you have never visited. Needs Zoom to be known by someone (see Enable Zoom).
 All Visitors Rooms Unlocked for Inn	Every guest room of your inn is unlocked, so guests can be placed in all of them.
@@ -140,8 +140,8 @@ Walk through monsters (no battles from touching them)	Monsters on the field no l
 Quick Save Never Return To Title	After a quick save the game goes on where you were instead of going back to the title screen.
 Unlock All Jobs v1	Every vocation shows up in the vocation list of the Vocation Guild, so you can pick any of them. It only changes what the menu offers; your save does not mark them as unlocked (v2 does that).
 Every alchemy recipe in the Alchemenu (not yet made)	Every alchemy recipe shows up in the alchemy menu as known but not yet made, so you can cook it.
-Make it day	Press Do it now and the in-game clock jumps to daytime (the sky and the monsters that roam change with it).
-Make it night	Press Do it now and the in-game clock jumps to night (the sky and the monsters that roam change with it).
+Make it day	Press Use and the in-game clock jumps to daytime (the sky and the monsters that roam change with it).
+Make it night	Press Use and the in-game clock jumps to night (the sky and the monsters that roam change with it).
 Quester's Rest at its biggest	Your own inn jumps to its top level with every upgrade built.
 Whole party: 500 skill points to spend	Sets the unspent skill points of all four party members to 500.
 Whole party's HP never goes down	Everyone's HP is refilled to the maximum every frame, so damage never sticks.
@@ -184,8 +184,8 @@ Re-Zoom To Any Location	Zoom is the spell that teleports you to a place you have
 Walkthrough A Door/Stairs to Go Observatory/Stornway	Hold L or R while you walk through a door or over stairs and you are sent to the Observatory or to Stornway instead of the normal place. The author's title does not say which button leads where; let go of L and R for normal doors.
 No Random Battles	Switches random battles off, so nothing attacks you on the ship. Press START+RIGHT to start a battle whenever you want one.
 Fight Three of The Same Monster	Hold A and RIGHT just before a battle starts: you face three of the same monster instead of the usual mix.
-Day	While it is on, press START+UP in the game and the in-game clock jumps to daytime. Do it now does it at once.
-Night	While it is on, press START+DOWN in the game and the in-game clock jumps to night. Do it now does it at once.
+Day	While it is on, press START+UP in the game and the in-game clock jumps to daytime. Use does it at once.
+Night	While it is on, press START+DOWN in the game and the in-game clock jumps to night. Use does it at once.
 All 444 Accolades Earned	Gives you every accolade (title) at once.
 One Hit Kill	Activate it before you attack: the next hit kills the enemy outright.
 Invincibility (Soul Asylum)	Hold L in battle and the party is covered by Soul Asylum, so nothing can hurt it.
