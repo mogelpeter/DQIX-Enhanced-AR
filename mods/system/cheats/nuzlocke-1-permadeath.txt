@@ -1,0 +1,7 @@
+# name: Permadeath: a fallen party member stays dead
+# mode: always
+# category: Nuzlocke
+# enabled: no
+# about: When a party member's HP reaches 0 they are dead for good: their HP is held at 0, so Zing, Revive, herbs and the church can't bring them back. The fallen are remembered in nuzlocke-run.txt (next to dqix.exe), so a dead member stays dead when you restart the game or load an older save. Everything else on this page needs this rule.
+# The address is not memory: mods/system/src/runtime/mod_cheats.c takes it as the Nuzlocke rule "permadeath"; nuzlocke.c does the rest.
+02F5A5C0 00000001

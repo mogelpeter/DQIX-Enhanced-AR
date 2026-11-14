@@ -244,6 +244,24 @@ def t_editor(root, work):
     return 1 if bad else 0
 
 
+def t_nzdata(root, work):
+    """the Nuzlocke randomizers on the ROM's own tables (tests/test_nuzlocke_data.c, compiled with MSYS2's gcc): permutations only, the same seed
+    twice gives the same result, another seed another one, one species -> one species in the encounters"""
+    msys = read(os.path.join(root, "mods", "system", "msys2-root.txt")) or r"C:\msys64"
+    gcc = next((g for g in (os.path.join(msys, "ucrt64", "bin", "gcc.exe"), os.path.join(msys, "mingw64", "bin", "gcc.exe")) if os.path.isfile(g)), None)
+    rom = os.path.join(root, "game", "data", "dqix.nds")
+    if not gcc or not os.path.isfile(rom):
+        print("no gcc (%s) or no ROM copy (%s)" % (gcc, rom)); print("RESULT: FAIL"); return 1
+    exe = os.path.join(work, "t.exe")
+    c = subprocess.run([gcc, "-O1", "-I", os.path.join(root, "runtime"), "-o", exe, os.path.join(root, "mods", "system", "tests", "test_nuzlocke_data.c")],
+                       capture_output=True, text=True, errors="replace", env=dict(os.environ, PATH=os.path.dirname(gcc) + os.pathsep + os.environ.get("PATH", "")))
+    if c.returncode:
+        print(c.stderr[-1500:]); print("RESULT: FAIL (compile)"); return 1
+    r = subprocess.run([exe, rom], capture_output=True, text=True, errors="replace")
+    print(r.stdout)
+    return 0 if r.returncode == 0 else 1
+
+
 # name -> (runner, parallel?, expected seconds). Runner(root, work, port) -> (ok, text)
 def runners(root, work):
     w = lambda n: os.path.join(work, n)
@@ -271,18 +289,24 @@ def runners(root, work):
         "livepatch":      (fn("test_livepatch.py", ["4500"]), True, 400),         # live code mods; needs TEST_SAVE = a save with the hero in a dungeon
         "firststrike":    (fn("test_firststrike.py", []), True, 200),             # "Always strike first" (firststrike.c); needs TEST_SAVE as above
         "vanish-walk":    (fn("test_vanish_walk.py", []), True, 200),             # Vanish in the field: no battle, no frozen monster (vanish.c); TEST_SAVE as above
+        "battle-live":    (fn("test_battle_live.py", []), True, 130),             # the live battle cheats in a forced battle (Battle cheats window); TEST_SAVE as above
         "undo-fun":       (fn("test_undo_fun.py", []), True, 90),                 # Fun cheats switched off put the game back (SET_UNDO); TEST_SAVE as above
         # cheats with buttons, the buttons really pressed (test_keys.py); TEST_SAVE as above
         "keys":           (fn("test_keys.py", ["db:6fec10fd|Increase/Decrease Size", "A+L,A+R", "20"]), True, 120),
         "keys-bag":       (fn("test_keys.py", ["db:26b3f9a9|99 of the bag item under the cursor", "START+R", "10"],
                               {"TEST_PRE": "3700:X:6;3780:A:6;3860:A:6;3940:DOWN:6;3990:DOWN:6;4040:DOWN:6;4100:A:6", "TEST_AT": "4200"}), True, 120),
         "zoom-grotto":    (fn("test_zoom_grotto.py", []), True, 150),
+        # the Nuzlocke page: the randomizers on the ROM's tables, and every rule in a real game (test_nuzlocke.py); the rules need TEST_SAVE as above
+        "nz-data":        (inproc(t_nzdata, "nz-data"), True, 20),
+        **{"nz-" + n: (fn("test_nuzlocke.py", [n]), True, 150)
+           for n in ("control", "perma", "persist", "link", "hero", "goldhalf", "goldall", "newrun", "battle", "battleko")},
         "editor":         (inproc(t_editor, "editor"), False, 10),
     }
 
 
 TIERS = {
     "fast": ["static", "live-fast", "session-fast", "all-quick", "editor"],
+    "nuzlocke": ["nz-data"] + ["nz-" + n for n in ("control", "perma", "persist", "link", "hero", "goldhalf", "goldall", "newrun", "battle", "battleko")],
     "full": ["static", "live", "session", "all-single", "all-session", "cheatwin", "editor"],
 }
 

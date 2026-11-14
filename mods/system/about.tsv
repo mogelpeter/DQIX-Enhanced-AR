@@ -29,7 +29,7 @@ No Random Battles, Push Start+Right for Instant Battle	Switches random battles o
 L+R to push enemy away	Press L+R and monsters near you are pushed away, so you can slip past them. According to the author it works on the world map and in caves.
 Daytime, push Start and Up	While it is on, press START+UP in the game and the in-game clock jumps to daytime. Do it now does it at once.
 Night Time, push Start and Down	While it is on, press START+DOWN in the game and the in-game clock jumps to night. Do it now does it at once.
-Enable Zoom	Teaches every party member the Zoom spell, which teleports you to any place you have visited (you cast it outdoors, from the spell menu). Meant for a new game; it does not unlock new places by itself.
+Enable Zoom	Teaches every party member the Zoom spell, which teleports you to any place you have visited (you cast it outdoors, from the spell menu). Normally only the hero learns Zoom, so this gives everyone more than the game does, and pressing it again won't take it back. It does not unlock new places by itself.
 Every Zoom destination	Adds every place in the game to the Zoom list, so you can teleport anywhere, also to places you have never visited. Needs Zoom to be known by someone (see Enable Zoom).
 All Visitors Rooms Unlocked for Inn	Every guest room of your inn is unlocked, so guests can be placed in all of them.
 Unlock All Jobs v2	Marks every vocation as unlocked in your save, so you can switch to any of them at the Vocation Guild. This version changes the save data (v1 only changes the menu).
@@ -69,10 +69,10 @@ Battle Won Max	Sets the number of battles won in your records to its maximum.
 Treasure Hunted Max	Sets the number of treasures found in your records to its maximum.
 Visitors Max	Sets the number of guests that visited your inn in your records to its maximum.
 Quest Completed Max	Sets the number of completed quests in your records to its maximum.
-Forge Max	Sets the number of items you forged in your records to its maximum.
+Forge Max	Sets the number of items you made by alchemy in your records to its maximum.
 Fill in All ? ? ? of Extra Quest	Fills in the unknown (? ? ?) entries of the extra quests list, so the quests show their names. It does not complete the quests.
-Alchemy Recipies - Not Forged	Every alchemy recipe appears in the Alchenomicon as known but not yet made.
-Alchemy Recipies - Forged	Every alchemy recipe is marked as known and already made.
+Alchemy Recipies - Not Forged	Every alchemy recipe is discovered in the Alchenomicon, but none is marked as made yet.
+Alchemy Recipies - Forged	Every alchemy recipe is discovered and marked as made.
 All Accolades	Gives you every accolade (title) at once.
 Unlock All Extra Quests V1	Makes all extra quests available. Use it on a new game before accepting any quests and do not go online afterwards.
 Unlock All Extra Quests V2	Makes all extra quests available (another method than V1). Use after you have finished quests 2, 117 and 120 and do not go online afterwards.

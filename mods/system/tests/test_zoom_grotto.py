@@ -17,7 +17,7 @@ save = os.environ.get("TEST_SAVE") or os.path.join(root, "game", "dqix.sav")
 STORNWAY = (0x00004E22, 0xFFFD8800, 0x000012E1, 0xFFFF1800)        # Zoom's destination record for Stornway (map id, x, y, z)
 ops_b = None
 for line in open(os.path.join(root, "mods", "system", "bin", "catalog.txt"), encoding="utf-8"):
-    if line.startswith("entry\t") and ("id=db:933b3879\t" in line or "Grotto Cave Location\t" in line):    # EU id / the USA list's name
+    if line.startswith("entry\t") and ("id=db:933b3879\t" in line or "rotto cave location\t" in line.lower()):    # EU id / the USA list's name
         d = dict(x.split("=", 1) for x in line.rstrip("\n").split("\t")[1:] if "=" in x)
         ops_b = [tuple(int(x, 16) for x in o.split(":")) for o in d["ops"].split(",")]
 if not ops_b:

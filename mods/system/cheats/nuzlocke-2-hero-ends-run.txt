@@ -1,0 +1,7 @@
+# name: The hero's death ends the run
+# mode: always
+# category: Nuzlocke
+# enabled: no
+# about: When the hero falls, the whole party falls with them (and stays dead). Needs Permadeath.
+# The address is not memory: mods/system/src/runtime/mod_cheats.c takes it as the Nuzlocke rule "hero ends the run"; nuzlocke.c does the rest.
+02F5A5C4 00000001

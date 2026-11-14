@@ -63,7 +63,7 @@ PAGES = [
     (r"miscellaneous", "Miscellaneous", ""),
     (r"backlight|wfc|wi-?fi", "System", ""),
 ]
-PAGE_ORDER = ["Speed & comfort", "Camera", "Experience & gold", "Party", "Battle", "Items", "Treasure maps", "Alchemy", "World",
+PAGE_ORDER = ["Speed & comfort", "Camera", "Experience & gold", "Party", "Battle", "Items", "Treasure maps", "Nuzlocke", "Live battle", "Alchemy", "World",
               "Unlocks", "Records & quests", "Fun", "Miscellaneous"]
 
 # cheats that belong on another page than their folder's (matched against name, shown name and the choice's title)
@@ -82,6 +82,12 @@ SECTIONS = {
               ("Player 3", r"\bp3\b|player 3"),
               ("Player 4", r"\bp4\b|player 4"),
               ("Other", r".")],
+    "Nuzlocke": [("Rules", r"permadeath|ends the run|soul link|new run"),
+                 ("Punishments", r"lose|penalty"),
+                 ("Randomizer", r"random"),
+                 ("Seed", r"seed")],
+    "Live battle": [("Hero", r"\bp1\b"), ("Player 2", r"\bp2\b"), ("Player 3", r"\bp3\b"), ("Player 4", r"\bp4\b"),
+                    ("Enemy 1", r"\be1\b"), ("Enemy 2", r"\be2\b"), ("Enemy 3", r"\be3\b"), ("Enemy 4", r"\be4\b"), ("Enemy 5", r"\be5\b"), ("Enemy 6", r"\be6\b")],
     "Battle": [("Party buffs", r"."),
                ("Enemy debuffs", r"^enemy|enemy in |1 hit kill"),
                ("Monster AI", r"flee|chase"),
@@ -124,6 +130,87 @@ LAUNCH = [
     ("launch:metal", "Metal slimes only, in the areas that have them", "DQIX_MOD_METAL=1",
      "In every area where metal monsters live, only metal monsters appear. Areas without them stay as they are. The game reads this once when it starts.", "Battle", ""),
 ]
+
+# The Nuzlocke page (src/runtime/nuzlocke.c). The rules are live cheats (cheats/nuzlocke-*.txt, switch addresses 02F5A5C0 + 4n). The randomizers
+# change the cartridge's tables when the game starts, so they are launch options for every PC ("All players"); the seed is one choice.
+NZ_STATUS = "untested"
+NZ_LAUNCH = [
+    ("launch:nz-enc", "Random monsters in the field and in battle", "DQIX_MOD_NZ_ENC=1",
+     "Every kind of monster becomes another kind of about the same level (metal monsters stay metal), everywhere: what you see roaming is what you fight. Bosses are not touched. The seed below decides which."),
+    ("launch:nz-skills", "Random skill trees", "DQIX_MOD_NZ_SKILLS=1",
+     "Which ability a skill line gives is dealt out again: every ability is still learned once, but in another skill line and at another skill point cost."),
+    ("launch:nz-spells", "Random spells for every vocation", "DQIX_MOD_NZ_SPELLS=1",
+     "Which spell a vocation learns at which level is dealt out again (no vocation gets one twice)."),
+    ("launch:nz-growth", "Random stat growth per vocation", "DQIX_MOD_NZ_GROWTH=1",
+     "Every stat a vocation gains per level is taken from another vocation's growth (a different one for every stat). The experience you need is not changed."),
+    ("launch:nz-drops", "Random monster drops", "DQIX_MOD_NZ_DROPS=1",
+     "What ordinary monsters drop is dealt out again: common drops among the common ones, rare drops among the rare ones. Bosses keep theirs."),
+    ("launch:nz-shops", "Random shop wares", "DQIX_MOD_NZ_SHOPS=1",
+     "The items shops sell are dealt out again among all the shops' shelves."),
+]
+NZ_SEEDS = 24
+
+
+# The live battle window (Cheats > Battle cheats...): per party member and per enemy, shown only while that member / enemy is really there. The
+# addresses are the same in the USA and the European game (the R4 lists of both write them). A party member's record is at PARTY0 - i * 0x964 (his
+# name); during a battle it holds the battle's copy: maximum HP +0x58, maximum MP +0x5A, HP now +0x5C, MP now +0x5E, tension +0x6F / +0x7C, a flag
+# byte +0x70 and the Coup de Grace byte +0x93. An enemy's record is at ENEMY0 + n * 0xA4: HP +0, MP +4, status bytes +0x14 and +0x22.
+BATTLE_PAGE = "Live battle"
+PARTY0, PARTY_STRIDE, ENEMY0, ENEMY_STRIDE = 0x020F54B4, 0x964, 0x022A4638, 0xA4
+W32, W16, W8 = 0x00000000, 0x10000000, 0x20000000      # Action Replay write types
+
+
+def battle_addr_set():
+    """the exact RAM bytes the live battle cheats write: the database's own codes for them are replaced (their names differ between the lists)"""
+    out = set()
+    for i in range(4):
+        b = PARTY0 - i * PARTY_STRIDE
+        for off in (0x58, 0x59, 0x5A, 0x5B, 0x5C, 0x5D, 0x5E, 0x5F, 0x6F, 0x70, 0x7C, 0x93):
+            out.add(b + off)
+    for n in range(6):
+        b = ENEMY0 + n * ENEMY_STRIDE
+        for off in (0, 1, 4, 5, 0x14, 0x22):
+            out.add(b + off)
+    return out
+
+
+def battle_entries():
+    """-> the live battle entries: (id, name, who, ops, mode, note)"""
+    out = []
+    for i in range(4):
+        b = PARTY0 - i * PARTY_STRIDE
+        who = "p%d" % (i + 1)
+        hp, mp = (b + 0x5C, b + 0x58), (b + 0x5E, b + 0x5A)
+        copy = lambda cur, mx: [(0xA2000000 | cur, 0), (0xDA000000, cur), (0xD7000000, mx), (0xD2000000, 0)]
+        keep = copy(*hp) + copy(*mp)
+        out += [
+            ("live:battle:%s:keep" % who, "HP and MP never go down", who, keep, "always", "The R4 database's \"HP never decrease\" code, for this member only."),
+            ("live:battle:%s:max" % who, "HP and MP 9999", who, [(W16 | b + 0x58, 9999), (W16 | b + 0x5C, 9999), (W16 | b + 0x5A, 9999), (W16 | b + 0x5E, 9999)], "once",
+             "Their maximum and current HP and MP become 9999 for this battle."),
+            ("live:battle:%s:tension" % who, "High tension", who, [(W8 | b + 0x6F, 1), (W8 | b + 0x7C, 4)], "once", "Their tension goes to the top."),
+            ("live:battle:%s:coup" % who, "Coup de Grace ready", who, [(W8 | b + 0x93, 0x98)], "once", "They can use Coup de Grace this turn."),
+        ]
+        if i:
+            out.append(("live:battle:%s:invincible" % who, "Invincible (Soul Asylum)", who, [(W8 | b + 0x70, 0x40)], "once", "The game's own \"invincible\" flag, as the R4 code sets it."))
+    status = [("sleep", "Put to sleep", [(0x14, 0x10)]), ("poison", "Poison", [(0x14, 0x02), (0x22, 0x02)]),
+              ("stun", "Stun", [(0x14, 0x08)]), ("confuse", "Confuse", [(0x14, 0x20)])]
+    for n in range(6):
+        b = ENEMY0 + n * ENEMY_STRIDE
+        who = "e%d" % (n + 1)
+        out += [
+            ("live:battle:%s:defeat" % who, "Defeat", who, [(W16 | b, 0)], "once", "HP to 0."),
+            ("live:battle:%s:hp1" % who, "HP to 1", who, [(W16 | b, 1)], "once", ""),
+            ("live:battle:%s:mp0" % who, "MP to 0", who, [(W16 | b + 4, 0)], "once", ""),
+        ]
+        for sid, sname, writes in status:
+            out.append(("live:battle:%s:%s" % (who, sid), sname, who, [(W8 | b + off, v) for off, v in writes], "once", ""))
+    return out
+
+
+def who_of(*texts):
+    """"p2".."p4" for what belongs to party member 2..4 (the window shows it only while that member is in the party)"""
+    m = re.search(r"\bP([2-4])\b|\bPlayer ([2-4])\b|\b([2-4])(?:nd|rd|th) (?:character|player)", " | ".join(texts))
+    return "p" + next(g for g in m.groups() if g) if m else ""
 
 
 # ---------------------------------------------------------------- your ROM
@@ -716,6 +803,31 @@ RENAME_IDS = {
 }
 # the R4 list's names, as the window shows them: typos and unclear names fixed (the hover texts in about.tsv are found by
 # the old name as well). Group titles lose a trailing "Code"/"Codes" by themselves.
+# The R4 list is written in Title Case; the window uses sentence case ("Fight 3 of the same monster"). Words that are names stay.
+KEEP_CAPS = {"HP", "MP", "EXP", "ATK", "DEF", "AGI", "Zoom", "Coup", "Grace", "Wi-Fi", "Stornway", "Observatory", "Angel", "Falls", "Alchenomicon",
+             "Alchemenu", "Alchemiracle", "Krak", "Pot", "Quester's", "Rest", "Soul", "Asylum", "Wings", "Hero", "Player", "Start", "Select", "Up", "Down",
+             "Left", "Right"}
+
+
+# cheats that stay a switch although their code has one button: they are not a one-time effect (the encounter counter is held at 0, the push is
+# in the middle of a spell...)
+KEEP_SWITCH = r"no random battles|push enemy away|zoom then push|grotto|re-zoom|walk through a door"
+
+
+def tidy(s):
+    out, start = [], True
+    for w in s.split(" "):
+        m = re.match(r"^([(\[\"']*)(.*?)([)\]\"',.:;]*)$", w)
+        pre, core, post = m.groups()
+        if start or not core or core in KEEP_CAPS:
+            out.append(w)
+        else:
+            parts = ["/".join(p[:1].lower() + p[1:] if p[:1].isupper() and p[1:].islower() and p not in KEEP_CAPS else p for p in core.split("/"))]
+            out.append(pre + parts[0] + post)
+        start = post.endswith(":")
+    return " ".join(out)
+
+
 LABELS = {
     "Hold [A] To Walkthrough Walls": "Walk through walls",           # always on while switched on: nothing to hold
     "Highlight an item in the bag": "99 of the bag item under the cursor",
@@ -724,8 +836,8 @@ LABELS = {
     "Hero Size Modifer": "Hero Size Modifier",
     "Hide The Party": "Hide the Party",
     "All Charaters All Stats 999": "All Characters All Stats 999",
-    "Alchemy Recipies - Not Forged": "Alchemy Recipes - Not Forged",
-    "Alchemy Recipies - Forged": "Alchemy Recipes - Forged",
+    "Alchemy Recipies - Not Forged": "Alchemy Recipes: all discovered, none made yet",
+    "Alchemy Recipies - Forged": "Alchemy Recipes: all discovered and made",
     "Palladin": "Paladin",
     "360 Camera Angle WorldMap": "360 Camera Angle World Map",
     "Fill in All ? ? ? of Extra Quest": "Fill in All ??? of Extra Quests",
@@ -785,10 +897,22 @@ NOTES = {
 # codes another entry does the same as, better: the [L/R] toggle wrote the roll itself (R: never, L: always, the opposite
 # of its name), and "Always Alchemiracle" sets the result flag afterwards; "Every time" / "Never" set the chance.
 # "Debug Code" changes two constants of a boot function (main 02000ec8/02000ef0) to an effect nobody describes: left out.
+LABELS.update({                    # the records' names: "Max ..." first
+    "Max WiFi Time": "Max Wi-Fi time",
+    "Max Game Time": "Max game time",
+    "Battle Won Max": "Max battles won",
+    "Quest Completed Max": "Max quests completed",
+    "Treasure Hunted Max": "Max treasures hunted",
+    "Visitors Max": "Max visitors",
+    "Forge Max": "Max items made by alchemy",
+    "Inn Max Level/Upgrades": "Inn: max level and upgrades",
+    "Zoom Then Push [R] to Grotto Cave Location": "Zoom then push [R] to grotto cave location",
+})
 HIDE = {("Alchemy", "Always Success (R)"), ("Alchemy", "Always Success (L)"), ("Alchemy", "Always Alchemiracle"),
         ("Alchemy", "Always Success v1 (R)"), ("Alchemy", "Always Success v1 (L)"),          # (the USA list's names)
         ("Speed & comfort", "Debug Code"), ("Speed & comfort", "Debug Mode"),          # (EU / USA name)
-        ("Miscellaneous", "Widescreen"),                     # USA list: not needed on a PC (the game has its own wide view)
+        ("World", "Daytime, push Start and Up"), ("World", "Nighttime, push Start and Down"),     # "Make it day" / "Make it night" do the same, with a button
+        ("Miscellaneous", "Widescreen"),                    # USA list: not needed on a PC (the game has its own wide view)
         # USA list: its call goes to the game's random number generator (main 02003d14) where ov024 checks the chance
         # (021dfbcc), and it ORs bits into that loop's counter: not "100%", and not safe
         ("Battle", "100% Steal Rate")}
@@ -886,10 +1010,12 @@ def build(root):
                 cut = re.split(r", | - |\. |: ", shown, maxsplit=1)[0]
                 if 10 <= len(cut) < len(shown):
                     note, shown = note if len(note) >= len(c["name"]) else clean(c["name"] + ". " + note).rstrip(". ") , cut
+            continuous = any(a >> 28 == 0xA for a, b in c["ops"])      # "A" ops copy one value to another all the time
+            one_shot = len(r["keys"]) <= 1 and not continuous and not re.search(KEEP_SWITCH, c["name"], re.I)
             base = dict(id=db_id(folder["name"], c["name"], c["ops"]), name=prefix + shown, prefix=prefix,
                         note=note, cat=page, group="",
-                        status="untested", mode="both" if len(r["keys"]) <= 1 else "always", ops=[],
-                        keys=r["keys"], reason="", file="", on=False, patch=[], env="", option=shown)
+                        status="untested", mode=("once" if one_shot else "always" if continuous else "both") if len(r["keys"]) <= 1 else "always", ops=[],
+                        keys=[] if one_shot else r["keys"], reason="", file="", on=False, patch=[], env="", option=shown)
             if re.search(r"anti-?piracy", c["name"], re.I):
                 r = dict(r, kind="blocked", why="piracy")
             elif re.search(r"wfc|https|wi-?fi connection", c["name"], re.I) and r["kind"] != "live":
@@ -1019,7 +1145,14 @@ def build(root):
         g["was"] = g["title"]
         g["title"] = re.sub(r"\s+Codes?$", "", g["title"])
         g["title"] = LABELS.get(g["title"], g["title"])
+        if re.match(r"group:[0-9a-f]{6,}$", g["id"]):
+            g["title"] = tidy(g["title"])
     entries = [e for e in entries if not (e["id"].startswith("db:") and (e["cat"], e["name"]) in HIDE)]
+    for e in entries:                                       # the list's own names, in sentence case (a choice's options keep theirs: vocations, monsters)
+        if e["id"].startswith("db:") and not e["group"]:
+            same = e.get("option") == e["name"]
+            e["name"] = tidy(e["name"])
+            e["option"] = e["name"] if same else tidy(e.get("option") or e["name"])
     # two cheats of a page that would show the same name ("Enemy 1" for HP 1 and for MP 0): the folder's prefix tells them apart
     seen = {}
     for e in entries:
@@ -1049,6 +1182,29 @@ def build(root):
             entries.append(dict(id=f"launch:monster:{num}", name=mname, note="", cat="Battle", group=gid, kind="launch", status="tested",
                                 mode="", ops=[], keys=[], reason="", file="", on=False, patch=[], env=f"DQIX_MOD_FORCE={num}", option=mname, also=""))
 
+    # ---- the Nuzlocke randomizers: one launch option each, and the seed as one choice
+    for lid, name, env, note in NZ_LAUNCH:
+        entries.append(dict(id=lid, name=name, note=note, cat="Nuzlocke", group="", kind="launch", status=NZ_STATUS,
+                            mode="", ops=[], keys=[], reason="", file="", on=False, patch=[], env=env, option=name, also=""))
+    gid = "group:nz-seed"
+    groups.append(dict(id=gid, cat="Nuzlocke", title="Seed", note="Which game the randomizers make. Without a choice the seed is 1. The same seed always gives the same game; pick another one before you start a new run.", kind="launch"))
+    for n in range(1, NZ_SEEDS + 1):
+        entries.append(dict(id=f"launch:nz-seed:{n}", name=f"Seed {n}", note="", cat="Nuzlocke", group=gid, kind="launch", status=NZ_STATUS,
+                            mode="", ops=[], keys=[], reason="", file="", on=False, patch=[], env=f"DQIX_MOD_NZ_SEED={n}", option=f"Seed {n}", also=""))
+    # ---- the live battle cheats (see BATTLE_PAGE): the database's codes that write the same bytes are replaced by them
+    bad = battle_addr_set()
+
+    def hits(e):
+        for a, b in e.get("ops") or []:
+            if a >> 28 in (0, 1, 2, 6, 0xA) or a >> 24 in (0xDA, 0xD7):
+                if (a & 0x0FFFFFFF) in bad or (a >> 24 in (0xDA, 0xD7) and b in bad):
+                    return True
+        return False
+    entries = [e for e in entries if not (e["id"].startswith("db:") and e["kind"] == "live" and hits(e))]
+    groups = [g for g in groups if any(e["group"] == g["id"] for e in entries) or g["kind"] == "launch"]
+    for eid, name, who, ops, mode, note in battle_entries():
+        entries.append(dict(id=eid, name=name, option=name, note=note, cat=BATTLE_PAGE, group="", kind="live", status="untested", mode=mode, ops=ops,
+                            keys=[], reason="", file="", on=False, patch=[], env="", also="", was=who, who=who))
     # ---- how the game is started
     for lid, name, env, note, cat, also in LAUNCH:
         entries.append(dict(id=lid, name=name, note=note, cat=cat, group="", kind="launch",
@@ -1118,9 +1274,12 @@ def build(root):
         e["undo"] = "1" if e["kind"] == "live" and re.search(UNDO, text(e), re.I) else ""
     for g in groups:
         g["section"] = section_of(g["cat"], g["title"])
+        g["who"] = who_of(g["title"])
     for e in entries:
         g = gby.get(e["group"])
         e["section"] = g["section"] if g else section_of(e["cat"], text(e))
+        if not e.get("who"):
+            e["who"] = (g["who"] if g else "") or who_of(e["name"], e.get("option", ""), e.get("was", ""))
         if e["section"] and not g and e.get("option") == e["section"]:
             e["option"] = e["name"]                         # "Hero" under the section Hero: "Max EXP in every vocation: Hero"
     return info, entries, groups
@@ -1163,7 +1322,7 @@ def write(root, info, entries, groups):
             option=e.get("option", ""), note=e["note"], reason=e["reason"], mode=e["mode"],
             keys=" / ".join(k for k in (key_text(k) for k in e["keys"]) if k), combos=str(len(e["keys"])) if e["keys"] else "",
             file=e["file"], on="1" if e["on"] else "", env=e["env"], also=e.get("also", ""), about=e.get("about", ""),
-            section=e.get("section", ""), undo=e.get("undo", ""),
+            section=e.get("section", ""), undo=e.get("undo", ""), who=e.get("who", ""),
             ops=",".join(f"{a:08X}:{b:08X}" for a, b in e["ops"]),
             patch=",".join(f"{n}:{a:08x}:{w:08x}" for n, a, w in e["patch"])))
     out = os.path.join(root, "mods", "system", "bin", "catalog.txt")

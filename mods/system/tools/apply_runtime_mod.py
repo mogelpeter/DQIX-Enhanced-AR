@@ -91,11 +91,16 @@ MENU_ORIGINAL = """\
 """
 MENU_PATCHED = MENU_BEGIN + """\
     HMENU cheats = sub(g_bar, L"&Cheats");
-    item(cheats, 360, L"&Cheats...");                       /* 360-363: handled in frontend_sdl.c, mod_menu.c, mod_cheatwin.c */
+    item(cheats, 360, L"&Cheats...");                       /* 360-363, 367: handled in frontend_sdl.c, mod_menu.c, mod_cheatwin.c */
+    item(cheats, 367, L"&Battle cheats...");
     item(cheats, 362, L"&Save editor...");
     item(cheats, 363, L"&Treasure maps...");
     sep(cheats);
     item(cheats, 361, L"&What is this?");
+    HMENU nuzlocke = sub(g_bar, L"&Nuzlocke");
+    item(nuzlocke, 365, L"&Settings...");                   /* 365, 366: handled in frontend_sdl.c, mod_cheatwin.c */
+    sep(nuzlocke);
+    item(nuzlocke, 366, L"&What is this?");
 """ + MENU_ORIGINAL + END
 
 # Newer versions of the game (v34 on) build the menu bar from a table (runtime/menu_items.c): there is no "Help" line to put
@@ -108,7 +113,8 @@ MENU2_ORIGINAL = """\
 MENU2_PATCHED = MENU2_BEGIN + """\
     {
         HMENU cheats = CreatePopupMenu();
-        item(cheats, 360, L"&Cheats...");                   /* 360-363: handled in frontend_sdl.c, mod_menu.c, mod_cheatwin.c */
+        item(cheats, 360, L"&Cheats...");                   /* 360-363, 367: handled in frontend_sdl.c, mod_menu.c, mod_cheatwin.c */
+        item(cheats, 367, L"&Battle cheats...");
         item(cheats, 362, L"&Save editor...");
         item(cheats, 363, L"&Treasure maps...");
         sep(cheats);
@@ -116,6 +122,11 @@ MENU2_PATCHED = MENU2_BEGIN + """\
         int n = GetMenuItemCount(g_bar), at = n; wchar_t t[32];
         if (n > 0 && GetMenuStringW(g_bar, (UINT)(n - 1), t, 32, MF_BYPOSITION) && !lstrcmpW(t, L"&Help")) at = n - 1;
         InsertMenuW(g_bar, (UINT)at, MF_BYPOSITION | MF_POPUP | MF_STRING, (UINT_PTR)cheats, L"&Cheats");
+        HMENU nuzlocke = CreatePopupMenu();
+        item(nuzlocke, 365, L"&Settings...");               /* 365, 366: handled in frontend_sdl.c, mod_cheatwin.c */
+        sep(nuzlocke);
+        item(nuzlocke, 366, L"&What is this?");
+        InsertMenuW(g_bar, (UINT)at + 1, MF_BYPOSITION | MF_POPUP | MF_STRING, (UINT_PTR)nuzlocke, L"&Nuzlocke");
     }
 """ + MENU2_ORIGINAL + END
 
@@ -124,8 +135,20 @@ ACT_ORIGINAL = """\
     case MI_UPDATE: update_menu(); break;
 """
 ACT_PATCHED = ACT_BEGIN + r"""
-    case 360: case 361: case 362: case 363: {
+    case 360: case 361: case 362: case 363: case 365: case 366: case 367: {
         void mod_cheatwin_show(void);
+        void mod_nuzlocke_show(void);
+        void mod_battle_show(void);
+        if (id == 367) { mod_battle_show(); break; }
+        if (id == 366) {
+            info_box(SDL_MESSAGEBOX_INFORMATION, "Nuzlocke",
+                "A Nuzlocke is a challenge run: whoever falls stays fallen, and the game is shuffled so you can't know it by heart.\n\n"
+                "Settings... opens the rules (permadeath, the hero's death ends the run, soul link), the punishments and the randomizers "
+                "(monsters, skill trees, spells, stat growth, drops, shops). The rules work at once; the randomizers take effect when the game starts again, "
+                "and every player of a session must use the same ones.", g_win);
+            break;
+        }
+        if (id == 365) { mod_nuzlocke_show(); break; }
         int mod_editor_launch(const char* tab), mod_open_url(const char* url);
         if (id == 361) {
             info_box(SDL_MESSAGEBOX_INFORMATION, "Cheats",
@@ -191,7 +214,7 @@ SITES = [
 NEEDS_INPUT = {"data", "act"}                                       # they call the mods' own files, which come with "input"
 SITE_KEYS = ["input", "card", "data", "menu", "act", "update"]   # SITES in order; "wrap" is the lines in wrap.txt (live code mods)
 VARIANTS = {"menu": [(MENU2_ORIGINAL, MENU2_PATCHED, MENU2_BEGIN)]}    # other forms of a place: tried after the first one
-FILES = ["mod_cheats.c", "ar_engine.h", "mod_data.c", "livepatch.c", "mod_cheatwin.c"]       # belong to the first site
+FILES = ["mod_cheats.c", "ar_engine.h", "mod_data.c", "livepatch.c", "mod_cheatwin.c", "nuzlocke.c"]       # belong to the first site
 MENU_FILES = ["mod_menu.c"]                                  # belong to the "what it does" site (frontend_sdl.c)
 GONE = ["mod_plugins.c", "dqix_plugin.h"]                   # files of earlier versions of the mods: taken out of runtime/ again
 

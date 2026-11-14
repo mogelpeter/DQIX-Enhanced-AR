@@ -35,7 +35,7 @@ static int g_nmetal;
 static uint32_t rd32(const uint8_t* p) { uint32_t v; memcpy(&v, p, 4); return v; }
 
 /* NitroFS: a file's place in the ROM, by path */
-static int lookup(const char* path, uint32_t* start, uint32_t* size) {
+int mod_nds_lookup(const char* path, uint32_t* start, uint32_t* size) {
     if (!g_rom || g_rom_size < 0x50) return 0;
     uint32_t fnt = rd32(g_rom + 0x40), fat = rd32(g_rom + 0x48);
     uint16_t dir = 0xF000;
@@ -74,7 +74,7 @@ static int lookup(const char* path, uint32_t* start, uint32_t* size) {
 /* the records of a tagged data table: header (records, string table offset, size, count), then u16 tag, u8 count,
  * two bits of type per value padded to a word, 4-byte values */
 typedef void (*RecFn)(uint8_t* values, uint16_t tag, int cnt, void* ctx);
-static void each_record(uint8_t* b, uint32_t size, RecFn fn, void* ctx) {
+void mod_each_record(uint8_t* b, uint32_t size, RecFn fn, void* ctx) {
     if (size < 16) return;
     uint32_t stab = rd32(b + 4);
     if (stab > size) stab = size;
@@ -90,6 +90,32 @@ static void each_record(uint8_t* b, uint32_t size, RecFn fn, void* ctx) {
     }
 }
 
+/* Nuzlocke's random encounters (DQIX_MOD_NZ_ENC=1, seed DQIX_MOD_NZ_SEED, see nuzlocke.c): every roamer and companion becomes another
+ * ordinary monster of about the same level (a metal monster becomes another metal monster), drawn from the seed. */
+void mod_nz_seed(uint32_t seed, uint32_t salt);
+uint32_t mod_nz_rnd(uint32_t n);
+#define MON_MAX 512
+static struct { uint16_t num; int16_t lvl; } g_mon[MON_MAX];
+static int g_nmon, g_rand, g_metal_on;
+static int mon_level(uint32_t num, int* lvl) {
+    for (int i = 0; i < g_nmon; i++) if (g_mon[i].num == num) { *lvl = g_mon[i].lvl; return 1; }
+    return 0;
+}
+static uint16_t g_swap[4096];
+/* one species becomes one other species, everywhere (so what roams the field and what the battle then starts with agree) */
+static uint32_t pick_monster(uint32_t orig) {
+    int ol; if (!mon_level(orig, &ol)) return orig;
+    int cand[MON_MAX], n = 0;
+    for (int i = 0; i < g_nmon; i++) {
+        int l = g_mon[i].lvl, metal = l == -99, ometal = ol == -99;
+        if (metal != ometal) continue;
+        if (!metal && (l < ol - 8 || l > ol + 8)) continue;
+        cand[n++] = i;
+    }
+    return n ? g_mon[cand[mod_nz_rnd((uint32_t)n)]].num : orig;
+}
+static uint32_t random_monster(uint32_t orig) { return orig < 4096 && g_swap[orig] ? g_swap[orig] : orig; }
+
 static int is_metal(uint32_t mon) {
     for (int i = 0; i < g_nmetal; i++) if (g_metal[i] == mon) return 1;
     return 0;
@@ -97,6 +123,7 @@ static int is_metal(uint32_t mon) {
 
 static void metal_rec(uint8_t* v, uint16_t tag, int cnt, void* ctx) {
     (void)ctx;
+    if (tag == 0x65 && cnt >= 3 && rd32(v + 8) != 0 && g_nmon < MON_MAX) { g_mon[g_nmon].num = (uint16_t)(rd32(v) & 0xFFF); g_mon[g_nmon].lvl = (int16_t)(int32_t)rd32(v + 4); g_nmon++; }
     if (tag == 0x65 && cnt >= 3 && (int32_t)rd32(v + 4) == -99 && g_nmetal < 128) g_metal[g_nmetal++] = (uint16_t)(rd32(v) & 0xFFF);
 }
 
@@ -104,6 +131,13 @@ static void metal_rec(uint8_t* v, uint16_t tag, int cnt, void* ctx) {
 typedef struct { int roam_tag, comp_tag, force; uint8_t* rec[ZMAX]; int roamer[ZMAX]; int n; int changed; } Zone;
 
 static void zone_flush(Zone* z) {
+    if (g_rand && !z->force && !g_metal_on) {
+        for (int i = 0; i < z->n; i++) {
+            uint32_t w = rd32(z->rec[i]), nm = random_monster(w & 0xFFF);
+            if (nm != (w & 0xFFF)) { w = (w & ~0xFFFu) | nm; memcpy(z->rec[i], &w, 4); z->changed++; }
+        }
+        z->n = 0; return;
+    }
     int m = z->force ? z->force : -1;
     for (int i = 0; i < z->n && m < 0; i++)
         if (z->roamer[i] && is_metal(rd32(z->rec[i]) & 0xFFF)) m = (int)(rd32(z->rec[i]) & 0xFFF);
@@ -125,36 +159,46 @@ static void zone_rec(uint8_t* v, uint16_t tag, int cnt, void* ctx) {
 
 static void build(uint32_t key) {
     g_ready = -1; g_key = key;
-    int force = key >= 0x10000u ? (int)(key & 0xFFF) : 0;
+    int force = (key & 0x10000u) ? (int)(key & 0xFFF) : 0;
+    g_rand = (key & 0x40000u) != 0; g_metal_on = (key & 1u) != 0; g_nmon = 0;
     for (int i = 0; i < 3; i++) {
-        if (!lookup(g_f[i].name, &g_f[i].start, &g_f[i].size)) return;
+        if (!mod_nds_lookup(g_f[i].name, &g_f[i].start, &g_f[i].size)) return;
         free(g_f[i].data);
         g_f[i].data = (uint8_t*)malloc(g_f[i].size);
         if (!g_f[i].data) return;
         memcpy(g_f[i].data, g_rom + g_f[i].start, g_f[i].size);
     }
     g_nmetal = 0;
-    each_record(g_f[2].data, g_f[2].size, metal_rec, NULL);
+    mod_each_record(g_f[2].data, g_f[2].size, metal_rec, NULL);
     if (!g_nmetal) return;
     Zone z;
+    memset(g_swap, 0, sizeof g_swap);
+    if (g_rand) {
+        const char* sd0 = getenv("DQIX_MOD_NZ_SEED"); mod_nz_seed(sd0 && *sd0 ? (uint32_t)strtoul(sd0, NULL, 10) : 1u, 400);
+        for (int i = 0; i < g_nmon; i++) g_swap[g_mon[i].num] = (uint16_t)pick_monster(g_mon[i].num);
+    }
+    { const char* sd = getenv("DQIX_MOD_NZ_SEED"); mod_nz_seed(sd && *sd ? (uint32_t)strtoul(sd, NULL, 10) : 1u, 400); }
     memset(&z, 0, sizeof z); z.roam_tag = 0x67; z.comp_tag = -1; z.force = force;   /* encfld: tag 0x67 roams */
-    each_record(g_f[0].data, g_f[0].size, zone_rec, &z); zone_flush(&z);
+    mod_each_record(g_f[0].data, g_f[0].size, zone_rec, &z); zone_flush(&z);
     int c0 = z.changed;
     memset(&z, 0, sizeof z); z.roam_tag = 0x66; z.comp_tag = 0x67; z.force = force;   /* encbtl: 0x66 roamers, 0x67 companions */
-    each_record(g_f[1].data, g_f[1].size, zone_rec, &z); zone_flush(&z);
+    mod_each_record(g_f[1].data, g_f[1].size, zone_rec, &z); zone_flush(&z);
     g_ready = 1;
     if (getenv("DQIX_MODLOG")) fprintf(stderr, "mod_data: %d metal monsters; %d roamer numbers changed in encfld, %d in encbtl\n", g_nmetal, c0, z.changed);
 }
 
 /* card.c, after it filled its buffer with the bytes at ROM address addr */
+void nz_overlay(uint32_t addr, uint32_t len, uint8_t* buf);      /* nuzlocke.c */
 void mod_card_overlay(uint32_t addr, uint32_t len, uint8_t* buf) {
     static int init;
+    nz_overlay(addr, len, buf);
     static uint32_t key;                                  /* 0 off, 1 metal only, 0x10000 + n: everything is monster n */
     if (!init) {
         init = 1;
         const char* f = getenv("DQIX_MOD_FORCE");
         int n = f ? atoi(f) : 0;
         key = n > 0 && n < 4096 ? 0x10000u | (uint32_t)n : getenv("DQIX_MOD_METAL") ? 1u : 0u;
+        if (getenv("DQIX_MOD_NZ_ENC") && *getenv("DQIX_MOD_NZ_ENC") == '1') key |= 0x40000u;
     }
     if (!len || !key) return;
     if (!g_ready || g_key != key) build(key);

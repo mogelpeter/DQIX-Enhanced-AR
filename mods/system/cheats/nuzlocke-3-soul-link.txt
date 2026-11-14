@@ -1,0 +1,7 @@
+# name: Soul link: party members 1 and 2, 3 and 4 fall together
+# mode: always
+# category: Nuzlocke
+# enabled: no
+# about: The party is linked in pairs: the hero with member 2, member 3 with member 4. When one of a pair dies, the other dies with them. Needs Permadeath.
+# The address is not memory: mods/system/src/runtime/mod_cheats.c takes it as the Nuzlocke rule "soul link"; nuzlocke.c does the rest.
+02F5A5C8 00000001

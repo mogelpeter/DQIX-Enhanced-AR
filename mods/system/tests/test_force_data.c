@@ -4,8 +4,9 @@
  *   gcc -I <game>/runtime -o t.exe test_force_data.c   (run from anywhere)   t.exe <rom.nds> n [n ...]
  */
 #include "../src/runtime/mod_data.c"
+#include "../src/runtime/nuzlocke.c"       /* mod_data.c calls it */
 
-uint8_t* g_rom; size_t g_rom_size;
+uint8_t* g_rom; size_t g_rom_size; uint8_t g_main_ram[MAIN_RAM_SIZE]; uint64_t g_frame;
 char* rt_getenv(const char* n) { (void)n; return NULL; }   /* the runtime's getenv wrapper: no settings needed here */
 
 static uint8_t* orig[2]; static uint32_t osz[2];
@@ -17,7 +18,7 @@ int main(int argc, char** argv) {
     fseek(f, 0, SEEK_END); g_rom_size = (size_t)ftell(f); fseek(f, 0, SEEK_SET);
     g_rom = (uint8_t*)malloc(g_rom_size); if (fread(g_rom, 1, g_rom_size, f) != g_rom_size) return 2; fclose(f);
     for (int i = 0; i < 2; i++) {
-        uint32_t s, z; if (!lookup(g_f[i].name, &s, &z)) { printf("FAIL: %s not in the ROM\n", g_f[i].name); return 1; }
+        uint32_t s, z; if (!mod_nds_lookup(g_f[i].name, &s, &z)) { printf("FAIL: %s not in the ROM\n", g_f[i].name); return 1; }
         orig[i] = (uint8_t*)malloc(z); memcpy(orig[i], g_rom + s, z); osz[i] = z;
     }
     int fails = 0;

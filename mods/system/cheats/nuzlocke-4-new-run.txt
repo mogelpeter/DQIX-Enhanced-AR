@@ -1,0 +1,6 @@
+# name: Start a new run (forget the dead)
+# mode: once
+# category: Nuzlocke
+# about: The list of the fallen (nuzlocke-run.txt) is emptied, so nobody is dead as far as the Nuzlocke rules go. Their HP is whatever the game has: use an inn or a church.
+# The address is not memory: mods/system/src/runtime/mod_cheats.c takes it as the Nuzlocke command "new run"; nuzlocke.c does the rest.
+02F5A5FC 00000001

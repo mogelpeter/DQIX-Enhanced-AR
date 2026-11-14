@@ -113,7 +113,7 @@ def plain_writes(batch):
             count[a] = count.get(a, 0) + 1
     want = {}
     for e in batch:
-        if all(a >> 28 == 0 and count[a] == 1 and (a & ~0xF) != 0x02F5A5A0 and not 0x02F60000 <= (a & 0x0FFFFFFF) < 0x02F70000 for a, b in e["ops"]):      # 02F5A5A0..AF are switches (lowexp, vanish, noflee), not memory
+        if all(a >> 28 == 0 and count[a] == 1 and not 0x02F5A5A0 <= a < 0x02F5A600 and not 0x02F60000 <= (a & 0x0FFFFFFF) < 0x02F70000 for a, b in e["ops"]):      # 02F5A5A0..FF are switches (lowexp, vanish, noflee, the Nuzlocke rules), not memory
             for a, b in e["ops"]:
                 want[a & 0x3FFFFF] = (b, e["name"])
     return want

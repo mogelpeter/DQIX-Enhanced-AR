@@ -103,7 +103,7 @@ def writes(ops):
 
 
 for tag, pick in (("five-a", lambda d: d["id"] == "file:cheats/once-nighttime.txt"),
-                  ("five-b", lambda d: d.get("kind") == "live" and d.get("mode") == "both" and d.get("keys") and writes(d["ops"])
+                  ("five-b", lambda d: d.get("kind") == "live" and d.get("mode") == "once" and d["id"].startswith("db:") and writes(d["ops"])
                    and d["ops"].startswith("94000130:")
                    and any(int.from_bytes(ram[o:o + n], "little") != v for o, n, v in writes(d["ops"])))):   # not already so in the save
     d = catalog_entry(pick)
@@ -122,7 +122,7 @@ for tag, pick in (("five-a", lambda d: d["id"] == "file:cheats/once-nighttime.tx
 pick = [i for i in ids[:1]] + ["file:cheats/max-gold.txt", "file:cheats/vanish.txt"]
 rc6, txt6, _, _ = run("six-a", ["live " + i for i in pick], lambda d: {"DQIX_CHEATWIN_IMPORT": "-"})
 line = next((l.split(" ", 3)[3] for l in txt6.splitlines() if l.startswith("cheatwin share: count=3 ")), "")
-hero = catalog_entry(lambda d: d.get("cat") == "Party" and d.get("section") == "Hero" and d.get("kind") == "live" and not d.get("group"))
+hero = catalog_entry(lambda d: d.get("cat") == "Party" and d.get("section") == "Hero" and d.get("kind") == "live" and not d.get("group") and d.get("mode") != "once")
 rc7, txt7, ram7, st7 = run("six-b", ["live file:cheats/max-mini-medals.txt"], lambda d: {"DQIX_CHEATWIN_IMPORT": line})
 on7 = sorted(l.split(" ", 1)[1] for l in st7.splitlines() if l.startswith("live "))
 again = next((l.split(" ", 3)[3] for l in txt7.splitlines() if l.startswith("cheatwin share: ")), "")

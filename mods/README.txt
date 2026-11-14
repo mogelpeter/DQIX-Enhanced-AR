@@ -15,6 +15,13 @@ Start the game as always (game\dqix.exe). In its menu bar (next to Mods and Help
   running. Tick a cheat and it is on at once: no restart, and no rebuild for almost all code
   mods too. What you tick is saved in mods\system\menu-state.txt and sent again by itself
   when the game starts. Nothing is on until you switch it on.
+- Cheats > Battle cheats...  the live battle window: for every party member and every enemy
+  that is really in the fight (it looks every half second, so a member who joins or an enemy
+  who falls appears or goes by itself) buttons like High tension, Coup de Grace ready,
+  HP and MP 9999, Invincible, HP to 1, Put to sleep, Poison, Stun, Confuse, Defeat and a
+  switch "HP and MP never go down". Nobody who isn't there is listed; outside a battle the
+  window says so. The same goes for the Cheats window: cheats for party member 2-4 are
+  shown only while that member is in the party.
 - Cheats > Save editor...  opens your save in the editor website (the language box is in the
   page, at the bottom right). Export puts the edited save into the game, which starts again
   with it (the old save is kept in save-backups next to the game).
@@ -74,7 +81,8 @@ Each cheat is one of these:
 - A switch (check box). On = it works from now on, every frame, like a code that is
   ticked on an R4.
 - "Do it now": carries the code out one time, now (99 of every shield, all Zoom
-  places...). Many cheats have both.
+  places, max records...). A one-time cheat has only this button: there is nothing to
+  switch on or off, and no buttons to hold.
 - A choice (Experience x2 / x4 / ... / x128, movement speed, a vocation...): a drop-down
   with "Off" and the options; only one of them can be on.
 - A cheat with buttons ("hold SELECT", "hold L+R"...) works as on a DS: switch it on,
@@ -100,6 +108,55 @@ had on before is switched off).
 
 Before the save editor writes your save, a copy
 goes to mods\system\save-backups (the last 30).
+
+
+THE NUZLOCKE MENU (menu bar: Nuzlocke > Settings...)
+---------------------------------------------------
+It has a menu of its own in the game's menu bar, next to Cheats, and opens in the same kind of window
+(only the Nuzlocke page; the Cheats window doesn't show it, and its Enabled page, search and
+"Everything off" leave the Nuzlocke switches alone).
+
+A Nuzlocke is a self-imposed challenge: what falls stays fallen, and the game is shuffled so
+you can't know it by heart. DQIX has no catching, so the rules are the ones that fit it.
+Nothing is on at first; mix as you like. Sections: Rules, Punishments, Randomizer, Seed.
+
+Rules (switches, live: no restart, they also work in a session with friends)
+  Permadeath               a party member whose HP reaches 0 is dead for good: their HP is held
+                           at 0, so Zing, Revive, herbs and the church can't bring them back.
+                           The fallen are written to game\nuzlocke-run.txt, so they stay dead
+                           when the game is started again or an older save is loaded (a game
+                           played alone only; in a session nothing is written). Every other
+                           rule on this page needs this one.
+  The hero's death ends the run     when the hero falls, the whole party falls with them.
+  Soul link                members 1 and 2 (hero + 2nd) and members 3 and 4 fall together.
+  Start a new run          ("Do it now") empties the list of the fallen. Their HP is whatever
+                           the game has: use an inn or a church. (Deleting nuzlocke-run.txt
+                           does the same when the game is not running.)
+Punishments (switches, on top of Permadeath)
+  Lose half / all of your gold when a party member dies.
+
+Randomizer (launch options: they take effect when the game starts, and every PC of a session
+must start with the same ones; the window offers to restart the game)
+  Random monsters         every kind of monster becomes another kind of about the same level
+                          (metal monsters stay metal), in the field and in battle: what roams is
+                          what you fight. Bosses are not touched.
+  Random skill trees      which ability a skill line gives, and at which skill point cost.
+                          Every ability is still learned exactly once.
+  Random spells           which spell a vocation learns at which level (no spell twice per
+                          vocation).
+  Random stat growth      every stat a vocation gains per level is taken from another vocation's
+                          growth (a different one for each stat); the experience needed stays.
+  Random monster drops    ordinary monsters' common drops are dealt out among the common ones,
+                          the rare drops among the rare ones. Bosses keep theirs.
+  Random shop wares       what shops sell is dealt out among all the shelves.
+  Seed                    one choice: the same seed always gives the same game. Without a choice
+                          the seed is 1. Pick another one before you start a new run.
+
+Examples: "Classic" = Permadeath. "Hardcore" = Permadeath + the hero's death ends the run +
+lose all your gold. "Chaos" = Hardcore + every randomizer. "Co-op" = Permadeath + Soul link.
+What is not here: Pokémon's "catch only the first one in an area", the level cap, set mode
+and "no items in battle" (DQIX has no catching or switching out, and the game's party data
+for levels and the battle menu isn't mapped yet).
 
 
 WHERE THE CHEATS COME FROM, AND WHY THEY CAN'T BREAK THE GAME

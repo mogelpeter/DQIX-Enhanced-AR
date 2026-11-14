@@ -1,0 +1,7 @@
+# name: Lose half of your gold when a party member dies
+# mode: always
+# category: Nuzlocke
+# enabled: no
+# about: Every death costs half of the gold you carry. Needs Permadeath.
+# The address is not memory: mods/system/src/runtime/mod_cheats.c takes it as the Nuzlocke punishment "half the gold"; nuzlocke.c does the rest.
+02F5A5CC 00000001

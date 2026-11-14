@@ -26,7 +26,7 @@
 int mod_cheats_post(const uint16_t* w, int n);       /* mod_cheats.c: words into the mailbox's ring; 0 = full or no mailbox */
 uint32_t mod_cheats_gen(void);                       /* goes up whenever the game forgot every cheat */
 
-typedef struct { char *id, *cat, *group, *kind, *status, *name, *option, *note, *mode, *keys, *env, *also, *file, *section; int on, nops, undo; uint32_t* ops;
+typedef struct { char *id, *cat, *group, *kind, *status, *name, *option, *note, *mode, *keys, *env, *also, *file, *section, *who; int on, nops, undo; uint32_t* ops;
                  int gi; char* hay; char* about; } Ent;                        /* gi: index into g_g or -1; hay: the search text, lower case */
 typedef struct { char *id, *cat, *title, *kind, *about; char* lt; int* mem; int nmem; } Grp;   /* lt: title lower case; mem: its entries */
 typedef struct { char *cat, *title; } Sec;                                      /* a section of a page (folds open and shut), in the order shown */
@@ -39,6 +39,25 @@ static char** g_st; static int g_nst;                /* the state file: lines "<
 static char g_root[MAX_PATH * 2], g_statepath[MAX_PATH * 2];
 static CRITICAL_SECTION g_cs;
 static int g_cs_init, g_loaded;
+/* The window has two faces: the Cheats window (every page but Nuzlocke) and the Nuzlocke window (menu bar: Nuzlocke > Settings...), which shows only the
+ * Nuzlocke page. They are the same window and the same state file; each leaves the other's cheats alone (Enabled, search, Everything off). */
+static int g_mode;                                  /* 0 Cheats, 1 Nuzlocke */
+/* who is really there (mod_cheats.c mod_roster), polled while the window is open: a cheat for party member 2..4 or for an enemy is shown only
+ * while that member / enemy exists; the live battle cheats only in a battle */
+typedef struct { int inbattle; uint8_t party[4], enemy[6]; char name[4][12]; int enemy_hp[6]; } ModRoster;
+void mod_roster(ModRoster* r);
+static ModRoster g_ro;
+static int who_ok(const Ent* e) {
+    if (!strcmp(e->cat, "Live battle") && !g_ro.inbattle) return 0;
+    if (!e->who[0]) return 1;
+    int n = e->who[1] - '1';
+    if (e->who[0] == 'p') return n >= 0 && n < 4 && g_ro.party[n];
+    if (e->who[0] == 'e') return g_ro.inbattle && n >= 0 && n < 6 && g_ro.enemy[n];
+    return 1;
+}
+static int in_face(const Ent* e) { return g_mode == 1 ? !strcmp(e->cat, "Nuzlocke") || !strcmp(e->also, "Nuzlocke") : g_mode == 2 ? !strcmp(e->cat, "Live battle") : !(!strcmp(e->cat, "Nuzlocke") || !strcmp(e->also, "Nuzlocke")); }
+static int is_nz(const Ent* e) { return !strcmp(e->cat, "Nuzlocke") || !strcmp(e->also, "Nuzlocke"); }
+static int face_id(const char* id) { return !strncmp(id, "file:cheats/nuzlocke", 20) || !strncmp(id, "launch:nz-", 10) || !strncmp(id, "now:file:cheats/nuzlocke", 24) ? 1 : !strncmp(id, "live:battle:", 12) || !strncmp(id, "now:live:battle:", 16) ? 2 : 0; }
 
 static char* xdup(const char* s, size_t n) { char* p = (char*)malloc(n + 1); if (!p) return NULL; memcpy(p, s, n); p[n] = 0; return p; }
 
@@ -103,7 +122,7 @@ static void load_catalog(void) {
             e->id = kv(t, n, "id"); e->cat = kv(t, n, "cat"); e->group = kv(t, n, "group"); e->kind = kv(t, n, "kind"); e->status = kv(t, n, "status");
             e->name = kv(t, n, "name"); e->option = kv(t, n, "option"); e->note = kv(t, n, "note"); e->mode = kv(t, n, "mode"); e->keys = kv(t, n, "keys");
             e->env = kv(t, n, "env"); e->also = kv(t, n, "also"); e->file = kv(t, n, "file"); e->about = kv(t, n, "about");
-            e->section = kv(t, n, "section");
+            e->section = kv(t, n, "section"); e->who = kv(t, n, "who");
             char* on = kv(t, n, "on"); e->on = on[0] == '1'; free(on);
             char* un = kv(t, n, "undo"); e->undo = un[0] == '1'; free(un);
             char* ops = kv(t, n, "ops");
@@ -238,7 +257,10 @@ static void resend_all(void) {
 }
 
 void mod_cheatwin_show(void);
+static void open_mode(int mode);
+static void apply_mode(void);
 static char g_test_id[200], g_test_shot[MAX_PATH], g_test_search[400], g_test_import[4000];
+static DWORD test_delay(void) { const char* d = getenv("DQIX_CHEATWIN_DELAY"); return d && *d ? (DWORD)atoi(d) : 1500; }     /* test hook: ms before the window opens */
 static DWORD WINAPI agent(LPVOID unused) {
     (void)unused;
     uint32_t last = 0;
@@ -247,19 +269,19 @@ static DWORD WINAPI agent(LPVOID unused) {
         const char* c = strchr(t, ',');
         snprintf(g_test_id, sizeof g_test_id, "%.*s", c ? (int)(c - t) : (int)strlen(t), t);
         if (c) snprintf(g_test_shot, sizeof g_test_shot, "%s", c + 1);
-        Sleep(1500); mod_cheatwin_show();
+        Sleep(test_delay()); open_mode(face_id(g_test_id));
     }
     t = getenv("DQIX_CHEATWIN_SEARCH");                  /* test hook: searches;searches...[,picture] (see test_step) */
     if (t && *t && !g_test_id[0]) {
         const char* c = strchr(t, ',');
         snprintf(g_test_search, sizeof g_test_search, "%.*s", c ? (int)(c - t) : (int)strlen(t), t);
         if (c) snprintf(g_test_shot, sizeof g_test_shot, "%s", c + 1);
-        Sleep(1500); mod_cheatwin_show();
+        Sleep(test_delay()); mod_cheatwin_show();
     }
     t = getenv("DQIX_CHEATWIN_IMPORT");                  /* test hook: a shared line (or "-": the cheats that are on) -> Import, then Share (see test_step) */
     if (t && *t && !g_test_id[0] && !g_test_search[0]) {
         snprintf(g_test_import, sizeof g_test_import, "%s", t);
-        Sleep(1500); mod_cheatwin_show();
+        Sleep(test_delay()); mod_cheatwin_show();
     }
     for (;;) {
         Sleep(200);
@@ -287,7 +309,7 @@ static void apply(int idx, int on) {
 
 static void all_off(void) {
     EnterCriticalSection(&g_cs);
-    for (int i = 0; i < g_ne; i++) if (ent_on(&g_e[i])) { st_set(skind(&g_e[i]), g_e[i].id, 0); if (!strcmp(g_e[i].kind, "live")) send_clear(i); }
+    for (int i = 0; i < g_ne; i++) if (ent_on(&g_e[i]) && in_face(&g_e[i])) { st_set(skind(&g_e[i]), g_e[i].id, 0); if (!strcmp(g_e[i].kind, "live")) send_clear(i); }
     st_save();
     LeaveCriticalSection(&g_cs);
 }
@@ -314,7 +336,11 @@ typedef struct { int kind, idx, gi, y, h, nm, on, sec, *members; HWND main, sub,
 
 /* ---- sections: a page's big lists folded into parts (catalog.py SECTIONS); which are open is kept in the state file ("open <page>/<section>") */
 static void sec_key(int s, char* out, size_t n) { snprintf(out, n, "%s/%s", g_sec[s].cat, g_sec[s].title); }
-static int sec_open(int s) { char k[300]; sec_key(s, k, sizeof k); return st_has("open", k); }
+static unsigned char g_bshut[128];                  /* the live battle window's sections are open unless folded (not saved) */
+static int sec_open(int s) {
+    if (!strcmp(g_sec[s].cat, "Live battle")) return s < 128 ? !g_bshut[s] : 1;
+    char k[300]; sec_key(s, k, sizeof k); return st_has("open", k);
+}
 static int sec_of(const char* page, const Ent* e) {                 /* the entry's section on this page, or -1 */
     if (!e->section[0]) return -1;
     for (int s = 0; s < g_nsec; s++) if (!strcmp(g_sec[s].cat, page) && !strcmp(g_sec[s].title, e->section)) return s;
@@ -327,7 +353,7 @@ static void page_count(const char* page, int sec, int* total, int* on) {
     char* seen = (char*)calloc((size_t)g_ng + 1, 1); char* hit = (char*)calloc((size_t)g_ng + 1, 1);
     for (int i = 0; i < g_ne; i++) {
         const Ent* e = &g_e[i];
-        if (!on_page(e, page) || (sec >= 0 && sec_of(page, e) != sec)) continue;
+        if (!on_page(e, page) || (sec >= 0 && sec_of(page, e) != sec) || !who_ok(e)) continue;
         int o = ent_on(e);
         if (e->gi >= 0 && seen && hit) { if (!seen[e->gi]) { seen[e->gi] = 1; (*total)++; } if (o && !hit[e->gi]) { hit[e->gi] = 1; (*on)++; } continue; }
         (*total)++; *on += o;
@@ -459,8 +485,12 @@ static void cv_text(Cv* c, const wchar_t* t, RECT r, HFONT f, COLORREF col, UINT
 
 /* the grey line under a cheat */
 static void tag_text(const Ent* e, char* out, size_t n) {
-    snprintf(out, n, "%s%s%s%s%s%s%s", who_short(e), e->keys[0] ? " \xC2\xB7 hold " : "", e->keys, !strcmp(e->status, "untested") ? " \xC2\xB7 untested" : "",
-             !strcmp(e->mode, "once") ? " \xC2\xB7 once" : "", e->note[0] ? " \xC2\xB7 " : "", e->note);
+    if (!strcmp(e->mode, "once") && !strcmp(e->kind, "live")) {      /* no switch: who needs it and "once" are no news */
+        snprintf(out, n, "%s%s%s", !strcmp(e->status, "untested") ? "untested" : "", !strcmp(e->status, "untested") && e->note[0] ? " \xC2\xB7 " : "", e->note);
+        return;
+    }
+    snprintf(out, n, "%s%s%s%s%s%s", who_short(e), e->keys[0] ? " \xC2\xB7 hold " : "", e->keys, !strcmp(e->status, "untested") ? " \xC2\xB7 untested" : "",
+             e->note[0] ? " \xC2\xB7 " : "", e->note);
 }
 
 /* the hover text: the cheat's longer explanation (mods/system/about.tsv, through the catalog), nothing the row already shows
@@ -658,6 +688,10 @@ static void update_count(void) {
     if (g_cur_page >= 0 && g_cur_page < g_npg) page_count(g_pg[g_cur_page], -1, &cheats, &on);     /* a page: shut sections count too */
     for (int i = 0; i < g_nrows; i++) if (g_rows[i].kind == R_HEAD) InvalidateRect(g_rows[i].main, NULL, FALSE);
     char b[80]; if (g_cur_page == g_search_page) { if (g_found > cheats) snprintf(b, sizeof b, "%d found, first %d shown: type more words", g_found, cheats); else snprintf(b, sizeof b, "%d found, %d on", cheats, on); } else if (g_cur_page == g_on_page) snprintf(b, sizeof b, on ? "%d switched on (all pages)" : "Nothing is switched on", on); else snprintf(b, sizeof b, "%d of %d on", on, cheats);
+    if (g_mode == 2) {
+        int np = g_ro.party[0] + g_ro.party[1] + g_ro.party[2] + g_ro.party[3], ne = g_ro.enemy[0] + g_ro.enemy[1] + g_ro.enemy[2] + g_ro.enemy[3] + g_ro.enemy[4] + g_ro.enemy[5];
+        if (g_ro.inbattle) snprintf(b, sizeof b, "In a battle: %d in your party, %d enem%s", np, ne, ne == 1 ? "y" : "ies"); else snprintf(b, sizeof b, "Not in a battle: these appear when a fight starts");
+    }
     wchar_t* w = wide(b); SetWindowTextW(g_count, w); free(w);
 }
 
@@ -764,6 +798,8 @@ static void add_entry(int p, int i, char* seen) {
     int special = p == g_on_page || p == g_search_page;
     Ent* e = &g_e[i];
     if (!strcmp(e->kind, "blocked")) return;
+    if (special && is_nz(e)) return;                         /* the Nuzlocke window's own entries are not in the Cheats window's Enabled page or search */
+    if (p != g_on_page && !who_ok(e)) return;                /* a member / enemy that isn't there */
     if (p == g_on_page) { if (!ent_on(e)) return; }          /* the Enabled page: everything that is on, from every page */
     else if (p == g_search_page) { if (!match_words(e)) return; }
     else if (strcmp(e->cat, g_pg[p]) && strcmp(e->also, g_pg[p])) return;
@@ -814,6 +850,15 @@ static void add_entry(int p, int i, char* seen) {
     if (both) r->btn = mk(L"BUTTON", "Do it now", BS_OWNERDRAW | WS_TABSTOP, g_font, id);
 }
 
+/* a section's title in the battle window: who it is for, as it is now */
+static void sec_label(const char* title, char* out, size_t n) {
+    snprintf(out, n, "%s", title);
+    if (g_mode != 2) return;
+    int k = !strcmp(title, "Hero") ? 0 : !strncmp(title, "Player ", 7) ? title[7] - '1' : -1;
+    if (k >= 0 && k < 4 && g_ro.name[k][0]) snprintf(out, n, "%s \xC2\xB7 %s", title, g_ro.name[k]);
+    else if (!strncmp(title, "Enemy ", 6)) { k = title[6] - '1'; if (k >= 0 && k < 6 && g_ro.enemy[k]) snprintf(out, n, "%s \xC2\xB7 %d HP", title, g_ro.enemy_hp[k]); }
+}
+
 static void build_page(void) {
     char q[200]; search_text(q, sizeof q);
     int sel = (int)SendMessageW(g_side, LB_GETCURSEL, 0, 0); if (sel < 0 && !q[0]) return;
@@ -826,7 +871,7 @@ static void build_page(void) {
     ShowWindow(g_host, SW_HIDE);                                  /* built out of sight, shown in one go: no controls flying in from the corner */
     int keep = p == g_cur_page ? g_keep_scroll : -1; g_keep_scroll = -1;     /* a section folded open or shut: the page stays where it was */
     card_hide(); clear_rows(); g_scroll = 0; g_cur_page = p;
-    SetWindowTextW(g_note, L"");
+    SetWindowTextW(g_note, g_mode == 2 ? L"These work on the fight that is going on. Members and enemies that aren't there aren't listed." : L"");
     { char ts[260]; if (p == g_search_page) snprintf(ts, sizeof ts, "Search: %s", q); else snprintf(ts, sizeof ts, "%s", p == g_on_page ? "Enabled" : g_pg[p]);
       wchar_t* tt = wide(ts); SetWindowTextW(g_title, tt); free(tt); }
     {
@@ -837,9 +882,12 @@ static void build_page(void) {
             for (int i = 0; i < g_ne; i++) if (sec_of(pg, &g_e[i]) < 0) add_entry(p, i, seen);
             for (int s = 0; s < g_nsec; s++) {
                 if (strcmp(g_sec[s].cat, pg)) continue;
+                int nvis = 0; for (int i = 0; i < g_ne; i++) if (sec_of(pg, &g_e[i]) == s && strcmp(g_e[i].kind, "blocked") && who_ok(&g_e[i])) nvis++;
+                if (!nvis) continue;                                 /* nobody it is for is there */
                 int open = sec_open(s);
                 Row* r = add_row(R_HEAD, -1, -1); r->sec = s; r->on = open;
-                r->main = mk(L"BUTTON", g_sec[s].title, BS_OWNERDRAW | WS_TABSTOP, g_bold, IDC_ROW0 + g_nrows - 1);
+                char lab[200]; sec_label(g_sec[s].title, lab, sizeof lab);
+                r->main = mk(L"BUTTON", lab, BS_OWNERDRAW | WS_TABSTOP, g_bold, IDC_ROW0 + g_nrows - 1);
                 if (open) for (int i = 0; i < g_ne; i++) if (sec_of(pg, &g_e[i]) == s) add_entry(p, i, seen);
             }
         }
@@ -1015,7 +1063,8 @@ static void draw_head(const DRAWITEMSTRUCT* d, const Row* r) {
 #define WM_TOGGLE_SECTION (WM_APP + 2)
 static void toggle_section(int s) {
     char k[300]; sec_key(s, k, sizeof k);
-    EnterCriticalSection(&g_cs); st_set("open", k, !st_has("open", k)); st_save(); LeaveCriticalSection(&g_cs);
+    if (!strcmp(g_sec[s].cat, "Live battle")) { if (s < 128) g_bshut[s] ^= 1; }
+    else { EnterCriticalSection(&g_cs); st_set("open", k, !st_has("open", k)); st_save(); LeaveCriticalSection(&g_cs); }
     g_keep_scroll = g_scroll; build_page();
     for (int i = 0; i < g_nrows; i++) if (g_rows[i].kind == R_HEAD && g_rows[i].sec == s) { SetFocus(g_rows[i].main); break; }
 }
@@ -1265,15 +1314,33 @@ static void import_settings(void) {
     if (restart >= 0) maybe_restart(&g_e[restart]);
 }
 
+/* every half second: has who is there changed (a member joined, a battle began, an enemy fell)? Then the page is built again, where it was */
+#define IDT_ROSTER 77
+static void roster_tick(void) {
+    if (!IsWindowVisible(g_win)) return;
+    ModRoster r; mod_roster(&r);
+    if (!memcmp(&r, &g_ro, sizeof r)) return;
+    int hp_only = r.inbattle == g_ro.inbattle && !memcmp(r.party, g_ro.party, 4) && !memcmp(r.enemy, g_ro.enemy, 6) && !memcmp(r.name, g_ro.name, sizeof r.name);
+    g_ro = r;
+    if (getenv("DQIX_CHEATWIN_TEST")) fprintf(stderr, "cheatwin roster: battle=%d party=%d%d%d%d enemies=%d%d%d%d%d%d\n", r.inbattle, r.party[0], r.party[1], r.party[2], r.party[3],
+                                              r.enemy[0], r.enemy[1], r.enemy[2], r.enemy[3], r.enemy[4], r.enemy[5]);
+    if (hp_only && g_mode != 2) return;                        /* only an enemy's HP moved: it matters just for the titles of the battle window */
+    g_keep_scroll = g_scroll; g_cur_page = -1; build_page();
+}
+
 static LRESULT CALLBACK wndproc(HWND h, UINT m, WPARAM wp, LPARAM lp) {
     switch (m) {
-    case WM_TIMER: KillTimer(h, wp); if (wp == IDT_SEARCH) build_page(); else test_step((int)wp); return 0;
+    case WM_TIMER:
+        if (wp == IDT_ROSTER) { roster_tick(); return 0; }
+        KillTimer(h, wp); if (wp == IDT_SEARCH) build_page(); else test_step((int)wp); return 0;
     case WM_PAINT: {
         PAINTSTRUCT ps; HDC dc = BeginPaint(h, &ps); Cv c;              /* the search box: a pill */
         if (cv_begin(&c, SIDE_W, SEARCH_H, COL_SIDE)) {
             int focus = GetFocus() == g_search;
-            cv_box(&c, 10.5f, 7.5f, SIDE_W - 10.5f, 37.5f, 15, focus ? COL_ACCENT : COL_LINE, 0);
-            cv_box(&c, 11.5f, 8.5f, SIDE_W - 11.5f, 36.5f, 14, COL_BOX, 0);
+            if (!g_mode) {                                              /* the Nuzlocke window has no search */
+                cv_box(&c, 10.5f, 7.5f, SIDE_W - 10.5f, 37.5f, 15, focus ? COL_ACCENT : COL_LINE, 0);
+                cv_box(&c, 11.5f, 8.5f, SIDE_W - 11.5f, 36.5f, 14, COL_BOX, 0);
+            }
             cv_end(&c, dc, 0, 0);
         }
         EndPaint(h, &ps); return 0;
@@ -1281,7 +1348,7 @@ static LRESULT CALLBACK wndproc(HWND h, UINT m, WPARAM wp, LPARAM lp) {
     case WM_CTLCOLOREDIT: { HDC dc = (HDC)wp; SetBkColor(dc, COL_BOX); SetTextColor(dc, COL_TEXT); return (LRESULT)g_box; }
     case WM_SIZE: if (g_side) layout(LOWORD(lp), HIWORD(lp)); return 0;
     case WM_GETMINMAXINFO: { MINMAXINFO* mm = (MINMAXINFO*)lp; mm->ptMinTrackSize.x = 560; mm->ptMinTrackSize.y = 380; return 0; }
-    case WM_SHOW_CHEATS: EnterCriticalSection(&g_cs); load_state(); LeaveCriticalSection(&g_cs); build_page(); ShowWindow(h, IsIconic(h) ? SW_RESTORE : SW_SHOWNORMAL); SetForegroundWindow(h); return 0;
+    case WM_SHOW_CHEATS: EnterCriticalSection(&g_cs); load_state(); LeaveCriticalSection(&g_cs); apply_mode(); build_page(); ShowWindow(h, IsIconic(h) ? SW_RESTORE : SW_SHOWNORMAL); SetForegroundWindow(h); return 0;
     case WM_CLOSE: card_hide(); ShowWindow(h, SW_HIDE); return 0;      /* hidden, not destroyed: the game goes on */
     case WM_ACTIVATE: if (LOWORD(wp) == WA_INACTIVE) card_hide(); break;
     case WM_CTLCOLORSTATIC: {
@@ -1336,6 +1403,28 @@ static void save_shot(HWND h, const char* path) {
         }
     }
     free(px); SelectObject(mem, old); DeleteObject(bmp); DeleteDC(mem); ReleaseDC(NULL, dc);
+}
+
+/* the sidebar of the current face: Enabled and every page but Nuzlocke, or just the Nuzlocke page */
+static void apply_mode(void) {
+    SetWindowTextW(g_win, g_mode == 1 ? L"Nuzlocke" : g_mode == 2 ? L"Battle cheats" : L"Cheats");
+    SendMessageW(g_search, 0x1501 /*EM_SETCUEBANNER*/, TRUE, (LPARAM)L"Search cheats");
+    ShowWindow(g_search, g_mode ? SW_HIDE : SW_SHOW);
+    SetWindowTextW(g_note, g_mode == 2 ? L"These work on the fight that is going on. Members and enemies that aren't there aren't listed." : L"Switches work at once while you play. Save your game first.");
+    SetWindowTextW(g_search, L"");
+    SetWindowTextW(g_off, L"Everything off");
+    SendMessageW(g_side, LB_RESETCONTENT, 0, 0);
+    if (!g_mode) { int at0 = (int)SendMessageW(g_side, LB_ADDSTRING, 0, (LPARAM)L"Enabled"); SendMessageW(g_side, LB_SETITEMDATA, (WPARAM)at0, g_on_page); }
+    for (int i = 0; i < g_npg; i++) {
+        { int nz = !strcmp(g_pg[i], "Nuzlocke"), lb = !strcmp(g_pg[i], "Live battle");
+          if (g_mode == 0 ? (nz || lb) : g_mode == 1 ? !nz : !lb) continue; }
+        int has = 0; for (int k = 0; k < g_ne && !has; k++) has = strcmp(g_e[k].kind, "blocked") && (!strcmp(g_e[k].cat, g_pg[i]) || !strcmp(g_e[k].also, g_pg[i]));
+        if (!has) continue;
+        wchar_t* w = wide(g_pg[i]); int at = (int)SendMessageW(g_side, LB_ADDSTRING, 0, (LPARAM)w); SendMessageW(g_side, LB_SETITEMDATA, (WPARAM)at, i); free(w);
+    }
+    SendMessageW(g_side, LB_SETCURSEL, g_mode ? 0 : 1, 0);
+    g_cur_page = -1;
+    InvalidateRect(g_win, NULL, TRUE);
 }
 
 static void select_page_of(int idx) {
@@ -1534,13 +1623,8 @@ static DWORD WINAPI ui_thread(LPVOID unused) {
     }
     dark_title(g_win); dark(g_host, L"DarkMode_Explorer");
     g_on_page = g_npg; g_search_page = g_npg + 1;                                            /* the Enabled entry: a page number past the real ones */
-    { int at0 = (int)SendMessageW(g_side, LB_ADDSTRING, 0, (LPARAM)L"Enabled"); SendMessageW(g_side, LB_SETITEMDATA, (WPARAM)at0, g_on_page); }
-    for (int i = 0; i < g_npg; i++) {
-        int has = 0; for (int k = 0; k < g_ne && !has; k++) has = strcmp(g_e[k].kind, "blocked") && (!strcmp(g_e[k].cat, g_pg[i]) || !strcmp(g_e[k].also, g_pg[i]));
-        if (!has) continue;
-        wchar_t* w = wide(g_pg[i]); int at = (int)SendMessageW(g_side, LB_ADDSTRING, 0, (LPARAM)w); SendMessageW(g_side, LB_SETITEMDATA, (WPARAM)at, i); free(w);
-    }
-    SendMessageW(g_side, LB_SETCURSEL, 1, 0);
+    apply_mode();
+    SetTimer(g_win, IDT_ROSTER, 500, NULL);
     RECT r; GetClientRect(g_win, &r); layout(r.right, r.bottom);
     build_page();
     ShowWindow(g_win, SW_SHOWNORMAL); SetForegroundWindow(g_win);
@@ -1558,7 +1642,9 @@ static DWORD WINAPI ui_thread(LPVOID unused) {
     return 0;
 }
 
-void mod_cheatwin_show(void) {
+static void open_mode(int mode) {
+    g_mode = mode;
+    mod_roster(&g_ro);
     if (!g_cs_init) { InitializeCriticalSection(&g_cs); g_cs_init = 1; }
     if (!g_loaded) { load_catalog(); if (g_loaded) { load_state(); migrate_state(); } }
     if (!g_loaded) {
@@ -1569,7 +1655,12 @@ void mod_cheatwin_show(void) {
     if (!th) { th = CreateThread(NULL, 0, ui_thread, NULL, 0, NULL); return; }
     if (g_win) PostMessageW(g_win, WM_SHOW_CHEATS, 0, 0);
 }
+void mod_cheatwin_show(void) { open_mode(0); }          /* menu bar: Cheats > Cheats... */
+void mod_nuzlocke_show(void) { open_mode(1); }          /* menu bar: Nuzlocke > Settings... */
+void mod_battle_show(void) { open_mode(2); }            /* menu bar: Cheats > Battle cheats... */
 #else
 void mod_cheatwin_boot(void) {}
 void mod_cheatwin_show(void) {}
+void mod_nuzlocke_show(void) {}
+void mod_battle_show(void) {}
 #endif

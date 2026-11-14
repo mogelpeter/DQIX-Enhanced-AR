@@ -101,6 +101,27 @@ int mod_cheats_post(const uint16_t* w, int n) {
     return 1;
 }
 
+/* Who is really there, for the Cheats window (mod_cheatwin.c): the party members (their record, with the name, is at 0x020F54B4 - i * 0x964; a
+ * battle fills the battle copy at +0x58 on) and, in a battle, the enemies (HP at 0x022A4638 + n * 0xA4). Read from this console's own memory,
+ * only for display: the cheats themselves still travel through the mailbox. */
+typedef struct { int inbattle; uint8_t party[4], enemy[6]; char name[4][12]; int enemy_hp[6]; } ModRoster;
+void mod_roster(ModRoster* r) {
+    memset(r, 0, sizeof *r);
+    for (int i = 0; i < 4; i++) {
+        uint32_t b = (0x020F54B4u - (uint32_t)i * 0x964u) & (MAIN_RAM_SIZE - 1);
+        if (!g_main_ram[b]) continue;
+        r->party[i] = 1;
+        int k = 0; for (; k < 10 && g_main_ram[b + (uint32_t)k] >= 32 && g_main_ram[b + (uint32_t)k] < 127; k++) r->name[i][k] = (char)g_main_ram[b + (uint32_t)k];
+        r->name[i][k] = 0;
+    }
+    if (r->party[0]) { uint16_t mx; memcpy(&mx, &g_main_ram[(0x020F54B4u + 0x58u) & (MAIN_RAM_SIZE - 1)], 2); r->inbattle = mx != 0; }
+    if (r->inbattle)
+        for (int n = 0; n < 6; n++) {
+            uint16_t hp; memcpy(&hp, &g_main_ram[(0x022A4638u + (uint32_t)n * 0xA4u) & (MAIN_RAM_SIZE - 1)], 2);
+            r->enemy_hp[n] = hp; r->enemy[n] = hp > 0;
+        }
+}
+
 /* goes up whenever this console forgot every cheat (started, reset, a session began or ended): the window sends them again */
 uint32_t mod_cheats_gen(void) { return g_box ? g_box->gen : 0; }
 
@@ -127,6 +148,14 @@ uint8_t g_mod_noflee;
 /* "Always strike first" (mods/system/cheats/first-strike.txt): on for this frame while the code is on; firststrike.c reads it. */
 uint8_t g_mod_first;
 #define MC_SWITCH_FIRST 0x02F5A5ACu
+/* The Nuzlocke rules (nuzlocke.c): a write to 02F5A5C0 + 4n switches rule n on for this frame (bit n of g_mod_nz); the write to 02F5A5FC is the
+ * one-off command "start a new run". */
+uint32_t g_mod_nz;
+void nz_frame(uint32_t flags, int session);
+void nz_command(int cmd);
+void nz_reset(void);
+#define MC_SWITCH_NZ 0x02F5A5C0u
+#define MC_SWITCH_NZ_NEW 0x02F5A5FCu
 /* Code mods that run live (livepatch.c): a write to 02F60000 + 4n says "instruction site n is patched with this word" this frame. */
 int lp_set(uint32_t addr, uint32_t word);
 void lp_clear(void);
@@ -169,6 +198,8 @@ static int mc_write(void* u, uint32_t a, const void* in, size_t n) {
     if ((a & 0x0FFFFFFFu) == MC_SWITCH_VANISH) { g_vanish_armed = 1; return 1; }
     if ((a & 0x0FFFFFFFu) == MC_SWITCH_NOFLEE) { g_mod_noflee = 1; return 1; }
     if ((a & 0x0FFFFFFFu) == MC_SWITCH_FIRST) { g_mod_first = 1; return 1; }
+    if ((a & 0x0FFFFFFFu) == MC_SWITCH_NZ_NEW) { nz_command(1); return 1; }
+    if ((a & 0x0FFFFFFFu) >= MC_SWITCH_NZ && (a & 0x0FFFFFFFu) < MC_SWITCH_NZ + 0x3C) { g_mod_nz |= 1u << (((a & 0x0FFFFFFFu) - MC_SWITCH_NZ) >> 2); return 1; }
     if (n == 4 && (a & 0x0FFFFFFFu) >= MC_LP_BASE && (a & 0x0FFFFFFFu) < MC_LP_BASE + 0x10000u) { uint32_t w; memcpy(&w, in, 4); return lp_set(a & 0x0FFFFFFFu, w); }
     a &= MAIN_RAM_SIZE - 1;
     if (a + n > MAIN_RAM_SIZE) return 0;
@@ -198,6 +229,7 @@ static void mc_forget_undo(int undo) {
     g_mod_noflee = 0;
     g_mod_first = 0;
     g_mod_vanish = 0;
+    g_mod_nz = 0;
     lp_clear();
     g_vanish_armed = g_vanish_on = g_vanish_prev = 0;
 }
@@ -263,6 +295,7 @@ static void mc_sync(void) {
     int ses = session_running();
     if (ses != last_ses || g_frame < last_frame) {
         mc_forget();
+        nz_reset();
         if (g_box) { g_box->rd = g_box->wr; g_box->gen++; }
         last_ses = ses;
     }
@@ -298,6 +331,7 @@ uint32_t mod_cheats_in(uint32_t v) {
     g_mod_lowexp = 0;                                    /* the codes below set it again while they are on */
     g_mod_noflee = 0;
     g_mod_first = 0;
+    g_mod_nz = 0;                                        /* the Nuzlocke rules that are on set their bits again below */
     lp_clear();                                          /* the live code mods below set their sites again while they are on */
     g_vanish_armed = 0;
     int keys = (int)(v & 0xFFF);                         /* this console's buttons this frame: the same on every PC */
@@ -315,6 +349,7 @@ uint32_t mod_cheats_in(uint32_t v) {
         g_vanish_prev = (uint8_t)combo;
     } else g_vanish_on = g_vanish_prev = 0;              /* the cheat is off: vanish is off with it */
     g_mod_vanish = g_vanish_armed && g_vanish_on;
+    nz_frame(g_mod_nz, session_running());               /* the Nuzlocke rules (nuzlocke.c) */
     if (g_box) g_box->done = g_done;
     return v;
 }

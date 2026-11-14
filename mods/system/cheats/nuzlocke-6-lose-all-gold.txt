@@ -1,0 +1,7 @@
+# name: Lose all your gold when a party member dies
+# mode: always
+# category: Nuzlocke
+# enabled: no
+# about: Every death takes all the gold you carry. Needs Permadeath.
+# The address is not memory: mods/system/src/runtime/mod_cheats.c takes it as the Nuzlocke punishment "all the gold"; nuzlocke.c does the rest.
+02F5A5D0 00000001
