@@ -1,4 +1,4 @@
 # name: Faster text
-# enabled: yes
+# enabled: no
 # about: Messages appear faster.
 patch 02066A58 1AFFFD1E EAFFFD1E

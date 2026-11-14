@@ -21,6 +21,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
+#include <math.h>
 
 int mod_cheats_post(const uint16_t* w, int n);       /* mod_cheats.c: words into the mailbox's ring; 0 = full or no mailbox */
 uint32_t mod_cheats_gen(void);                       /* goes up whenever the game forgot every cheat */
@@ -189,19 +190,6 @@ static void migrate_state(void) {
     if (changed) st_save();
 }
 
-/* entries a hand-written file turns on by itself ("# enabled: yes"): on the first time only */
-static void seed_defaults(void) {
-    int changed = 0;
-    for (int i = 0; i < g_ne; i++) {
-        Ent* e = &g_e[i];
-        if (!e->on || strcmp(e->kind, "live") || strncmp(e->id, "file:code/", 10)) continue;
-        char flag[200]; snprintf(flag, sizeof flag, "seeded-%s", e->id);
-        if (st_has("flag", flag)) continue;
-        st_set("flag", flag, 1); st_set("live", e->id, 1); changed = 1;
-    }
-    if (changed) st_save();
-}
-
 /* ---- sending cheats (the mailbox's messages, see mod_cheats.c) ---- */
 static void post_words(const uint16_t* w, int n) {
     for (int tries = 0; tries < 400; tries++) { if (mod_cheats_post(w, n)) return; Sleep(10); }
@@ -299,7 +287,7 @@ void mod_cheatwin_boot(void) {
     load_catalog();
     if (!g_loaded) return;
     load_state();
-    migrate_state(); seed_defaults();
+    migrate_state();                                         /* nothing is switched on by itself: a first start has every cheat off */
     for (int i = 0; i < g_ne; i++)                           /* options for the next start: set before the game reads them */
         if (!strcmp(g_e[i].kind, "launch") && ent_on(&g_e[i]) && strchr(g_e[i].env, '=')) _putenv(g_e[i].env);
     CreateThread(NULL, 0, agent, NULL, 0, NULL);
@@ -348,9 +336,88 @@ static const char* label(const Ent* e) { return e->option[0] ? e->option : e->na
 
 /* the small grey line under a cheat: who needs it, the keys to hold, status, note */
 static const char* who_short(const Ent* e) {
-    if (!strcmp(e->kind, "live")) return "One player";                   /* (in yellow: rich_text) */
+    if (!strcmp(e->kind, "live")) return "One player";                   /* (One player / Your PC only in yellow, All players in pink: rich_text) */
     if (!strcmp(e->kind, "launch")) return !strncmp(e->env, "DQIX_MOD_", 9) ? "All players \xC2\xB7 next start" : "Your PC only \xC2\xB7 next start";
     return "All players \xC2\xB7 needs a rebuild";
+}
+/* the same for a choice (a drop-down): by its kind, a launch choice by its first option */
+static const char* who_group(const Grp* g) {
+    if (!strcmp(g->kind, "live")) return "One player";
+    if (!strcmp(g->kind, "launch")) return g->nmem && !strncmp(g_e[g->mem[0]].env, "DQIX_MOD_", 9) ? "All players \xC2\xB7 next start" : "Your PC only \xC2\xB7 next start";
+    return "All players \xC2\xB7 needs a rebuild";
+}
+
+/* ---- smooth shapes (pills, round knobs, the drop-down's arrow): drawn into a 32-bit bitmap with anti-aliased edges (a signed
+ * distance per pixel), text on top with GDI, then copied to the screen in one go (no flicker) */
+typedef struct { HDC dc; HBITMAP bmp; HGDIOBJ old; uint32_t* px; int w, h; } Cv;
+static int cv_begin(Cv* c, int w, int h, COLORREF bg) {
+    memset(c, 0, sizeof *c);
+    if (w <= 0 || h <= 0) return 0;
+    BITMAPINFO bi; memset(&bi, 0, sizeof bi);
+    bi.bmiHeader.biSize = sizeof bi.bmiHeader; bi.bmiHeader.biWidth = w; bi.bmiHeader.biHeight = -h; bi.bmiHeader.biPlanes = 1; bi.bmiHeader.biBitCount = 32;
+    void* bits = NULL;
+    c->dc = CreateCompatibleDC(NULL);
+    c->bmp = c->dc ? CreateDIBSection(c->dc, &bi, DIB_RGB_COLORS, &bits, NULL, 0) : NULL;
+    if (!c->bmp) { if (c->dc) DeleteDC(c->dc); memset(c, 0, sizeof *c); return 0; }
+    c->old = SelectObject(c->dc, c->bmp); c->px = (uint32_t*)bits; c->w = w; c->h = h;
+    uint32_t v = (uint32_t)GetRValue(bg) << 16 | (uint32_t)GetGValue(bg) << 8 | GetBValue(bg);
+    for (int i = 0; i < w * h; i++) c->px[i] = v;
+    SetBkMode(c->dc, TRANSPARENT);
+    return 1;
+}
+static void cv_end(Cv* c, HDC dst, int x, int y) {
+    if (!c->dc) return;
+    GdiFlush();
+    BitBlt(dst, x, y, c->w, c->h, c->dc, 0, 0, SRCCOPY);
+    SelectObject(c->dc, c->old); DeleteObject(c->bmp); DeleteDC(c->dc); memset(c, 0, sizeof *c);
+}
+static void cv_blend(Cv* c, int x, int y, COLORREF col, float a) {
+    uint32_t* p = &c->px[y * c->w + x]; uint32_t v = *p;
+    float r = (float)(v >> 16 & 255), g = (float)(v >> 8 & 255), b = (float)(v & 255);
+    r += ((float)GetRValue(col) - r) * a; g += ((float)GetGValue(col) - g) * a; b += ((float)GetBValue(col) - b) * a;
+    *p = (uint32_t)(r + 0.5f) << 16 | (uint32_t)(g + 0.5f) << 8 | (uint32_t)(b + 0.5f);
+}
+/* a rounded box from (x0,y0) to (x1,y1) with corner radius r (half the height: a pill; a square with r = half: a circle);
+ * ring > 0: only its outline, that wide */
+static void cv_box(Cv* c, float x0, float y0, float x1, float y1, float r, COLORREF col, float ring) {
+    float cx = (x0 + x1) / 2, cy = (y0 + y1) / 2, hw = (x1 - x0) / 2, hh = (y1 - y0) / 2;
+    if (r > hw) r = hw;
+    if (r > hh) r = hh;
+    int xa = (int)floorf(x0) - 1, xb = (int)ceilf(x1) + 1, ya = (int)floorf(y0) - 1, yb = (int)ceilf(y1) + 1;
+    if (xa < 0) xa = 0;
+    if (ya < 0) ya = 0;
+    if (xb > c->w) xb = c->w;
+    if (yb > c->h) yb = c->h;
+    for (int y = ya; y < yb; y++)
+        for (int x = xa; x < xb; x++) {
+            float qx = fabsf((float)x + 0.5f - cx) - (hw - r), qy = fabsf((float)y + 0.5f - cy) - (hh - r);
+            float ox = qx > 0 ? qx : 0, oy = qy > 0 ? qy : 0;
+            float d = sqrtf(ox * ox + oy * oy) + fminf(fmaxf(qx, qy), 0.f) - r;
+            float a = 0.5f - d; a = a < 0 ? 0 : a > 1 ? 1 : a;
+            if (ring > 0) { float in = 0.5f - (d + ring); in = in < 0 ? 0 : in > 1 ? 1 : in; a -= in; }
+            if (a > 0.003f) cv_blend(c, x, y, col, a);
+        }
+}
+/* a line with round ends, w wide */
+static void cv_line(Cv* c, float x0, float y0, float x1, float y1, float w, COLORREF col) {
+    int xa = (int)floorf(fminf(x0, x1) - w) - 1, xb = (int)ceilf(fmaxf(x0, x1) + w) + 1, ya = (int)floorf(fminf(y0, y1) - w) - 1, yb = (int)ceilf(fmaxf(y0, y1) + w) + 1;
+    if (xa < 0) xa = 0;
+    if (ya < 0) ya = 0;
+    if (xb > c->w) xb = c->w;
+    if (yb > c->h) yb = c->h;
+    float dx = x1 - x0, dy = y1 - y0, ll = dx * dx + dy * dy;
+    for (int y = ya; y < yb; y++)
+        for (int x = xa; x < xb; x++) {
+            float px = (float)x + 0.5f - x0, py = (float)y + 0.5f - y0;
+            float t = ll > 0 ? (px * dx + py * dy) / ll : 0; t = t < 0 ? 0 : t > 1 ? 1 : t;
+            float ex = px - dx * t, ey = py - dy * t, d = sqrtf(ex * ex + ey * ey) - w / 2;
+            float a = 0.5f - d; a = a < 0 ? 0 : a > 1 ? 1 : a;
+            if (a > 0.003f) cv_blend(c, x, y, col, a);
+        }
+}
+static void cv_text(Cv* c, const wchar_t* t, RECT r, HFONT f, COLORREF col, UINT fmt) {
+    HGDIOBJ o = SelectObject(c->dc, f); SetTextColor(c->dc, col);
+    DrawTextW(c->dc, t, -1, &r, fmt | DT_NOPREFIX); SelectObject(c->dc, o);
 }
 
 /* the grey line under a cheat */
@@ -370,7 +437,8 @@ static void hover_text(const char* about, wchar_t* out, size_t n) {
 /* ---- the grey line, drawn by hand: word-wrapped like DrawText, with the DS buttons in it (hold L+R, START+UP, [R],
  * L + R + SELECT...) in their own colour. rich_text(..., draw=0) only measures (the row height). */
 #define COL_KEY RGB(122, 178, 255)
-#define COL_WHO RGB(230, 196, 92)                                 /* "One player" / "All players" / "Your PC only" at the start */
+#define COL_WHO RGB(230, 196, 92)                                 /* "One player" / "Your PC only" at the start: yellow */
+#define COL_ALL RGB(242, 132, 196)                                /* "All players": pink */
 static int key_part(const wchar_t* p, int n, int loose) {     /* one button name; loose: also "Start", "Up"... */
     static const wchar_t* up[] = { L"A", L"B", L"X", L"Y", L"L", L"R", L"START", L"SELECT", L"UP", L"DOWN", L"LEFT", L"RIGHT" };
     static const wchar_t* cap[] = { L"Start", L"Select", L"Up", L"Down", L"Left", L"Right" };
@@ -398,6 +466,7 @@ static int rich_text(HDC dc, const wchar_t* t, RECT rc, int draw) {
     static const wchar_t* who[] = { L"One player", L"All players", L"Your PC only" };
     const wchar_t* who_end = t;                                      /* the who-needs-it words at the start: yellow */
     for (int i = 0; i < 3; i++) if (!wcsncmp(t, who[i], wcslen(who[i]))) who_end = t + wcslen(who[i]);
+    COLORREF who_col = !wcsncmp(t, L"All players", 11) ? COL_ALL : COL_WHO;
     if (draw) SetBkMode(dc, TRANSPARENT);
     while (*p) {
         int gap = 0; while (*p == L' ') { p++; gap++; }
@@ -417,7 +486,7 @@ static int rich_text(HDC dc, const wchar_t* t, RECT rc, int draw) {
         GetTextExtentPoint32W(dc, p, n, &z);
         if (x > 0 && x + z.cx > W) { x = 0; y += lh; }
         if (draw && p < who_end) {
-            SetTextColor(dc, COL_WHO);
+            SetTextColor(dc, who_col);
             TextOutW(dc, rc.left + x, rc.top + y, p, n);
         } else if (draw && key) {                                   /* only the button in blue: brackets, quotes, commas stay grey */
             SIZE za, zb; GetTextExtentPoint32W(dc, p, (int)(a - p), &za); GetTextExtentPoint32W(dc, p, (int)(b - p), &zb);
@@ -440,6 +509,66 @@ static int rich_text(HDC dc, const wchar_t* t, RECT rc, int draw) {
     return y + lh;
 }
 
+/* ---- the controls drawn by hand: hover, pills ---- */
+static HWND g_hot;                                                 /* the control under the mouse (a lighter look) */
+static LRESULT CALLBACK hot_proc(HWND h, UINT m, WPARAM wp, LPARAM lp);
+static void hook(HWND h) { SetPropW(h, L"dqix.old", (HANDLE)SetWindowLongPtrW(h, GWLP_WNDPROC, (LONG_PTR)hot_proc)); }
+
+/* a pill button (Everything off, Close, Do it now) */
+static void draw_pill_button(const DRAWITEMSTRUCT* d) {
+    RECT rc = d->rcItem; int w = rc.right - rc.left, h = rc.bottom - rc.top; Cv c;
+    if (!cv_begin(&c, w, h, COL_BG)) return;
+    int hot = g_hot == d->hwndItem, down = (d->itemState & ODS_SELECTED) != 0;
+    float r = (float)h / 2;
+    cv_box(&c, 0.5f, 0.5f, (float)w - 0.5f, (float)h - 0.5f, r, hot ? RGB(96, 99, 108) : RGB(70, 72, 80), 0);
+    cv_box(&c, 1.5f, 1.5f, (float)w - 1.5f, (float)h - 1.5f, r - 1, down ? RGB(40, 42, 47) : hot ? RGB(62, 64, 72) : RGB(49, 51, 57), 0);
+    if ((d->itemState & ODS_FOCUS) && !(d->itemState & ODS_NOFOCUSRECT)) cv_box(&c, 0.5f, 0.5f, (float)w - 0.5f, (float)h - 0.5f, r, COL_ACCENT, 1.5f);
+    wchar_t t[64]; GetWindowTextW(d->hwndItem, t, 64);
+    RECT tr = { 0, down ? 1 : 0, w, h + (down ? 1 : 0) };
+    cv_text(&c, t, tr, g_font, COL_TEXT, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+    cv_end(&c, d->hDC, rc.left, rc.top);
+}
+
+/* a drop-down drawn as a pill: what is chosen, and an arrow; something chosen (not Off): in the accent colour */
+static void paint_combo(HWND h, HDC dc) {
+    RECT rc; GetClientRect(h, &rc); int w = rc.right, ht = rc.bottom; Cv c;
+    if (!cv_begin(&c, w, ht, COL_BG)) return;
+    int hot = g_hot == h, open = (int)SendMessageW(h, CB_GETDROPPEDSTATE, 0, 0), focus = GetFocus() == h;
+    int sel = (int)SendMessageW(h, CB_GETCURSEL, 0, 0);
+    float r = (float)ht / 2;
+    COLORREF edge = open || focus ? COL_ACCENT : hot ? RGB(96, 99, 108) : RGB(70, 72, 80);
+    cv_box(&c, 0.5f, 0.5f, (float)w - 0.5f, (float)ht - 0.5f, r, edge, 0);
+    cv_box(&c, 1.5f, 1.5f, (float)w - 1.5f, (float)ht - 1.5f, r - 1, hot || open ? RGB(60, 62, 70) : RGB(49, 51, 57), 0);
+    float ax = (float)w - 18, ay = (float)ht / 2;                  /* the arrow: a small V */
+    COLORREF ac = sel > 0 ? COL_ACCENT : COL_GRAY;
+    cv_line(&c, ax - 4, ay - 2, ax, ay + 2, 1.6f, ac); cv_line(&c, ax, ay + 2, ax + 4, ay - 2, 1.6f, ac);
+    wchar_t t[300] = L"";
+    if (sel >= 0 && SendMessageW(h, CB_GETLBTEXTLEN, (WPARAM)sel, 0) < 299) SendMessageW(h, CB_GETLBTEXT, (WPARAM)sel, (LPARAM)t);
+    RECT tr = { 14, 0, w - 30, ht };
+    cv_text(&c, t, tr, g_font, sel > 0 ? COL_ACCENT : COL_TEXT, DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
+    cv_end(&c, dc, 0, 0);
+}
+
+static LRESULT CALLBACK hot_proc(HWND h, UINT m, WPARAM wp, LPARAM lp) {
+    WNDPROC old = (WNDPROC)GetPropW(h, L"dqix.old");
+    if (m == WM_MOUSEMOVE && g_hot != h) {
+        HWND was = g_hot; g_hot = h;
+        TRACKMOUSEEVENT t; memset(&t, 0, sizeof t); t.cbSize = sizeof t; t.dwFlags = TME_LEAVE; t.hwndTrack = h; TrackMouseEvent(&t);
+        if (was && IsWindow(was)) InvalidateRect(was, NULL, FALSE);
+        InvalidateRect(h, NULL, FALSE);
+    } else if (m == WM_MOUSELEAVE && g_hot == h) { g_hot = NULL; InvalidateRect(h, NULL, FALSE); }
+    else if (m == WM_NCDESTROY) { if (g_hot == h) g_hot = NULL; RemovePropW(h, L"dqix.old"); SetWindowLongPtrW(h, GWLP_WNDPROC, (LONG_PTR)old); return CallWindowProcW(old, h, m, wp, lp); }
+    wchar_t cls[16]; GetClassNameW(h, cls, 16);
+    if (!wcscmp(cls, L"ComboBox")) {
+        if (m == WM_PAINT) { PAINTSTRUCT ps; HDC dc = BeginPaint(h, &ps); paint_combo(h, dc); EndPaint(h, &ps); return 0; }
+        if (m == WM_ERASEBKGND) return 1;
+        if (m == WM_SETFOCUS || m == WM_KILLFOCUS || m == WM_ENABLE || m == CB_SETCURSEL) {
+            LRESULT res = CallWindowProcW(old, h, m, wp, lp); InvalidateRect(h, NULL, FALSE); return res;
+        }
+    }
+    return CallWindowProcW(old, h, m, wp, lp);
+}
+
 static void dark(HWND h, const wchar_t* theme);
 static HWND mk(const wchar_t* cls, const char* text, DWORD style, HFONT f, int id) {
     wchar_t* w = wide(text);
@@ -448,7 +577,9 @@ static HWND mk(const wchar_t* cls, const char* text, DWORD style, HFONT f, int i
         if (d) { for (size_t i = 0; i < n; i++) { d[k++] = w[i]; if (w[i] == L'&') d[k++] = L'&'; } d[k] = 0; free(w); w = d; }
     }
     HWND h = CreateWindowExW(0, cls, w, WS_CHILD | WS_VISIBLE | style, 0, 0, 10, 10, g_host, (HMENU)(UINT_PTR)id, GetModuleHandleW(NULL), NULL);
-    free(w); SendMessageW(h, WM_SETFONT, (WPARAM)f, TRUE); return h;
+    free(w); SendMessageW(h, WM_SETFONT, (WPARAM)f, TRUE);
+    if (!wcscmp(cls, L"COMBOBOX") || (!wcscmp(cls, L"BUTTON") && (style & BS_OWNERDRAW))) hook(h);
+    return h;
 }
 
 static void clear_rows(void) {
@@ -489,8 +620,8 @@ static void lay_rows(void) {
     HDWP dwp = BeginDeferWindowPos(g_nrows * 4 + 1);
     for (int i = 0; i < g_nrows; i++) {
         Row* r = &g_rows[i];
-        int rightw = r->kind == R_GROUP ? 200 : r->kind == R_KEY ? (W - 2 * PAD_X) * 42 / 100 : r->btn ? 92 : 0;
-        int gap = rightw ? 14 : 0, textw = W - 2 * PAD_X - rightw - gap, indent = (r->kind == R_CHECK || r->kind == R_ONCE) ? 40 : 0;
+        int rightw = r->kind == R_GROUP ? 230 : r->kind == R_KEY ? (W - 2 * PAD_X) * 42 / 100 : r->btn ? 112 : 0;
+        int gap = rightw ? 14 : 0, textw = W - 2 * PAD_X - rightw - gap, indent = r->kind == R_CHECK ? 48 : 0;
         int subh = 0, rh = 0;
         wchar_t buf[600];
         if (r->sub) {
@@ -501,13 +632,14 @@ static void lay_rows(void) {
             GetWindowTextW(r->right, buf, 600); HGDIOBJ o = SelectObject(dc, g_mono);
             RECT m = { 0, 0, rightw, 0 }; DrawTextW(dc, buf, -1, &m, DT_CALCRECT | DT_WORDBREAK | DT_NOPREFIX); rh = m.bottom; SelectObject(dc, o);
         }
-        int h = 9 + 18 + (subh ? 2 + subh : 0) + 9; if (rh + 18 > h) h = rh + 18; if (h < 44 && r->kind != R_KEY) h = 44; if (h < 40) h = 40;
+        int h = 8 + 26 + (subh ? 1 + subh : 0) + 10; if (rh + 18 > h) h = rh + 18; if (h < 50 && r->kind != R_KEY) h = 50; if (h < 40) h = 40;
         r->y = y; r->h = h;
         int top = y - g_scroll;
-        dwp = defer(dwp, r->main, PAD_X, top + 9, textw, 18);
-        if (r->sub) dwp = defer(dwp, r->sub, PAD_X + indent, top + 9 + 18 + 2, textw - indent, subh);
-        if (r->combo) dwp = defer(dwp, r->combo, W - PAD_X - rightw, top + (h - 24) / 2, rightw, 240);
-        if (r->btn) dwp = defer(dwp, r->btn, W - PAD_X - rightw, top + (h - 26) / 2, rightw, 26);
+        dwp = defer(dwp, r->main, PAD_X, top + 8, textw, 26);
+        if (r->sub) dwp = defer(dwp, r->sub, PAD_X + indent, top + 8 + 26 + 1, textw - indent, subh);
+        if (r->combo) { RECT cb; GetWindowRect(r->combo, &cb); int ch = cb.bottom - cb.top; if (ch < 20 || ch > 60) ch = 30;
+                        dwp = defer(dwp, r->combo, W - PAD_X - rightw, top + (h - ch) / 2, rightw, 300); }
+        if (r->btn) dwp = defer(dwp, r->btn, W - PAD_X - rightw, top + (h - 30) / 2, rightw, 30);
         if (r->kind == R_KEY && r->right) dwp = defer(dwp, r->right, W - PAD_X - rightw, top + (h - rh) / 2, rightw, rh);
         if (g_tip) { TOOLINFOW ti; memset(&ti, 0, sizeof ti); ti.cbSize = sizeof ti; ti.hwnd = g_host; ti.uId = (UINT_PTR)i; ti.rect.left = 0; ti.rect.right = W; ti.rect.top = top; ti.rect.bottom = top + h; SendMessageW(g_tip, TTM_NEWTOOLRECTW, 0, (LPARAM)&ti); }
         y += h;
@@ -520,12 +652,34 @@ static void lay_rows(void) {
     RedrawWindow(g_host, NULL, NULL, RDW_INVALIDATE | RDW_ERASE | RDW_ALLCHILDREN);
 }
 
+/* scrolling: the screen's pixels are moved (ScrollWindowEx), only the strip that comes into view is painted, so nothing
+ * flickers. Controls that were out of view are not moved by Windows: they are put where they belong without a redraw. */
 static void scroll_to(int pos) {
     RECT cr; GetClientRect(g_host, &cr); int max = g_total - cr.bottom; if (max < 0) max = 0;
     if (pos > max) pos = max;
     if (pos < 0) pos = 0;
     if (pos == g_scroll) return;
-    g_scroll = pos; lay_rows();
+    int dy = g_scroll - pos;
+    int n = 0, cap = g_nrows * 5; HWND* hs = (HWND*)malloc((size_t)(cap ? cap : 1) * sizeof *hs); int* want = (int*)malloc((size_t)(cap ? cap : 1) * sizeof *want);
+    for (int i = 0; i < g_nrows && hs && want; i++) {
+        HWND c5[5] = { g_rows[i].main, g_rows[i].sub, g_rows[i].right, g_rows[i].combo, g_rows[i].btn };
+        for (int k = 0; k < 5; k++) if (c5[k]) { RECT r; GetWindowRect(c5[k], &r); MapWindowPoints(NULL, g_host, (POINT*)&r, 2); hs[n] = c5[k]; want[n++] = r.top + dy; }
+    }
+    g_scroll = pos;
+    ScrollWindowEx(g_host, 0, dy, NULL, NULL, NULL, NULL, SW_SCROLLCHILDREN | SW_INVALIDATE | SW_ERASE);
+    for (int i = 0; i < n; i++) {
+        RECT r; GetWindowRect(hs[i], &r); MapWindowPoints(NULL, g_host, (POINT*)&r, 2);
+        if (r.top != want[i]) SetWindowPos(hs[i], NULL, r.left, want[i], 0, 0, SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOREDRAW | SWP_NOCOPYBITS);
+    }
+    free(hs); free(want);
+    for (int i = 0; i < g_nrows && g_tip; i++) {
+        TOOLINFOW ti; memset(&ti, 0, sizeof ti); ti.cbSize = sizeof ti; ti.hwnd = g_host; ti.uId = (UINT_PTR)i;
+        ti.rect.left = 0; ti.rect.right = cr.right; ti.rect.top = g_rows[i].y - g_scroll; ti.rect.bottom = ti.rect.top + g_rows[i].h;
+        SendMessageW(g_tip, TTM_NEWTOOLRECTW, 0, (LPARAM)&ti);
+    }
+    SCROLLINFO si; memset(&si, 0, sizeof si); si.cbSize = sizeof si; si.fMask = SIF_POS; si.nPos = g_scroll;
+    SetScrollInfo(g_host, SB_VERT, &si, TRUE);
+    UpdateWindow(g_host);
 }
 
 /* the search box: its text, lower case, UTF-8 */
@@ -589,9 +743,11 @@ static void build_page(void) {
                         Ent* m = &g_e[g->mem[j]];
                         if (p == g_search_page ? (all || match_words(m)) : (special || !strcmp(m->cat, g_pg[p]) || !strcmp(m->also, g_pg[p]))) r->members[r->nm++] = g->mem[j];
                     }
-                    r->main = mk(L"STATIC", g_g[gi].title, SS_NOPREFIX | SS_ENDELLIPSIS, g_bold, id);
-                    r->sub = mk(L"STATIC", "Choose one. Only one of these can be on.", SS_OWNERDRAW, g_small, id); SetWindowLongPtrW(r->sub, GWLP_USERDATA, 1);
+                    r->main = mk(L"STATIC", g_g[gi].title, SS_NOPREFIX | SS_ENDELLIPSIS | SS_CENTERIMAGE, g_bold, id);
+                    { char st[200]; snprintf(st, sizeof st, "%s  \xC2\xB7  Choose one: only one of these can be on.", who_group(g));
+                      r->sub = mk(L"STATIC", st, SS_OWNERDRAW, g_small, id); SetWindowLongPtrW(r->sub, GWLP_USERDATA, 1); }
                     r->combo = mk(L"COMBOBOX", "", CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP, g_font, id); dark(r->combo, L"DarkMode_CFD");
+                    SendMessageW(r->combo, CB_SETITEMHEIGHT, (WPARAM)-1, 24); SendMessageW(r->combo, CB_SETITEMHEIGHT, 0, 22);
                     SendMessageW(r->combo, CB_ADDSTRING, 0, (LPARAM)L"Off");
                     int cur = 0;
                     for (int k = 0; k < r->nm; k++) {
@@ -609,14 +765,14 @@ static void build_page(void) {
             if (p == g_on_page) { const Grp* gg = e->gi >= 0 ? &g_g[e->gi] : NULL; if (gg) snprintf(shown, sizeof shown, "%s: %s", gg->title, label(e)); else snprintf(shown, sizeof shown, "%s", e->name); }
             int once = !strcmp(e->mode, "once"), both = !strcmp(e->kind, "live") && (once || !strcmp(e->mode, "both"));
             Row* r = add_row(once ? R_ONCE : R_CHECK, i, -1); int id = IDC_ROW0 + g_nrows - 1;
-            if (once) r->main = mk(L"STATIC", shown, SS_NOPREFIX | SS_ENDELLIPSIS, g_font, id);
+            if (once) r->main = mk(L"STATIC", shown, SS_NOPREFIX | SS_ENDELLIPSIS | SS_CENTERIMAGE, g_font, id);
             else {
                 r->main = mk(L"BUTTON", shown, BS_OWNERDRAW | WS_TABSTOP, g_font, id);
                 r->on = ent_on(e);
             }
             char tag[700]; tag_text(e, tag, sizeof tag);
             r->sub = mk(L"STATIC", tag, SS_OWNERDRAW, g_small, id); SetWindowLongPtrW(r->sub, GWLP_USERDATA, 1);
-            if (both) { r->btn = mk(L"BUTTON", "Do it now", BS_PUSHBUTTON | WS_TABSTOP, g_font, id); dark(r->btn, L"DarkMode_Explorer"); }
+            if (both) r->btn = mk(L"BUTTON", "Do it now", BS_OWNERDRAW | WS_TABSTOP, g_font, id);
         }
         free(seen);
     }
@@ -683,13 +839,13 @@ static void group_changed(Row* r, int sel) {
 
 static void layout(int cw, int ch) {
     MoveWindow(g_side, 0, SEARCH_H, SIDE_W, ch - SEARCH_H, TRUE);
-    MoveWindow(g_search, 20, 14, SIDE_W - 40, 18, TRUE);
+    MoveWindow(g_search, 24, 14, SIDE_W - 48, 18, TRUE);
     MoveWindow(g_title, SIDE_W + PAD_X, 12, cw - SIDE_W - 2 * PAD_X, 28, TRUE);
     MoveWindow(g_count, SIDE_W + PAD_X, 41, cw - SIDE_W - 2 * PAD_X, 18, TRUE);
     MoveWindow(g_host, SIDE_W, 66, cw - SIDE_W, ch - 66 - 50, TRUE);
-    MoveWindow(g_note, SIDE_W + PAD_X, ch - 33, cw - SIDE_W - 2 * PAD_X - 210, 18, TRUE);
-    MoveWindow(g_off, cw - PAD_X - 110 - 8 - 76, ch - 39, 110, 28, TRUE);
-    MoveWindow(g_close, cw - PAD_X - 76, ch - 39, 76, 28, TRUE);
+    MoveWindow(g_note, SIDE_W + PAD_X, ch - 34, cw - SIDE_W - 2 * PAD_X - 262, 18, TRUE);
+    MoveWindow(g_off, cw - PAD_X - 150 - 10 - 92, ch - 42, 150, 32, TRUE);
+    MoveWindow(g_close, cw - PAD_X - 92, ch - 42, 92, 32, TRUE);
     if (g_nrows) lay_rows();
 }
 
@@ -708,27 +864,33 @@ static LRESULT CALLBACK hostproc(HWND h, UINT m, WPARAM wp, LPARAM lp) {
     case WM_ERASEBKGND: { RECT r; GetClientRect(h, &r); FillRect((HDC)wp, &r, g_white); return 1; }
     case WM_DRAWITEM: {
         DRAWITEMSTRUCT* d = (DRAWITEMSTRUCT*)lp; Row* r = row_of_id((int)d->CtlID);
-        if (r && r->sub == d->hwndItem) {                         /* the grey line, buttons in colour */
+        if (r && r->sub == d->hwndItem) {                         /* the grey line, buttons in colour (drawn off screen, copied in one go) */
             wchar_t t[600]; GetWindowTextW(d->hwndItem, t, 600);
-            FillRect(d->hDC, &d->rcItem, g_white);
-            HGDIOBJ of = SelectObject(d->hDC, g_small); rich_text(d->hDC, t, d->rcItem, 1); SelectObject(d->hDC, of);
+            RECT rc = d->rcItem; Cv c;
+            if (!cv_begin(&c, rc.right - rc.left, rc.bottom - rc.top, COL_BG)) return TRUE;
+            RECT inner = { 0, 0, c.w, c.h };
+            HGDIOBJ of = SelectObject(c.dc, g_small); rich_text(c.dc, t, inner, 1); SelectObject(c.dc, of);
+            cv_end(&c, d->hDC, rc.left, rc.top);
             return TRUE;
         }
+        if (r && r->btn == d->hwndItem) { draw_pill_button(d); return TRUE; }
         if (!r || r->main != d->hwndItem) break;
-        HDC dc = d->hDC; RECT rc = d->rcItem; FillRect(dc, &rc, g_white);
-        int cy = (rc.top + rc.bottom) / 2, on = r->on;
-        HBRUSH tb = CreateSolidBrush(on ? COL_ACCENT : COL_OFF); HPEN np = (HPEN)GetStockObject(NULL_PEN);
-        HGDIOBJ ob = SelectObject(dc, tb), op = SelectObject(dc, np);
-        RoundRect(dc, rc.left, cy - 9, rc.left + 32, cy + 10, 19, 19);
-        HBRUSH kb = CreateSolidBrush(on ? RGB(36, 37, 41) : RGB(220, 220, 224)); SelectObject(dc, kb);
-        int kx = on ? rc.left + 32 - 16 : rc.left + 3; Ellipse(dc, kx, cy - 6, kx + 13, cy + 7);
-        SelectObject(dc, ob); SelectObject(dc, op); DeleteObject(tb); DeleteObject(kb);
-        if (d->itemState & ODS_FOCUS) { HPEN fp = CreatePen(PS_SOLID, 1, COL_ACCENT); HGDIOBJ o1 = SelectObject(dc, fp), o2 = SelectObject(dc, GetStockObject(NULL_BRUSH));
-            RoundRect(dc, rc.left - 2, cy - 11, rc.left + 34, cy + 12, 22, 22); SelectObject(dc, o1); SelectObject(dc, o2); DeleteObject(fp); }
-        wchar_t t[400]; GetWindowTextW(d->hwndItem, t, 400);
-        SetBkMode(dc, TRANSPARENT); SetTextColor(dc, COL_TEXT); HGDIOBJ of = SelectObject(dc, g_font);
-        RECT tr = { rc.left + 40, rc.top, rc.right, rc.bottom }; DrawTextW(dc, t, -1, &tr, DT_SINGLELINE | DT_VCENTER | DT_NOPREFIX | DT_END_ELLIPSIS);
-        SelectObject(dc, of); return TRUE;
+        {   /* the switch: a pill with a round knob, smooth edges; lighter under the mouse */
+            RECT rc = d->rcItem; int w = rc.right - rc.left, ht = rc.bottom - rc.top, on = r->on, hot = g_hot == d->hwndItem; Cv c;
+            if (!cv_begin(&c, w, ht, COL_BG)) return TRUE;
+            float cy = (float)ht / 2, tw = 36, th = 20;
+            COLORREF track = on ? (hot ? RGB(240, 194, 86) : COL_ACCENT) : (hot ? RGB(86, 88, 97) : COL_OFF);
+            cv_box(&c, 0, cy - th / 2, tw, cy + th / 2, th / 2, track, 0);
+            if (!on) cv_box(&c, 0, cy - th / 2, tw, cy + th / 2, th / 2, hot ? RGB(110, 113, 123) : RGB(92, 94, 103), 1.0f);
+            float k = 14, kx = on ? tw - 3 - k : 3;
+            cv_box(&c, kx, cy - k / 2 + 1, kx + k, cy + k / 2 + 1, k / 2, on ? RGB(170, 128, 30) : RGB(40, 41, 46), 0);   /* soft shadow */
+            cv_box(&c, kx, cy - k / 2, kx + k, cy + k / 2, k / 2, on ? RGB(255, 255, 255) : RGB(214, 215, 221), 0);
+            if ((d->itemState & ODS_FOCUS) && !(d->itemState & ODS_NOFOCUSRECT)) cv_box(&c, -0.5f, cy - th / 2 - 3, tw + 3, cy + th / 2 + 3, th / 2 + 3, COL_ACCENT, 1.2f);
+            wchar_t t[400]; GetWindowTextW(d->hwndItem, t, 400);
+            RECT tr = { 48, 0, w, ht }; cv_text(&c, t, tr, g_font, COL_TEXT, DT_SINGLELINE | DT_VCENTER | DT_END_ELLIPSIS);
+            cv_end(&c, d->hDC, rc.left, rc.top);
+            return TRUE;
+        }
     }
     case WM_PAINT: {
         PAINTSTRUCT ps; HDC dc = BeginPaint(h, &ps); RECT cr; GetClientRect(h, &cr);
@@ -769,7 +931,7 @@ static LRESULT CALLBACK hostproc(HWND h, UINT m, WPARAM wp, LPARAM lp) {
             if (entry_changed(r, r->idx, on)) r->on = on;
             InvalidateRect(r->main, NULL, FALSE);
         } else if (r->btn && (HWND)lp == r->btn && code == BN_CLICKED && !strcmp(g_e[r->idx].kind, "live")) {
-            EnterCriticalSection(&g_cs); send_run(r->idx); LeaveCriticalSection(&g_cs); SetWindowTextW(g_note, L"Done (once).");
+            EnterCriticalSection(&g_cs); send_run(r->idx); LeaveCriticalSection(&g_cs);
         }
         return 0;
     }
@@ -797,9 +959,13 @@ static LRESULT CALLBACK wndproc(HWND h, UINT m, WPARAM wp, LPARAM lp) {
     switch (m) {
     case WM_TIMER: KillTimer(h, wp); if (wp == IDT_SEARCH) build_page(); else test_step((int)wp); return 0;
     case WM_PAINT: {
-        PAINTSTRUCT ps; HDC dc = BeginPaint(h, &ps); RECT t = { 0, 0, SIDE_W, SEARCH_H }; FillRect(dc, &t, g_gray);
-        HBRUSH bb = CreateSolidBrush(COL_BOX); HPEN bp = CreatePen(PS_SOLID, 1, COL_LINE); HGDIOBJ o1 = SelectObject(dc, bb), o2 = SelectObject(dc, bp);
-        RoundRect(dc, 10, 8, SIDE_W - 10, 37, 8, 8); SelectObject(dc, o1); SelectObject(dc, o2); DeleteObject(bb); DeleteObject(bp);
+        PAINTSTRUCT ps; HDC dc = BeginPaint(h, &ps); Cv c;              /* the search box: a pill */
+        if (cv_begin(&c, SIDE_W, SEARCH_H, COL_SIDE)) {
+            int focus = GetFocus() == g_search;
+            cv_box(&c, 10.5f, 7.5f, SIDE_W - 10.5f, 37.5f, 15, focus ? COL_ACCENT : COL_LINE, 0);
+            cv_box(&c, 11.5f, 8.5f, SIDE_W - 11.5f, 36.5f, 14, COL_BOX, 0);
+            cv_end(&c, dc, 0, 0);
+        }
         EndPaint(h, &ps); return 0;
     }
     case WM_CTLCOLOREDIT: { HDC dc = (HDC)wp; SetBkColor(dc, COL_BOX); SetTextColor(dc, COL_TEXT); return (LRESULT)g_box; }
@@ -814,11 +980,17 @@ static LRESULT CALLBACK wndproc(HWND h, UINT m, WPARAM wp, LPARAM lp) {
     }
     case WM_CTLCOLORLISTBOX: if ((HWND)lp == g_side) return (LRESULT)g_gray; break;
     case WM_MEASUREITEM: { MEASUREITEMSTRUCT* mi = (MEASUREITEMSTRUCT*)lp; if (mi->CtlID == IDC_SIDE) { mi->itemHeight = 32; return TRUE; } break; }
-    case WM_DRAWITEM: if (wp == IDC_SIDE) { draw_side((DRAWITEMSTRUCT*)lp); return TRUE; } break;
+    case WM_DRAWITEM:
+        if (wp == IDC_SIDE) { draw_side((DRAWITEMSTRUCT*)lp); return TRUE; }
+        if (wp == IDC_OFF || wp == IDC_CLOSE) { draw_pill_button((DRAWITEMSTRUCT*)lp); return TRUE; }
+        break;
     case WM_COMMAND:
         switch (LOWORD(wp)) {
         case IDC_SIDE: if (HIWORD(wp) == LBN_SELCHANGE) { if (GetWindowTextLengthW(g_search)) { SetWindowTextW(g_search, L""); KillTimer(h, IDT_SEARCH); } build_page(); } return 0;
-        case IDC_SEARCH: if (HIWORD(wp) == EN_CHANGE) SetTimer(h, IDT_SEARCH, 120, NULL); return 0;
+        case IDC_SEARCH:
+            if (HIWORD(wp) == EN_CHANGE) SetTimer(h, IDT_SEARCH, 120, NULL);
+            if (HIWORD(wp) == EN_SETFOCUS || HIWORD(wp) == EN_KILLFOCUS) { RECT t = { 0, 0, SIDE_W, SEARCH_H }; InvalidateRect(h, &t, FALSE); }
+            return 0;
         case IDC_CLOSE: case IDCANCEL: ShowWindow(h, SW_HIDE); return 0;
         case IDC_OFF:
             if (MessageBoxW(h, L"Switch every cheat off?", L"Cheats", MB_YESNO | MB_ICONQUESTION) == IDYES) { all_off(); build_page(); SetWindowTextW(g_note, L"Everything is off."); }
@@ -901,7 +1073,12 @@ static void test_step(int step) {
             else if (r->kind == R_GROUP) { for (int q = 0; q < r->nm; q++) if (r->members[q] == idx) { SendMessageW(r->combo, CB_SETCURSEL, (WPARAM)(q + 1), 0); group_changed(r, q + 1); k = 0; } }
             if (k == 0) { fprintf(stderr, "cheatwin test: switched on %s\n", g_test_id); break; }
         }
-    } else if (step == 2 && g_test_shot[0]) { save_shot(g_win, g_test_shot); fprintf(stderr, "cheatwin test: picture written\n"); }
+    } else if (step == 2 && g_test_shot[0]) {
+        const char* sc = getenv("DQIX_CHEATWIN_SCROLL");          /* tests: scroll in steps first (the controls must follow) */
+        if (sc && *sc) { int to = atoi(sc); for (int k = 1; k <= 8; k++) scroll_to(to * k / 8);
+                         RECT cr; GetClientRect(g_host, &cr); fprintf(stderr, "cheatwin test: scrolled %d of %d (page %d)\n", g_scroll, g_total, (int)cr.bottom); }
+        save_shot(g_win, g_test_shot); fprintf(stderr, "cheatwin test: picture written\n");
+    }
 }
 
 /* look of the system's current controls (rounded check boxes, flat drop-downs): comctl32 version 6 through an activation context made
@@ -938,6 +1115,30 @@ static HFONT mkfont(const wchar_t* face, int px, int weight) {
     return CreateFontW(-px, 0, 0, 0, weight, FALSE, FALSE, FALSE, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE, face);
 }
 
+/* JetBrains Mono for the window: the one installed on the PC, else the copy in mods/system/fonts (loaded for this program
+ * only); without either, Segoe UI. GDI names the semi-bold cut a family of its own ("JetBrains Mono SemiBold"). */
+static int font_is(HFONT f, const wchar_t* face) {
+    HDC dc = GetDC(NULL); HGDIOBJ o = SelectObject(dc, f); wchar_t got[64] = L""; GetTextFaceW(dc, 64, got); SelectObject(dc, o); ReleaseDC(NULL, dc);
+    return !_wcsicmp(got, face);
+}
+static void load_fonts(void) {
+    static const char* files[] = { "JetBrainsMono-Regular.ttf", "JetBrainsMono-SemiBold.ttf", "JetBrainsMono-Bold.ttf" };
+    for (int i = 0; i < 3; i++) {
+        char p[MAX_PATH * 2 + 64]; snprintf(p, sizeof p, "%s\\mods\\system\\fonts\\%s", g_root, files[i]);
+        AddFontResourceExA(p, FR_PRIVATE, NULL);
+    }
+}
+static HFONT ui_font(int px, int weight) {
+    HFONT f;
+    if (weight >= FW_SEMIBOLD) {
+        f = mkfont(L"JetBrains Mono SemiBold", px, FW_NORMAL); if (font_is(f, L"JetBrains Mono SemiBold")) return f; DeleteObject(f);
+        f = mkfont(L"JetBrains Mono", px, FW_BOLD);
+    } else f = mkfont(L"JetBrains Mono", px, weight);
+    if (font_is(f, L"JetBrains Mono")) return f;
+    DeleteObject(f);
+    return mkfont(L"Segoe UI", px + 1, weight);
+}
+
 static DWORD WINAPI ui_thread(LPVOID unused) {
     (void)unused;
     enable_styles();
@@ -948,8 +1149,9 @@ static DWORD WINAPI ui_thread(LPVOID unused) {
         INITCOMMONCONTROLSEX ic = { sizeof ic, ICC_STANDARD_CLASSES | ICC_TAB_CLASSES };
         if (f) f(&ic);
     }
-    g_font = mkfont(L"Segoe UI", 13, FW_NORMAL); g_small = mkfont(L"Segoe UI", 11, FW_NORMAL); g_bold = mkfont(L"Segoe UI", 13, FW_SEMIBOLD);
-    g_head = mkfont(L"Segoe UI", 20, FW_SEMIBOLD); g_mono = mkfont(L"Consolas", 12, FW_SEMIBOLD);
+    load_fonts();
+    g_font = ui_font(13, FW_NORMAL); g_small = ui_font(11, FW_NORMAL); g_bold = ui_font(13, FW_SEMIBOLD);
+    g_head = ui_font(20, FW_SEMIBOLD); g_mono = ui_font(12, FW_SEMIBOLD);
     g_box = CreateSolidBrush(COL_BOX); g_white = CreateSolidBrush(COL_BG); g_gray = CreateSolidBrush(COL_SIDE);
     HINSTANCE hi = GetModuleHandleW(NULL);
     WNDCLASSW wc; memset(&wc, 0, sizeof wc);
@@ -972,14 +1174,15 @@ static DWORD WINAPI ui_thread(LPVOID unused) {
     g_count = CreateWindowExW(0, L"STATIC", L"", WS_CHILD | WS_VISIBLE | SS_NOPREFIX, 0, 0, 10, 10, g_win, (HMENU)(UINT_PTR)IDC_COUNT, hi, NULL);
     g_host = CreateWindowExW(WS_EX_CONTROLPARENT, L"DqixCheatPage", L"", WS_CHILD | WS_VISIBLE | WS_VSCROLL | WS_CLIPCHILDREN, 0, 0, 10, 10, g_win, NULL, hi, NULL);
     g_note = CreateWindowExW(0, L"STATIC", L"Switches work at once while you play. Save your game first.", WS_CHILD | WS_VISIBLE | SS_NOPREFIX | SS_ENDELLIPSIS, 0, 0, 10, 10, g_win, (HMENU)(UINT_PTR)IDC_NOTE, hi, NULL);
-    g_off = CreateWindowExW(0, L"BUTTON", L"Everything off", WS_CHILD | WS_VISIBLE | WS_TABSTOP, 0, 0, 10, 10, g_win, (HMENU)(UINT_PTR)IDC_OFF, hi, NULL);
-    g_close = CreateWindowExW(0, L"BUTTON", L"Close", WS_CHILD | WS_VISIBLE | WS_TABSTOP, 0, 0, 10, 10, g_win, (HMENU)(UINT_PTR)IDC_CLOSE, hi, NULL);
+    g_off = CreateWindowExW(0, L"BUTTON", L"Everything off", WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_OWNERDRAW, 0, 0, 10, 10, g_win, (HMENU)(UINT_PTR)IDC_OFF, hi, NULL);
+    g_close = CreateWindowExW(0, L"BUTTON", L"Close", WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_OWNERDRAW, 0, 0, 10, 10, g_win, (HMENU)(UINT_PTR)IDC_CLOSE, hi, NULL);
+    hook(g_off); hook(g_close);
     SendMessageW(g_title, WM_SETFONT, (WPARAM)g_head, TRUE); SendMessageW(g_count, WM_SETFONT, (WPARAM)g_small, TRUE); SendMessageW(g_note, WM_SETFONT, (WPARAM)g_small, TRUE);
     SendMessageW(g_off, WM_SETFONT, (WPARAM)g_font, TRUE); SendMessageW(g_close, WM_SETFONT, (WPARAM)g_font, TRUE); SendMessageW(g_side, WM_SETFONT, (WPARAM)g_font, TRUE);
     SendMessageW(g_side, LB_SETITEMHEIGHT, 0, 32);
     g_tip = CreateWindowExW(WS_EX_TOPMOST, L"tooltips_class32", NULL, WS_POPUP | 0x01 /*TTS_ALWAYSTIP*/ | 0x02 /*TTS_NOPREFIX*/, 0, 0, 0, 0, g_win, NULL, hi, NULL);
     if (g_tip) { SendMessageW(g_tip, TTM_SETMAXTIPWIDTH, 0, 400); SendMessageW(g_tip, TTM_SETDELAYTIME, TTDT_INITIAL, 450); SendMessageW(g_tip, TTM_SETDELAYTIME, TTDT_AUTOPOP, 30000); SendMessageW(g_tip, WM_SETFONT, (WPARAM)g_font, TRUE); }
-    dark_title(g_win); dark(g_off, L"DarkMode_Explorer"); dark(g_close, L"DarkMode_Explorer"); dark(g_host, L"DarkMode_Explorer");
+    dark_title(g_win); dark(g_host, L"DarkMode_Explorer");
     g_on_page = g_npg; g_search_page = g_npg + 1;                                            /* the Enabled entry: a page number past the real ones */
     { int at0 = (int)SendMessageW(g_side, LB_ADDSTRING, 0, (LPARAM)L"Enabled"); SendMessageW(g_side, LB_SETITEMDATA, (WPARAM)at0, g_on_page); }
     for (int i = 0; i < g_npg; i++) {
@@ -1009,7 +1212,7 @@ static DWORD WINAPI ui_thread(LPVOID unused) {
 
 void mod_cheatwin_show(void) {
     if (!g_cs_init) { InitializeCriticalSection(&g_cs); g_cs_init = 1; }
-    if (!g_loaded) { load_catalog(); if (g_loaded) { load_state(); migrate_state(); seed_defaults(); } }
+    if (!g_loaded) { load_catalog(); if (g_loaded) { load_state(); migrate_state(); } }
     if (!g_loaded) {
         MessageBoxW(NULL, L"There is no cheat list yet. Run \"mods\\Apply cheats.bat\" once (it makes the list), then try again.", L"Cheats", MB_OK | MB_ICONINFORMATION);
         return;
