@@ -33,6 +33,10 @@
 extern uint8_t g_mod_vanish;
 extern uint64_t g_frame;
 void wrap_enccheck_orig(Cpu* c);
+void fn_main_0200f398(Cpu* c);       /* GameState::GetInstance */
+void fn_main_0200fddc(Cpu* c);       /* GameState::GetProtagonist(this): the hero's field object */
+void fn_main_0200fe00(Cpu* c);       /* GameState::GetPartyMemberByIndex(this, i): the field object of party member i */
+void fn_main_020372c8(Cpu* c);       /* Object3D::TransitionInheritedAlpha(obj, alpha 0..31, frames): the game's own fade (monsters fade out with it) */
 void interp_stub(Cpu* c, uint32_t addr);
 
 #define ENC_FUNC   0x02196430u
@@ -43,7 +47,30 @@ static const struct { uint32_t at, game, vanish; } k_site[2] = {
 
 static uint32_t* ram32(uint32_t a) { return (uint32_t*)&g_main_ram[a & (MAIN_RAM_SIZE - 1)]; }
 
+/* A vanished party looks like a ghost: the party members' field objects are faded to about a third (the game's own fade, 10 frames), and back
+ * to solid when the vanish ends. The contact check runs once a frame in the field, so the fade is started from it; while vanished it is repeated
+ * once a second (an object made new, e.g. after a map change, starts solid). The registers of the check are kept. */
+#define GHOST_ALPHA 10
+static void ghost(Cpu* c, int on) {
+    Cpu save = *c;
+    uint32_t done[5]; int nd = 0;
+    for (int i = -1; i < 4; i++) {                      /* -1: the protagonist, then the party members */
+        fn_main_0200f398(c);
+        if (i < 0) fn_main_0200fddc(c); else { c->r[1] = (uint32_t)i; fn_main_0200fe00(c); }
+        uint32_t obj = c->r[0]; int dup = 0;
+        for (int k = 0; k < nd; k++) if (done[k] == obj) dup = 1;
+        if (!obj || dup) continue;
+        done[nd++] = obj;
+        c->r[0] = obj; c->r[1] = on ? GHOST_ALPHA : 31; c->r[2] = 10;
+        fn_main_020372c8(c);
+        if (getenv("DQIX_MODLOG")) fprintf(stderr, "mod: ghost %d object %08x (%d)\n", on, obj, i);
+    }
+    *c = save;
+}
+
 void wrap_enccheck(Cpu* c) {
+    static int ghosted; static uint64_t last;
+    if (g_mod_vanish != ghosted || (g_mod_vanish && g_frame - last >= 30)) { ghost(c, g_mod_vanish); ghosted = g_mod_vanish; last = g_frame; }
     if (!g_mod_vanish) { wrap_enccheck_orig(c); return; }
     for (int i = 0; i < 2; i++) if (*ram32(k_site[i].at) != k_site[i].game) { c->r[0] = 0; return; }
     static int logged;

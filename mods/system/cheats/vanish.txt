@@ -2,7 +2,7 @@
 # mode: always
 # category: World
 # replaces: Run Through Enemies
-# about: Switch it on, then press L + R + SELECT together in the game to vanish and again to show up. While vanished, monsters can't start a battle by touching you.
+# about: Switch it on, then press L + R + SELECT together in the game to vanish and again to show up. While vanished, you look like a ghost (see-through) and monsters can't start a battle by touching you.
 # The address is not memory: mods/system/src/runtime/mod_cheats.c takes it as the switch "Vanish is available"
 # and keeps the on/off state itself; mods/system/src/runtime/vanish.c answers "no contact" while vanished.
 02F5A5A4 00000001

@@ -6,7 +6,9 @@ Newest first. One block per working session: what changed, why, how it was check
 - **"Battle any monster" with a boss left the field empty**: bosses have value 3 (field model) = 0 in `fld_mondata.bin`, so nothing was drawn. `mod_data.c` now gives a forced boss the slime's model + scale (record 1) and overlays that table too. `test_force_data.c` checks it (host, PASS). Not seen in a running game (no field save at hand).
 - **Switching it off still forced the monster**: `restart_game` started the new game with the old game's environment (`_putenv` of the launch options at boot). It now clears every launch variable first.
 - **Update check**: 1.5 s after start instead of 20 s; new menu item `Cheats > Check for update...` (command 368, last entry) that always answers (up to date / offline / update prompt, ignores "turned down").
-- **Not done**: Zoom indoors, Vanish as a ghost (need RE: the spell's usability check; the hero model's polygon alpha).
+- **Vanish makes the party a ghost**: while vanished the party's field objects (`GameState::GetProtagonist` / `GetPartyMemberByIndex`) are faded to alpha 10/31 with the game's own `Object3D::TransitionInheritedAlpha(obj, alpha, frames)` (alpha 0..31, tween at obj+0x70), started from the contact-check wrap in `vanish.c` and repeated every 30 frames (a map change makes new objects), back to 31 when it ends. `tests/test_vanish_ghost.py` (`dev test vanish-ghost`, TEST_SAVE) checks the log and writes pictures: the hero is see-through in them.
+- **Test save**: `tests/dqix_test.sav` is now the user's `dqix_usa_test.sav` (still gitignored).
+- **Not done**: Zoom indoors. Found so far: in Guarantomb the Zoom menu works and "Lyx casts Zoom", then a failure line ("The party bang the ...") instead of the warp; the successful Zoom writes the destination (020F37D0) from ov004 02165df4, Evac from ov017 021ab860. The place that refuses is not found yet.
 - Checked: `dev test fast cheatwin` 7/7.
 
 ## 2026-11-15 (58)  Every spell and ability, effects last (corrected), updater repair
