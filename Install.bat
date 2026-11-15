@@ -16,7 +16,7 @@ exit /b %errorlevel%
 :no_script
 echo.
 echo The installer cannot find its files ("installer\Install.ps1" and the "mods" folder next to this file).
-echo You probably started it from inside the ZIP. Right-click release.zip, choose "Extract All...",
+echo You probably started it from inside the ZIP. Right-click the zip, choose "Extract All...",
 echo and start "Install.bat" from the folder that was made.
 echo.
 pause

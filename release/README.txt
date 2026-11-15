@@ -7,7 +7,7 @@ What you need
     with your own Dragon Quest IX ROM. Its installer does that.
 
 How to install
-  1. Right-click release.zip, choose "Extract All...", then Extract.
+  1. Right-click the downloaded zip (release-<version>.zip), choose "Extract All...", then Extract.
   2. Open the new folder and double-click "Install.bat".
      (If Windows says "Windows protected your PC": More info, then Run anyway.)
   3. The installer asks where your DQIX Enhanced folder is (the one with BUILD.bat in it).

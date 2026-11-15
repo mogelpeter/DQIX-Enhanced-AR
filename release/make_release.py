@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Builds release.zip (only what a player needs) and publishes it as a GitHub release.
+"""Builds release-<version>.zip (only what a player needs) and publishes it as a GitHub release.
 
-    python release/make_release.py            only check and build dist/release.zip, print the release notes (nothing is changed or sent)
+    python release/make_release.py            only check and build dist/release-<version>.zip, print the release notes (nothing is changed or sent)
     python release/make_release.py --publish  check, bump the version, build, commit, tag, push, publish   (only when asked for!)
 
 The release notes are made from what changed since the last release: the commit messages and the new blocks of
@@ -9,7 +9,8 @@ docs/NOTES.md. --notes "text" adds a line of your own at the top.
 
 The version (file VERSION) is the version of the last release. Every release takes the next one (1.0.0 -> 1.0.1 ...;
 --minor / --major count the other places); the very first release takes the number in VERSION as it is.
-The zip is always the same asset name, release.zip, so
+The zip is release-<version>.zip (the version is in the name, and "Extract All" makes a folder with it); the same file is also
+attached as release.zip, so
 https://github.com/mogelpeter/DQIX-Enhanced-AR/releases/latest/download/release.zip is always the newest one.
 
 What is in the zip is the list below: the installer, the mods the game needs, the readme. Not the tests, the
@@ -198,7 +199,7 @@ def build_zip(version):
     if problems:
         sys.exit("The release has problems:\n  " + "\n  ".join(problems))
     os.makedirs(DIST, exist_ok=True)
-    out = os.path.join(DIST, "release.zip")
+    out = os.path.join(DIST, "release-%s.zip" % version)
     if os.path.exists(out):
         os.remove(out)
     with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED, compresslevel=9) as z:
@@ -210,6 +211,7 @@ def build_zip(version):
     with zipfile.ZipFile(out) as z:
         if z.testzip():
             sys.exit("the zip is damaged")
+    shutil.copyfile(out, os.path.join(DIST, "release.zip"))      # the same file under the name the fixed link points to
     print("built %s: %d files, %.1f KB, version %s" % (out, len(contents), os.path.getsize(out) / 1024, version))
     return out
 
@@ -268,7 +270,7 @@ def make_notes(version, extra, prev=..., ref="HEAD"):
         for head, body in fresh:
             lines += ["### " + head, "", body, ""]
     lines += ["## Install", "",
-              "Download `release.zip`, extract it and double-click `Install.bat`. It asks where your DQIX Enhanced folder is, "
+              "Download `release-<version>.zip`, extract it and double-click `Install.bat`. It asks where your DQIX Enhanced folder is, "
               "puts the files in and builds the cheats into the game. Close the game first. "
               "An update over an older version keeps your settings and your save.", ""]
     if prev:
@@ -307,10 +309,10 @@ def publish(version, zip_path, notes):
                "body": notes, "draft": False, "prerelease": False, "make_latest": "true"})
     with open(zip_path, "rb") as f:
         data = f.read()
-    up = rel["upload_url"].split("{")[0] + "?name=release.zip"
-    asset = api("POST", up, tok, data, "application/zip")
+    for name in (os.path.basename(zip_path), "release.zip"):
+        asset = api("POST", rel["upload_url"].split("{")[0] + "?name=" + name, tok, data, "application/zip")
+        print("download :", asset["browser_download_url"])
     print("published:", rel["html_url"])
-    print("download :", asset["browser_download_url"])
 
 
 def main():
