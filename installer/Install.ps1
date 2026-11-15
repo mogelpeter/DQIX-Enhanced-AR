@@ -127,7 +127,7 @@ function Expand-Zip([string]$Zip, [string]$Dest) {
 }
 
 function New-TempFolder {
-    $d = Join-Path ([System.IO.Path]::GetTempPath()) ('dqix-ar-' + [Guid]::NewGuid().ToString('N').Substring(0, 8))
+    $d = Join-Path (Get-StateDir) ('work-' + [Guid]::NewGuid().ToString('N').Substring(0, 8))
     [void](New-Item -ItemType Directory -Path $d -Force)
     return $d
 }
@@ -270,7 +270,6 @@ function Install-GameFolder([string]$Parent) {
         $n = 2
         while (Test-Path -LiteralPath $dest) { $dest = Join-Path $Parent ('DQIX-Enhanced-' + $n); $n++ }
         Move-Item -LiteralPath $inner[0].FullName -Destination $dest
-        try { Get-ChildItem -LiteralPath $dest -Recurse -File | Unblock-File -ErrorAction SilentlyContinue } catch { }
         Say ('  DQIX Enhanced is now in ' + $dest) 'Green'
         return $dest
     } catch {
@@ -557,7 +556,7 @@ function Get-LatestRelease {
         if ($tag -notmatch '^\d+\.\d+\.\d+$') { return $null }
         $asset = @($r.assets | Where-Object { $_.name -like 'release-*.zip' }) | Select-Object -First 1
         if (-not $asset) { return $null }
-        return @{ Version = $tag; Url = [string]$asset.browser_download_url; Page = [string]$r.html_url }
+        return @{ Version = $tag; Url = [string]$asset.browser_download_url; Page = [string]$r.html_url; Digest = [string]$asset.digest }
     } catch { Write-Log ('update check failed: ' + $_.Exception.Message); return $null }
 }
 
@@ -585,6 +584,15 @@ function Invoke-UpdateCheck([string]$Target, [string]$Current) {
         Say ('  Downloading version ' + $rel.Version + ' ...') 'Gray'
         $zip = Join-Path $tmp 'release.zip'
         Get-File $rel.Url $zip
+        # what GitHub says the file is (sha256) must be what arrived; nothing of it runs otherwise
+        $want = ([string]$rel.Digest).Replace('sha256:', '').Trim().ToLower()
+        if ($want -match '^[0-9a-f]{64}$') {
+            $got = (Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash.ToLower()
+            if ($got -ne $want) { throw 'The downloaded file does not match the checksum GitHub states for it. It was not used.' }
+            Say '  Checksum (SHA-256) of the download is correct.' 'Gray'
+        } elseif (-not $env:DQIX_AR_API) {
+            throw 'GitHub gave no checksum for the download, so it was not used.'
+        }
         Expand-Zip $zip (Join-Path $tmp 'new')
         $root = Join-Path $tmp 'new'
         if (-not (Test-Path -LiteralPath (Join-Path $root 'installer\Install.ps1'))) {
@@ -595,7 +603,6 @@ function Invoke-UpdateCheck([string]$Target, [string]$Current) {
         if (-not (Test-Path -LiteralPath $newPs1) -or -not (Test-Path -LiteralPath (Join-Path $root 'mods\Apply.bat'))) { throw 'The downloaded update is not complete (no installer or mods folder in it).' }
         $nv = ([string](Get-Content -LiteralPath (Join-Path $root 'VERSION') -TotalCount 1)).Trim()
         if ($nv -ne $rel.Version) { throw ('The downloaded update says it is version ' + $nv + ', not ' + $rel.Version + '.') }
-        try { Get-ChildItem -LiteralPath $root -Recurse -File | Unblock-File -ErrorAction SilentlyContinue } catch { }
 
         Say ('  Installing version ' + $rel.Version + ' ...') 'Cyan'
         $ps = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'

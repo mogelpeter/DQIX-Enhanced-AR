@@ -15,6 +15,7 @@ What is in the zip is the list below: the installer, the mods the game needs, th
 developer tools, the notes, .claude, .git.
 """
 import argparse
+import hashlib
 import json
 import os
 import py_compile
@@ -212,7 +213,36 @@ def build_zip(version):
         if z.testzip():
             sys.exit("the zip is damaged")
     print("built %s: %d files, %.1f KB, version %s" % (out, len(contents), os.path.getsize(out) / 1024, version))
+    defender_scan(out)
     return out
+
+
+def sha256(path):
+    h = hashlib.sha256()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(1 << 20), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def defender_scan(zip_path):
+    """Windows Defender scans the zip and what is in it before anything is published (a false positive is found here, not by a player)."""
+    mp = os.path.join(os.environ.get("ProgramFiles", r"C:\Program Files"), "Windows Defender", "MpCmdRun.exe")
+    if not os.path.isfile(mp):
+        print("note: Windows Defender not found, the release was not scanned")
+        return
+    tmp = tempfile.mkdtemp(prefix="dqix-scan-")
+    try:
+        with zipfile.ZipFile(zip_path) as z:
+            z.extractall(os.path.join(tmp, "x"))
+        shutil.copy(zip_path, tmp)
+        r = subprocess.run([mp, "-Scan", "-ScanType", "3", "-File", tmp, "-DisableRemediation"], capture_output=True, text=True, errors="replace")
+        out = r.stdout + r.stderr
+        if "found no threats" not in out:
+            sys.exit("Windows Defender did not give the release a clean bill:\n" + out)
+        print("Windows Defender: no threats in the zip and its files")
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
 
 
 def previous_tag():
@@ -230,7 +260,7 @@ def notes_blocks(text):
     return out
 
 
-def make_notes(version, extra, prev=..., ref="HEAD"):
+def make_notes(version, extra, prev=..., ref="HEAD", digest=None):
     """the release notes: what changed since the last release (commit messages, new blocks of docs/NOTES.md)"""
     run("git", "fetch", "origin", "--tags", "--quiet")
     if prev is ...:
@@ -272,6 +302,10 @@ def make_notes(version, extra, prev=..., ref="HEAD"):
               "Download `release-<version>.zip`, extract it and double-click `Install.bat`. It asks where your DQIX Enhanced folder is, "
               "puts the files in and builds the cheats into the game. Close the game first. "
               "An update over an older version keeps your settings and your save.", ""]
+    if digest:
+        lines += ["## Check the download", "",
+                  "SHA-256 of `release-%s.zip`: `%s`" % (version, digest),
+                  "In PowerShell: `(Get-FileHash .\\release-%s.zip).Hash`. The release was scanned with Windows Defender before it was published." % version, ""]
     if prev:
         lines.append("All changes since %s: https://github.com/%s/compare/%s...v%s" % (prev, REPO, prev, version))
     return "\n".join(lines).strip() + "\n"
@@ -353,7 +387,7 @@ def main():
     if run("git", "status", "--porcelain"):
         run("git", "commit", "-m", "Release v%s\n\nCo-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>" % version)
     run("git", "push", "origin", "main")
-    notes = make_notes(version, a.notes)
+    notes = make_notes(version, a.notes, digest=sha256(zip_path))
     publish(version, zip_path, notes)
 
 

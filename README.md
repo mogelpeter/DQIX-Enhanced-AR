@@ -201,6 +201,18 @@ The cheat list comes from the community's R4 database (DeadSkullzJr's NDS(i) Che
 
 ---
 
+## Is it safe? Windows warnings
+
+The installer and the cheats are plain, readable scripts and C source: nothing is obfuscated or encoded, and you can read every line in this repo.
+
+- **What the installer does:** copies the files into your DQIX Enhanced folder's `mods` folder, runs `mods\Apply.bat` to build the game, and keeps a few small text files in `%LOCALAPPDATA%\DQIX-Enhanced-AR` (the remembered folder and the requirement check). It needs no administrator rights and changes no registry entries, services or startup items.
+- **What it downloads, and from where:** only from `github.com` / `api.github.com`: the newest release of this project (its SHA-256 is checked against the checksum GitHub states before anything is run), and, only if you say yes, DQIX Enhanced itself. MSYS2 (the build tools) comes through the game's own installer.
+- **"Windows protected your PC" (SmartScreen):** shows for every program that is not code-signed by a paid certificate, whatever it does. *More info*, then *Run anyway*.
+- **Check the download yourself:** every release page states the SHA-256 of the zip: `(Get-FileHash .\release-X.Y.Z.zip).Hash` in PowerShell must give the same. Every release is scanned with Windows Defender before it is published, and you can upload the zip to virustotal.com.
+- **Defender flags something anyway?** That is a false positive: please report the file at <https://www.microsoft.com/wdsi/filesubmission> (and open an issue here).
+
+---
+
 ## Troubleshooting
 
 | Problem | What to do |
