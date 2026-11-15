@@ -50,7 +50,7 @@ One rule: **do the cheapest check that can catch the mistake, and never repeat a
 
 1. Install Python 3.8+ (or just build the game once: the MSYS2 tools bring their own).
 2. Build the game once with the project's `BUILD.bat` (needs your own ROM in `rom\`).
-3. Copy `Install cheats.bat` and `mods\` from this repo into the game folder (next to `BUILD.bat`) and run `Install cheats.bat` there.
+3. Run `Install cheats.bat` from a clone of this repo (or from release.zip): it asks for the game folder, copies `mods\` and runs `Apply cheats.bat`.
 4. `mods\system\dev.bat doctor` lists anything still missing and how to fix it.
 5. Working from the repo on that PC: `mods\system\dev-root.txt` (one line, the game folder) or `set DQIX_ROOT=...`.
 
@@ -80,3 +80,7 @@ Method: (1) hypothesis from the R4 name/`ar` output, (2) two RAM dumps around th
 (3) `DQIX_WATCH` on one of them names the writer, (4) `func` names it, (5) write the result (address, meaning, how found) in `docs/NOTES.md`
 and, if it is a lesson, in the memory `dqix-lessons.md`. Headless runs are deterministic for the same exe + `DQIX_INPUT`, so every
 experiment can be repeated and compared.
+
+## Releasing
+
+`python release/make_release.py` (commit first; `--dry-run` only builds `dist/release.zip`): checks the files that go to players (ASCII and CRLF in .bat/.ps1, PowerShell parse, batch labels, Python/sh syntax, no dev files), takes the next version (VERSION = the last release; patch +1, `--minor`/`--major`), commits it, pushes, tags `vX.Y.Z` and publishes release.zip on GitHub with the token git already has. The zip holds only what a player needs (list in the script). Every update of the release gets a new version number.

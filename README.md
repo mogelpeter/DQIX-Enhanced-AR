@@ -31,7 +31,7 @@ The ROM and the game itself are never part of this repo.
 ## Quick install
 
 1. Build DQIX Enhanced once (its installer, or its `BUILD.bat`, with your own ROM).
-2. Copy **`Install cheats.bat`** and the **`mods`** folder from this repo into your DQIX Enhanced folder (the one with `BUILD.bat` in it), then double-click **`Install cheats.bat`** there. It is a patcher: it builds the **Cheats** tab into the game (a few minutes the first time). No shortcut, nothing extra to start.
+2. Download **`release.zip`** from the [latest release](https://github.com/mogelpeter/DQIX-Enhanced-AR/releases/latest), extract it and double-click **`Install cheats.bat`**. It asks where your DQIX Enhanced folder is (the one with `BUILD.bat` in it; it usually finds it itself), puts the files in and builds the **Cheats** tab into the game (a few minutes the first time).
 3. Start the game as always with `game\dqix.exe`. Whether you want cheats is up to you: open **Cheats > Cheats...** in the menu bar and switch on what you like.
 
 Trouble? `mods\system\dev.bat doctor` says what is missing and how to fix it.
@@ -62,27 +62,16 @@ If it says it can't find your ROM, copy the `.nds` file (or a `.zip` that has it
 
 ### Step 3: Get the cheats
 
-1. Open <https://github.com/mogelpeter/DQIX-Enhanced-AR>.
-2. Click the green **Code** button, then **Download ZIP**.
-3. Right-click the ZIP in Downloads, **Extract All...**, **Extract**. You can leave the extracted folder where it is.
+1. Open <https://github.com/mogelpeter/DQIX-Enhanced-AR/releases/latest> and download **`release.zip`**.
+2. Right-click the ZIP in Downloads, **Extract All...**, **Extract**. You can leave the extracted folder where it is.
 
 ### Step 4: Install the cheats
 
-1. Open the extracted cheats folder. You will see **`Install cheats.bat`** and a folder called **`mods`**.
-2. Select both, copy them (Ctrl+C), open your DQIX Enhanced folder from Step 1 (the one with `BUILD.bat` in it) and paste them there (Ctrl+V). If Windows asks about replacing files, choose **Replace**. It should now look like this:
+1. Open the extracted folder and double-click **`Install cheats.bat`**. If Windows says **"Windows protected your PC"**: **More info**, then **Run anyway**.
+2. A window asks whether the DQIX Enhanced folder it found is the right one (the one with `BUILD.bat` in it, from Step 1). If it found none, or you say *No*, a folder window opens: pick the folder.
+3. Wait. The installer puts the files into that folder's `mods` folder and builds the **Cheats** tab into your game. **A few minutes the first time.** Do not close the window; it says *"Done."* when it is finished and offers to start the game.
 
-   ```
-   DQIX-Enhanced\
-       BUILD.bat
-       Install cheats.bat   <- here
-       mods\                <- here
-       game\
-       ...
-   ```
-3. In the DQIX Enhanced folder double-click **`Install cheats.bat`**. If Windows says **"Windows protected your PC"**: **More info**, then **Run anyway**.
-4. Wait. It builds the **Cheats** tab into your game. **A few minutes the first time.** Do not close the window; it says *"Done."* when it's finished.
-
-Make sure the game is **closed** while installing. If it is still running the installer tells you so; close the game and run **`Install cheats.bat`** again.
+Make sure the game is **closed** while installing. If it is still running the installer tells you so; close the game and press *Retry*. Your choices in the game and your save are kept.
 
 ### Step 5: Play with cheats
 
@@ -137,7 +126,7 @@ The game's menu bar (Game, Graphics, Screen, View, Wireless, Modern, Mods, **Che
 The tab is not a copy of the game's files: it is a handful of small, clearly marked changes (`>>> mods ... <<< mods`) that `mods\system\tools\apply_runtime_mod.py` puts into the game's source before it is built. An update of the game replaces those files, so:
 
 - **Update from inside the game (Help > Check for updates):** the updater also runs `mods\Apply cheats.bat apply` (the patcher) before it rebuilds, so the new game comes out with the tab, the cheats and your switches again. Nothing to do.
-- **Update by hand (a new download):** copy the new `Install cheats.bat` and `mods` folder over the old ones (replace), then run **`Install cheats.bat`** once; every change is put back and the game is rebuilt.
+- **Update by hand (a new download):** download the new `release.zip`, extract it and run its **`Install cheats.bat`**; the files are replaced (the ones that are not in it any more are removed), every change is put back and the game is rebuilt.
 - **A place the new version wrote differently:** it is skipped with a message and the rest still works.
 - The update never deletes the `mods` folder, so what you switched on stays (`mods\system\menu-state.txt`).
 
@@ -151,7 +140,7 @@ The cheats work in sessions as long as every player's game has them built in.
 
 In a session every PC runs every player's DS, and they must all compute exactly the same. So a cheat can't just be written into your PC's memory. It travels with your button presses instead: your game sends it to the others like a button, and every PC carries it out for your DS in the same frame.
 
-1. Give every player this download; each copies `Install cheats.bat` and `mods` into their DQIX Enhanced folder and runs `Install cheats.bat` once.
+1. Give every player this download; each extracts it and runs `Install cheats.bat` once.
 2. Host and join as usual (Wireless > Play with friends).
 3. Use the cheats as when alone. They only change your own DS (hero, gold, bag), on every PC at once. Friends don't need the same cheats on.
 
@@ -192,7 +181,8 @@ The cheat list comes from the community's R4 database (DeadSkullzJr's NDS(i) Che
 | Problem | What to do |
 |---|---|
 | *"Windows protected your PC"* | Click **More info**, then **Run anyway**. The files are plain batch scripts you can open in Notepad. |
-| The installer says *"This file is not in your DQIX Enhanced folder"* or *"The mods folder is missing"* | `Install cheats.bat` and the `mods` folder must both sit directly in your DQIX Enhanced folder, next to `BUILD.bat`. The game must be built first (`game\dqix.exe` exists). |
+| The installer says *"cannot find its files"* | You started it from inside the ZIP. Extract the whole ZIP first (right-click, **Extract All...**). |
+| The installer says *"This is not a DQIX Enhanced folder"* | Pick the folder with `BUILD.bat` in it. The game is built the first time by the installer (it asks for your ROM). |
 | *"The game is still running"* | Close the game, run `Install cheats.bat` again. |
 | The **Cheats** tab is missing in the game | The game was built without it (for example after a hand-made update). Run `Install cheats.bat` or `mods\Apply cheats.bat` once, wait for the build. |
 | *"cmp: command not found"* at the end of a build | Harmless. To silence it: open the MSYS2 UCRT64 terminal and run `pacman -S diffutils`. |
@@ -220,7 +210,7 @@ See [docs/WORKFLOW.md](docs/WORKFLOW.md) (fast loop, which test for which change
 Layout:
 
 ```
-Install cheats.bat          one-click installer (put it and mods\ into the game folder, then run it: it runs Apply cheats.bat)
+Install cheats.bat/.ps1     the installer (asks for the game folder, copies mods\, runs Apply cheats.bat); release\ builds release.zip
 mods\Apply cheats.bat       the patcher: cheat list for your ROM, cheats into the game's source, build, save editor helper
                             (also run by the game's updater and by the Cheats window for a rebuild)
 mods\settings.txt           sync_cheats

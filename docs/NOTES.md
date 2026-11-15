@@ -2,6 +2,11 @@
 
 Newest first. One block per working session: what changed, why, how it was checked.
 
+## 2026-11-15 (49)  Installer with folder window, release.zip
+- **`Install cheats.bat`** now starts `Install cheats.ps1` (Windows PowerShell 5.1, plain ASCII, CRLF): finds the DQIX Enhanced folder (remembered one, next to the installer, Documents / Desktop / Downloads guesses), asks to confirm or opens a folder window (a folder around it also works), refuses a folder without BUILD.bat, waits while dqix.exe runs, copies `mods\` (identical files are not touched, so the editor helper is not rebuilt for nothing; `mods\settings.txt` stays; files of an older download that are gone now are removed using `mods\system\installed-files.txt`), takes the download mark off the copies, runs `Apply cheats.bat apply`, offers to start the game. Switches `-GameFolder -NoApply -Quiet` for tests. Log: `%TEMP%\dqix-cheats-install.log`.
+- **`release\make_release.py`** builds `dist/release.zip` (only the installer, the mods the game needs and a short README; no tests, dev tools, notes, .claude), lints it (ASCII/CRLF, PowerShell parse, batch labels, Python and sh syntax), then bumps VERSION, commits, pushes, tags and publishes it as GitHub release. First release 1.0.0; every later release takes the next number.
+- Checked: release.zip extracted to a scratch folder, `Install cheats.bat -GameFolder <game> -Quiet` ran end to end (copy, rebuild, Done) on this PC's game folder, and the copy part on an empty fake folder. Not run on another PC.
+
 ## 2026-11-15 (48)  Reported: chest cheat forced steals, mini medals
 - **Monsters always drop a treasure chest** also made every steal (thief skill) succeed, from both drop tables, and gave two chests. The roll's result in ov023 021f454c is now multiplied by the pass number (r7), so only the defeat pass is sure (021f4a08 / 021f4ad0 `cmp r0,#0` -> `muls r0,r7,r0`); the branches and the jump past the second slot are left as the game has them. Static + fast tests pass; not tried in a real fight.
 - **Mini medals and "Ingredients never decrease"**: the report came from the old R4 code (bag functions). The new file only touches the Krak Pot's three calls (all four callers of 0215759c are in the alchemy code), so the medal shop is not affected.
