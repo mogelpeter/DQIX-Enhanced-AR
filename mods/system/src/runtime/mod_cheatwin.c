@@ -22,6 +22,7 @@
 #include <string.h>
 #include <ctype.h>
 #include <math.h>
+#include <winhttp.h>
 
 int mod_cheats_post(const uint16_t* w, int n);       /* mod_cheats.c: words into the mailbox's ring; 0 = full or no mailbox */
 uint32_t mod_cheats_gen(void);                       /* goes up whenever the game forgot every cheat */
@@ -315,10 +316,12 @@ static void all_off(void) {
 }
 
 /* ---- program start ---- */
+static void upd_start(void);
 void mod_cheatwin_boot(void) {
     if (getenv("DQIX_CHEATWIN_OFF")) return;                /* tests: nothing is sent or set by itself */
     if (!g_cs_init) { InitializeCriticalSection(&g_cs); g_cs_init = 1; }
     load_catalog();
+    upd_start();                                             /* a newer release on GitHub? (a thread; asks once) */
     if (!g_loaded) return;
     load_state();
     migrate_state();                                         /* nothing is switched on by itself: a first start has every cheat off */
@@ -395,6 +398,111 @@ static wchar_t* wide(const char* s) {
     int n = MultiByteToWideChar(CP_UTF8, 0, s, -1, NULL, 0); wchar_t* w = (wchar_t*)malloc((size_t)(n + 1) * sizeof *w);
     if (w) { MultiByteToWideChar(CP_UTF8, 0, s, -1, w, n); w[n] = 0; }
     return w;
+}
+
+/* ---- a newer release on GitHub: asked about once, a little after the start ----
+ * mods\system\version.txt says which version of these cheats is installed (the installer writes it; a development folder has none, then
+ * nothing is checked). A thread asks api.github.com for the latest release (the same WinHTTP the game's own updater uses). When it is newer
+ * and was not turned down before, a box asks. Yes: the game closes by itself and mods\Update.bat -Auto downloads and installs it (a console
+ * window shows how far it is); the installer offers to start the game again at the end. Tests: DQIX_AR_UPDATE_HOST=127.0.0.1:port reads
+ * http://host/api instead, DQIX_AR_UPDATE_TEST=1 only prints "update: ..." to stderr, DQIX_AR_NO_UPDATE_CHECK=1 skips it. */
+static int ver_parse(const char* s, int v[3]) {
+    while (*s && (*s < '0' || *s > '9')) s++;
+    return sscanf(s, "%d.%d.%d", &v[0], &v[1], &v[2]) == 3;
+}
+static int ver_newer(const char* a, const char* b) {          /* a > b */
+    int x[3], y[3];
+    if (!ver_parse(a, x) || !ver_parse(b, y)) return 0;
+    for (int i = 0; i < 3; i++) if (x[i] != y[i]) return x[i] > y[i];
+    return 0;
+}
+
+static int upd_fetch(char* tag, size_t tn) {
+    int ok = 0; char host[128] = "api.github.com"; int port = INTERNET_DEFAULT_HTTPS_PORT, secure = 1;
+    wchar_t whost[128], wpath[160] = L"/repos/" L"mogelpeter/DQIX-Enhanced-AR" L"/releases/latest";
+    const char* th = getenv("DQIX_AR_UPDATE_HOST");
+    if (th && *th) {
+        snprintf(host, sizeof host, "%s", th); secure = 0; port = 80;
+        char* c = strchr(host, ':'); if (c) { *c = 0; port = atoi(c + 1); }
+        wcscpy(wpath, L"/api");
+    }
+    MultiByteToWideChar(CP_ACP, 0, host, -1, whost, 128);
+    HINTERNET s = WinHttpOpen(L"DQIX-Enhanced-AR-game", WINHTTP_ACCESS_TYPE_DEFAULT_PROXY, WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0), c = NULL, r = NULL;
+    if (!s) return 0;
+    WinHttpSetTimeouts(s, 8000, 8000, 15000, 30000);
+    c = WinHttpConnect(s, whost, (INTERNET_PORT)port, 0);
+    if (c) r = WinHttpOpenRequest(c, L"GET", wpath, NULL, WINHTTP_NO_REFERER, WINHTTP_DEFAULT_ACCEPT_TYPES, secure ? WINHTTP_FLAG_SECURE : 0);
+    if (r && WinHttpSendRequest(r, WINHTTP_NO_ADDITIONAL_HEADERS, 0, WINHTTP_NO_REQUEST_DATA, 0, 0, 0) && WinHttpReceiveResponse(r, NULL)) {
+        DWORD code = 0, sz = sizeof code;
+        WinHttpQueryHeaders(r, WINHTTP_QUERY_STATUS_CODE | WINHTTP_QUERY_FLAG_NUMBER, WINHTTP_HEADER_NAME_BY_INDEX, &code, &sz, WINHTTP_NO_HEADER_INDEX);
+        if (code == 200) {
+            char* b = (char*)malloc(1 << 17); size_t n = 0;
+            for (;;) {
+                DWORD avail = 0, got = 0;
+                if (!b || !WinHttpQueryDataAvailable(r, &avail) || !avail || n + avail >= (1 << 17)) break;
+                if (!WinHttpReadData(r, b + n, avail, &got)) break;
+                n += got;
+            }
+            if (b) {
+                b[n] = 0;
+                const char* p = strstr(b, "\"tag_name\"");
+                if (p && (p = strchr(p + 10, '"'))) {                              /* the opening quote of the value */
+                    size_t i = 0; p++;
+                    while (p[i] && p[i] != '"' && i + 1 < tn) { tag[i] = p[i]; i++; }
+                    tag[i] = 0; ok = i > 0;
+                }
+                free(b);
+            }
+        }
+    }
+    if (r) WinHttpCloseHandle(r);
+    if (c) WinHttpCloseHandle(c);
+    WinHttpCloseHandle(s);
+    return ok;
+}
+
+static void upd_run(void) {                                   /* the game closes, mods\Update.bat -Auto installs and starts it again */
+    wchar_t* rootw = wide(g_root); wchar_t cmd[MAX_PATH * 6], script[MAX_PATH * 5];
+    if (!rootw) return;
+    swprintf(script, MAX_PATH * 5, L"ping -n 4 127.0.0.1 >nul & call \"%ls\\mods\\Update.bat\" -Auto", rootw);
+    swprintf(cmd, MAX_PATH * 6, L"cmd.exe /s /c \"%ls\"", script);
+    free(rootw);
+    STARTUPINFOW si; memset(&si, 0, sizeof si); si.cb = sizeof si; PROCESS_INFORMATION pi;
+    if (!CreateProcessW(NULL, cmd, NULL, NULL, FALSE, CREATE_NEW_CONSOLE, NULL, NULL, &si, &pi)) {
+        MessageBoxW(NULL, L"The update couldn't be started. Run mods\\Update.bat in the game folder yourself.", L"DQIX Enhanced AR", MB_OK | MB_ICONERROR | MB_TOPMOST);
+        return;
+    }
+    CloseHandle(pi.hThread); CloseHandle(pi.hProcess);
+    ExitProcess(0);
+}
+
+static DWORD WINAPI upd_thread(LPVOID u) {
+    (void)u;
+    int test = getenv("DQIX_AR_UPDATE_TEST") != NULL;
+    Sleep(test ? 500 : 20000);                                 /* the game's window comes first */
+    char path[MAX_PATH * 2 + 64], have[32] = "", tag[32] = "", no[32] = "";
+    snprintf(path, sizeof path, "%s\\mods\\system\\version.txt", g_root);
+    FILE* f = fopen(path, "r"); if (!f) return 0;
+    if (fgets(have, sizeof have, f)) { char* e = strpbrk(have, "\r\n"); if (e) *e = 0; }
+    fclose(f);
+    int hv[3]; if (!ver_parse(have, hv)) return 0;
+    if (!upd_fetch(tag, sizeof tag) || !ver_newer(tag, have)) return 0;
+    snprintf(path, sizeof path, "%s\\mods\\system\\update-declined.txt", g_root);
+    if ((f = fopen(path, "r")) != NULL) { if (fgets(no, sizeof no, f)) { char* e = strpbrk(no, "\r\n"); if (e) *e = 0; } fclose(f); }
+    if (!strcmp(no, tag)) return 0;                            /* turned down once: not asked again for this version */
+    if (test) { fprintf(stderr, "update: %s is available (installed %s)\n", tag, have); fflush(stderr); return 0; }
+    wchar_t msg[600], wt[32], wh[32];
+    MultiByteToWideChar(CP_ACP, 0, tag, -1, wt, 32); MultiByteToWideChar(CP_ACP, 0, have, -1, wh, 32);
+    swprintf(msg, 600, L"A new version of DQIX Enhanced AR is available.\n\nInstalled: %ls\nNewest: %ls\n\nUpdate now? The game closes by itself, the update is installed (a few minutes) and the game can be started again.\nProgress you have not saved is lost: save first, then press Yes.\n\nNo = ask again for a later version. You can always run mods\\Update.bat.", wh, wt);
+    if (MessageBoxW(NULL, msg, L"DQIX Enhanced AR - update", MB_YESNO | MB_ICONQUESTION | MB_TOPMOST | MB_SETFOREGROUND) == IDYES) upd_run();
+    else if ((f = fopen(path, "w")) != NULL) { fprintf(f, "%s\n", tag); fclose(f); }
+    return 0;
+}
+
+static void upd_start(void) {
+    if (getenv("DQIX_AR_NO_UPDATE_CHECK") || !g_root[0]) return;
+    HANDLE h = CreateThread(NULL, 0, upd_thread, NULL, 0, NULL);
+    if (h) CloseHandle(h);
 }
 
 static const char* label(const Ent* e) { return e->option[0] ? e->option : e->name; }

@@ -15,6 +15,7 @@
 #   -Recheck             check the requirements again even if they were checked before
 #   -NoUpdateCheck       do not look for a newer version
 #   -UpdateCheck         look for a newer version even with -Quiet
+#   -Auto                the game asked for the update: no questions, starts the game again at the end (mods\Update.bat -Auto)
 #
 # This file is plain ASCII on purpose: no character can be changed by a different code page.
 
@@ -25,7 +26,8 @@ param(
     [switch]$Update,
     [switch]$Recheck,
     [switch]$NoUpdateCheck,
-    [switch]$UpdateCheck
+    [switch]$UpdateCheck,
+    [switch]$Auto
 )
 
 Set-StrictMode -Version 2.0
@@ -90,7 +92,7 @@ function Show-Box([string]$Text, [string]$Buttons = 'OK', [string]$Icon = 'Infor
 }
 
 function Wait-Key {
-    if ($Quiet) { return }
+    if ($Quiet -or ($Auto -and $script:Exit -eq 0)) { return }
     Write-Host ''
     Write-Host 'Press Enter to close this window.' -ForegroundColor DarkGray
     [void](Read-Host)
@@ -116,6 +118,12 @@ function Get-File([string]$Url, [string]$Dest) {
     Write-Log ('download ' + $Url)
     Invoke-WebRequest -Uri $Url -OutFile $Dest -UseBasicParsing -TimeoutSec 600 -Headers @{ 'User-Agent' = 'DQIX-Enhanced-AR-installer' }
     if (-not (Test-Path -LiteralPath $Dest) -or (Get-Item -LiteralPath $Dest).Length -lt 1024) { throw "The download failed: $Url" }
+}
+
+# the .NET zip reader itself: Expand-Archive depends on which PowerShell modules are on the path
+function Expand-Zip([string]$Zip, [string]$Dest) {
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+    [System.IO.Compression.ZipFile]::ExtractToDirectory($Zip, $Dest)
 }
 
 function New-TempFolder {
@@ -255,7 +263,7 @@ function Install-GameFolder([string]$Parent) {
         $zip = Join-Path $tmp 'game.zip'
         Get-File $script:GameRepoZip $zip
         Say '  Unpacking ...' 'Gray'
-        Expand-Archive -LiteralPath $zip -DestinationPath (Join-Path $tmp 'x') -Force
+        Expand-Zip $zip (Join-Path $tmp 'x')
         $inner = @(Get-ChildItem -LiteralPath (Join-Path $tmp 'x') -Directory | Where-Object { Test-GameFolder $_.FullName })
         if ($inner.Count -ne 1) { throw 'The download does not look like DQIX Enhanced (no BUILD.bat in it).' }
         $dest = Join-Path $Parent 'DQIX-Enhanced'
@@ -564,11 +572,12 @@ function Invoke-UpdateCheck([string]$Target, [string]$Current) {
     }
     if ([version]$rel.Version -le [version]$Current) {
         Say ('  Up to date: you have version ' + $Current + ', the newest is ' + $rel.Version + '.') 'Gray'
-        if ($Update) { [void](Show-Box ('You have the newest version (' + $Current + ').') 'OK' 'Information') }
+        if ($Update -and -not $Auto) { [void](Show-Box ('You have the newest version (' + $Current + ').') 'OK' 'Information') }
         return $false
     }
     Say ('  A newer version is available: ' + $rel.Version + ' (you have ' + $Current + ').') 'Cyan'
-    $a = Show-Box ("A newer version of DQIX Enhanced AR is available.`r`n`r`nYou have: " + $Current + "`r`nNewest:   " + $rel.Version + "`r`n`r`nWhat is new: " + $rel.Page + "`r`n`r`nDownload and install it now? Your settings, your cheat choices and your save are kept.") 'YesNo' 'Question'
+    $a = 'Yes'
+    if (-not $Auto) { $a = Show-Box ("A newer version of DQIX Enhanced AR is available.`r`n`r`nYou have: " + $Current + "`r`nNewest:   " + $rel.Version + "`r`n`r`nWhat is new: " + $rel.Page + "`r`n`r`nDownload and install it now? Your settings, your cheat choices and your save are kept.") 'YesNo' 'Question' }
     if ($a -ne 'Yes') { Say '  Staying with the version you have.' 'Gray'; return $false }
 
     $tmp = New-TempFolder
@@ -576,7 +585,7 @@ function Invoke-UpdateCheck([string]$Target, [string]$Current) {
         Say ('  Downloading version ' + $rel.Version + ' ...') 'Gray'
         $zip = Join-Path $tmp 'release.zip'
         Get-File $rel.Url $zip
-        Expand-Archive -LiteralPath $zip -DestinationPath (Join-Path $tmp 'new') -Force
+        Expand-Zip $zip (Join-Path $tmp 'new')
         $root = Join-Path $tmp 'new'
         if (-not (Test-Path -LiteralPath (Join-Path $root 'installer\Install.ps1'))) {
             $in = @(Get-ChildItem -LiteralPath $root -Directory | Where-Object { Test-Path -LiteralPath (Join-Path $_.FullName 'installer\Install.ps1') })
@@ -593,6 +602,7 @@ function Invoke-UpdateCheck([string]$Target, [string]$Current) {
         $argList = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-STA', '-File', ('"' + $newPs1 + '"'), '-GameFolder', ('"' + $Target + '"'))
         if ($NoApply) { $argList += '-NoApply' }
         if ($Quiet) { $argList += '-Quiet' }
+        if ($Auto) { $argList += '-Auto' }
         $p = Start-Process -FilePath $ps -ArgumentList $argList -Wait -PassThru -NoNewWindow
         Write-Log ('the new installer ended with ' + $p.ExitCode)
         $script:Exit = $p.ExitCode
@@ -718,8 +728,9 @@ function Invoke-Install {
     Say 'Done. The Cheats tab is in the game.' 'Green'
     Say 'Start the game as always. In its menu bar: Cheats > Cheats...   Nothing is switched on until you do it.' 'Green'
     Say 'To update later: double-click mods\Update.bat in the game folder (or run a newer Install.bat).' 'Gray'
-    $a = Show-Box ("Done. The cheats are installed.`r`n`r`nIn the game's menu bar: Cheats > Cheats...`r`nNothing is switched on until you do it.`r`n`r`nStart the game now?") 'YesNo' 'Information'
-    if ($a -eq 'Yes' -and -not $Quiet) {
+    $a = 'Yes'
+    if (-not $Auto) { $a = Show-Box ("Done. The cheats are installed.`r`n`r`nIn the game's menu bar: Cheats > Cheats...`r`nNothing is switched on until you do it.`r`n`r`nStart the game now?") 'YesNo' 'Information' }
+    if ($a -eq 'Yes' -and (-not $Quiet -or $Auto)) {
         $play = Join-Path $target 'game\play.bat'
         if (Test-Path -LiteralPath $play) {
             Start-Process -FilePath $cmd -ArgumentList ('/d /c ""' + $play + '""') -WorkingDirectory (Join-Path $target 'game') -WindowStyle Minimized

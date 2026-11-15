@@ -33,7 +33,12 @@ anyway (other spacing or line breaks, the newer menu bar made from a table). If 
 doesn't build with one of them, that one is left out and the game is built without it (the
 window says which; mods\system\bin\build.log has the build's output, repatch.txt how each
 place was found). It is tried again with the next update of the game or of the mods.
-To update the cheats themselves: double-click mods\Update.bat in the game folder. It looks on GitHub
+The game tells you by itself: about 20 seconds after it starts it looks on GitHub (in the background; only
+the request itself is sent), and when a newer version of these cheats is out a box asks whether to update.
+Yes: the game closes by itself (save first!), a window installs the update and the game starts again.
+No: you are not asked again for that version (mods\system\update-declined.txt remembers it). Set the
+environment variable DQIX_AR_NO_UPDATE_CHECK=1 to switch the check off.
+To update by hand: double-click mods\Update.bat in the game folder. It looks on GitHub
 for a newer version, downloads it and installs it (your settings, cheat choices and save are kept).
 Running Install.bat does the same check first. Or update by hand: extract the new download and run
 its Install.bat once more.

@@ -7,7 +7,7 @@ set "NoDefaultCurrentDirectoryInExePath="
 set "PS=%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe"
 if not exist "%PS%" set "PS=powershell.exe"
 if not exist "%~dp0system\installer\Install.ps1" goto no_script
-"%PS%" -NoProfile -ExecutionPolicy Bypass -STA -File "%~dp0system\installer\Install.ps1" -Update -GameFolder "%~dp0.."
+"%PS%" -NoProfile -ExecutionPolicy Bypass -STA -File "%~dp0system\installer\Install.ps1" -Update -GameFolder "%~dp0.." %*
 exit /b %errorlevel%
 
 :no_script

@@ -296,6 +296,7 @@ def runners(root, work):
         "keys-bag":       (fn("test_keys.py", ["db:26b3f9a9|99 of the bag item under the cursor", "START+R", "10"],
                               {"TEST_PRE": "3700:X:6;3780:A:6;3860:A:6;3940:DOWN:6;3990:DOWN:6;4040:DOWN:6;4100:A:6", "TEST_AT": "4200"}), True, 120),
         "zoom-grotto":    (fn("test_zoom_grotto.py", []), True, 150),
+        "update-notice":  (fn("test_update_notice.py", ["240"]), True, 60),
         # the Nuzlocke page: the randomizers on the ROM's tables, and every rule in a real game (test_nuzlocke.py); the rules need TEST_SAVE as above
         "nz-data":        (inproc(t_nzdata, "nz-data"), True, 20),
         **{"nz-" + n: (fn("test_nuzlocke.py", [n]), True, 150)
@@ -305,7 +306,7 @@ def runners(root, work):
 
 
 TIERS = {
-    "fast": ["static", "live-fast", "session-fast", "all-quick", "editor"],
+    "fast": ["static", "live-fast", "session-fast", "all-quick", "editor", "update-notice"],
     "nuzlocke": ["nz-data"] + ["nz-" + n for n in ("control", "perma", "persist", "link", "hero", "goldhalf", "goldall", "newrun", "battle", "battleko")],
     "full": ["static", "live", "session", "all-single", "all-session", "cheatwin", "editor"],
 }
