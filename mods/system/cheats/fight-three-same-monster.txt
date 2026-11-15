@@ -1,0 +1,11 @@
+# name: Fight three of the same monster
+# category: Battle
+# status: untested
+# replaces: Fight 3 of the Same Monster|Fight Three of The Same Monster
+# about: Every battle is against three of the same monster instead of the usual mix. Works the whole time it is switched on: no need to hold A and RIGHT as with the Action Replay code.
+52390AB0 FFFFFFFF
+122A44E2 0000785C
+22390D5A 00000033
+22390D72 00000000
+22390D8A 00000000
+D2000000 00000000

@@ -1,9 +1,13 @@
 # name: Treasure map bosses always drop their chest
 # enabled: no
-# category: Items
+# status: untested
 # replaces: Treasure Map Boss Always Drop Chest
-# about: The boss at the bottom of a treasure map (grotto) always leaves its treasure chest.
-# How: after the game rolls the drop (ov023 021f47ec: random 0..99 against the chance), the "no drop" branch is taken
-# out, so every roll drops. The R4 code set the chance to 100 instead, which the game turns into 0 when it scales the
-# chance (021f4798: a chance of 100 or more becomes 0), so it could make the chest never drop.
-patch 021F47F0 AA000040 E1A00000
+# about: The boss at the bottom of a treasure map (grotto) always gives its special drop. Other monsters and the boss's ordinary drops are not touched.
+# How: the game's drop routine (ov023 021f454c) looks the fight's map up in a table of special drops (a 10-byte record per map, found in fp).
+# Bit 14 of the record makes the third drop slot a sure thing (chance 100), bit 15 the second slot (021f47c0 / 021f47dc). The two branches
+# that skip those lines when the bit is clear (021f47bc, 021f47d4) are taken out, so in a map fight with a record both slots are sure.
+# Fights without a record (every ordinary battle) are not changed. The earlier version took out the "no drop" branch after the roll
+# (021f47f0), which made every drop of every monster in every battle sure.
+check 021F454C E92D4FF8
+patch 021F47BC 0A000001 E1A00000
+patch 021F47D4 0A000001 E1A00000

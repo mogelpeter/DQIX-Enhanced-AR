@@ -1,4 +1,5 @@
 # name: Quester's Rest at its biggest
+# replaces: Inn Max Level/Upgrades|Inn Max Level & Upgrades
 # mode: once
 # about: The inn's top level and every upgrade.
 # category: Unlocks

@@ -1,0 +1,17 @@
+# name: Ingredients never decrease
+# enabled: no
+# category: Alchemy
+# replaces: Ingredients Never Decrease
+# about: The alchemy ingredients are not used up when you cook something, you keep all of them.
+# How: the Krak Pot takes the ingredients out of the bag with three calls of the bag's "take one out" function (ov006
+# 0215759c: 02157614, 02157640, 0215766c); those calls are taken out. The R4 code changed the bag functions themselves
+# (main 0207c934, 02083904, 02086dac), which every use, sale and drop of an item goes through, and ran them in the
+# interpreter all the time; that made the game lag at random.
+# (the calls' own words differ between the European and the USA game, the words around them do not)
+check 0215759C E92D41F0
+check 0215760C E1D710F4
+check 02157638 E1D710F6
+check 02157664 E1D710F8
+patch 02157614 E1A00000
+patch 02157640 E1A00000
+patch 0215766C E1A00000

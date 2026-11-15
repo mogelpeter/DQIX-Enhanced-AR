@@ -1,0 +1,13 @@
+# name: Every time
+# enabled: no
+# category: Alchemy
+# replaces: Always Success v2
+# about: Every mix in the Krak Pot is an Alchemiracle, with a recipe and with Try your luck. (If the ingredients you try are no recipe at all, nothing is made, as in the game.)
+# How: the Krak Pot works out the Alchemiracle chance with fn 02153f24 in three places (ov006): when a recipe is picked
+# (0215e720) and twice when the mix is tried without a recipe, "Try your luck" (0215ccc8, 0215cebc). The R4 code only changed the
+# first, so a mix made with "Try your luck" kept the game's own chance. Here all three answer E3A00064 instead.
+check 0215E69C E92D40F8
+check 0215CC70 E92D4070
+patch 0215E720 EBFFD5FF E3A00064
+patch 0215CCC8 EBFFDC95 E3A00064
+patch 0215CEBC EBFFDC18 E3A00064

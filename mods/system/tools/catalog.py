@@ -72,12 +72,14 @@ MOVES = [
     (r"bank|gold always|money in hand|unlimited money", "Experience & gold"),
     (r"grotto|treasure map|blue chest", "Treasure maps"),
     (r"regain wings", "Fun"),
+    (r"push enem(y|ies) away", "Speed & comfort"),          # it only helps you walk past monsters
 ]
 # big pages in sections the window folds open and shut: (title, pattern), in the order shown. The first pattern that fits
 # wins; "." takes what no other section took.
 SECTIONS = {
-    "Party": [("Whole party", r"whole party|all party members|skill points? never run out|1 skill point added"),
-              ("Hero", r"\bhero\b|\(p1\)"),
+    "Party": [("Whole party", r"whole party|all party members|all players|skill points? never run out|1 skill point added"),
+              ("Hero", r"^(?!.*hero max skill)(?=.*(\bhero\b|\(p1\)|player 1\b))"),
+              ("Hero skills", r"hero max skill"),
               ("Player 2", r"\bp2\b|player 2"),
               ("Player 3", r"\bp3\b|player 3"),
               ("Player 4", r"\bp4\b|player 4"),
@@ -91,7 +93,7 @@ SECTIONS = {
     "Battle": [("Party buffs", r"."),
                ("Enemy debuffs", r"^enemy|enemy in |1 hit kill"),
                ("Monster AI", r"flee|chase"),
-               ("Encounters", r"random battles|same monster|animation before|metal slimes|battle any monster|push enemy away|strike first")],
+               ("Encounters", r"random battles|same monster|animation before|metal slimes|battle any monster|strike first")],
 }
 # cheats whose changes are put back when they are switched off (mod_cheats.c SET_UNDO): the game itself would keep the big head
 # or the hidden party until the next battle or map change
@@ -788,6 +790,7 @@ def read_livepatch(root):
 # ---- curated by hand (see NOTES.md 2026-11-14): (page, name in the R4 list) -> what the window shows
 RENAME_GROUPS = {
     ("Alchemy", "Always"): "Alchemiracle (great success in the Krak Pot)",
+    ("Alchemy", "Every time / Never"): "Alchemiracle (great success in the Krak Pot)",     # (the two files alchemiracle-*.txt)
 }
 RENAME_OPTIONS = {
     ("Alchemy", "Always Success v2"): "Every time",      # sets the Alchemiracle chance to 100% (ov006 0215e720)
@@ -916,6 +919,8 @@ HIDE = {("Alchemy", "Always Success (R)"), ("Alchemy", "Always Success (L)"), ("
         # USA list: its call goes to the game's random number generator (main 02003d14) where ov024 checks the chance
         # (021dfbcc), and it ORs bits into that loop's counter: not "100%", and not safe
         ("Battle", "100% Steal Rate")}
+# not needed: the game's own wireless menu (the quest giver's Wi-Fi button) opens the Wi-Fi quests
+HIDE_RE = r"wi-?fi quests"
 
 
 def read_about(root):
@@ -1147,7 +1152,7 @@ def build(root):
         g["title"] = LABELS.get(g["title"], g["title"])
         if re.match(r"group:[0-9a-f]{6,}$", g["id"]):
             g["title"] = tidy(g["title"])
-    entries = [e for e in entries if not (e["id"].startswith("db:") and (e["cat"], e["name"]) in HIDE)]
+    entries = [e for e in entries if not (e["id"].startswith("db:") and ((e["cat"], e["name"]) in HIDE or re.search(HIDE_RE, e["name"], re.I)))]
     for e in entries:                                       # the list's own names, in sentence case (a choice's options keep theirs: vocations, monsters)
         if e["id"].startswith("db:") and not e["group"]:
             same = e.get("option") == e["name"]
@@ -1163,6 +1168,10 @@ def build(root):
             for e in same:
                 if e.get("prefix") and not (e.get("option") or "").startswith(e["prefix"]):
                     e["option"] = e["prefix"] + (e.get("option") or e["name"])
+
+    for e in entries:                                       # "Player 1" alone (the USA list's name) doesn't say what it does
+        if e["id"].startswith("db:") and not e["group"] and re.fullmatch(r"Player \d", e.get("option") or ""):
+            e["option"] = e["name"]
 
     for old in [g for g in groups if not any(e["group"] == g["id"] for e in entries)]:
         groups.remove(old)

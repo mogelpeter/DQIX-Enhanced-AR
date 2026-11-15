@@ -33,7 +33,7 @@ Enable Zoom	Teaches every party member the Zoom spell, which teleports you to an
 Every Zoom destination	Adds every place in the game to the Zoom list, so you can teleport anywhere, also to places you have never visited. Needs Zoom to be known by someone (see Enable Zoom).
 All Visitors Rooms Unlocked for Inn	Every guest room of your inn is unlocked, so guests can be placed in all of them.
 Unlock All Jobs v2	Marks every vocation as unlocked in your save, so you can switch to any of them at the Vocation Guild. This version changes the save data (v1 only changes the menu).
-Defeated Monster List	Fills in the defeated-monster list for every monster, and, depending on the option, also marks their item drops as seen (127 drops each).
+Defeated Monster List	Fills in the defeated-monster list for every monster and also marks all their item drops as seen (127 each).
 Kracking w/o Ingredients	Lets you do alchemy (kracking) without having the ingredients; the recipe is cooked anyway.
 Ingredients Never Decrease	The alchemy ingredients are not used up when you cook something, you keep all of them.
 Alchemy ingredients on the field never run out	The sparkly spots on the field can be picked again and again, so the ingredients never run out.
@@ -61,7 +61,7 @@ Bag: 99 of every footwear	Puts 99 of every pair of boots and shoes into the bag 
 Bag: 99 of every accessory	Puts 99 of every accessory into the bag (replaces that part of the bag, save first).
 Bag: 99 of every consumable item	Puts 99 of every consumable item into the bag, once, when you press the button. Replaces that part of the bag, so save first.
 Monsters always drop a treasure chest	Every defeated monster leaves a treasure chest behind, not only the rare ones.
-Treasure Map Boss Always Drop Chest	The boss of a treasure map (grotto) always leaves its chest.
+Treasure Map Boss Always Drop Chest	The boss at the bottom of a treasure map (grotto) always gives its special drop (the chest).
 Treasure Map's Blue Chests Closed	The blue chests of a grotto close again. Open a chest, open the battle records or equipment screen (or re-enter the floor) and it is closed; use it to loot the same chest again.
 Max WiFi Time	Sets the wireless play time in your records to its maximum.
 Max Game Time	Sets the total play time in your records to its maximum.
@@ -87,7 +87,7 @@ Enemy in Poison Status	The enemies in the battle are poisoned.
 Enemy in Stunned Status	The enemies in the battle are stunned and lose their turns.
 Enemy in Confused Status	The enemies in the battle are confused.
 100% Critical Rate	Every attack of your party is a critical hit.
-Fight 3 of the Same Monster	Hold A and RIGHT just before a battle starts: you face three of the same monster instead of the usual mix.
+Fight 3 of the Same Monster	Every battle is against three of the same monster instead of the usual mix. Works the whole time it is switched on: you don't have to hold anything.
 [L] for Invincibility (Soul Asylum)	Hold L in battle and the party is covered by Soul Asylum, so nothing can hurt it.
 High Tension - 1st Character (Press Y)	Press Y in battle: the first party member goes to high tension.
 High Tension - 2nd Character (Press Y)	Press Y in battle: the second party member goes to high tension.
@@ -97,7 +97,7 @@ Enable Coup de Grace - 1st Character (Press X)	Press X in battle: the first part
 Enable Coup de Grace - 2nd Character (Press X)	Press X in battle: the second party member may use the coup de grace.
 Enable Coup de Grace - 3rd Character (Press X)	Press X in battle: the third party member may use the coup de grace.
 Enable Coup de Grace - 4th Character (Press X)	Press X in battle: the fourth party member may use the coup de grace.
-To View Character Animation Before A Battle	Switch it on right before a battle to see the characters' entrance animation in that one battle.
+To View Character Animation Before A Battle	Every battle starts with the characters' entrance animation. Works the whole time it is switched on: you don't have to hold anything.
 Grotto Caves Code	Helps with treasure maps: in treasure map mode, press R while you zoom (Zoom) and the cursor jumps to the exact spot of the grotto's entrance on the world map.
 EXP Multiplier	Battles give 2, 4, 8... up to 128 times the experience. Pick one option; it only changes what you are given after a battle.
 Gold Multiplier	Battles give 2, 4, 8... up to 128 times the gold. Pick one option.
@@ -153,7 +153,7 @@ Always fast forward	The whole game runs as fast as your PC allows, from the mome
 Instant loading	Skips the waiting time of the DS cartridge when the game loads data. Only while you play alone: in a session with friends the game keeps the real delays so everyone stays in sync. Takes effect the next time the game starts.
 Battle any monster you want	Pick a monster from the list: every monster that roams the field (and every companion that joins it) is then that monster, in every area. Story bosses are not affected. The game reads its encounter tables once when it starts, so this takes effect the next time the game starts (the window offers to restart it). In a session with friends everybody has to start with the same choice.
 Alchemiracle (great success in the Krak Pot)	Decides the Krak Pot's great success, the Alchemiracle (the pot then makes more or better items than the recipe says). Every time: the chance is set to 100% for each mix, so every mix is an Alchemiracle. Never: the chance is 0%, every mix is a plain success. Alchemy itself never fails in this game. Off: the game's own chance.
-Treasure map bosses always drop their chest	The boss at the bottom of a treasure map (grotto) leaves its treasure chest every time you defeat it, so you never have to fight it again for the chest. Which item is inside is still the game's choice.
+Treasure map bosses always drop their chest	The boss at the bottom of a treasure map (grotto) always gives its special drop (the chest). Other monsters and the boss's ordinary drops stay as the game has them.
 Boomerang mode: normal attacks hit every enemy	The plain Attack command of every party member damages all enemies in the battle at once, like a sweeping attack. Damage per enemy is worked out as usual. Switching it off makes attacks single-target again at once.
 Unlock All Extra Quests V1, with the Wi-Fi quests	Like V1, but also opens the extra quests that the game used to download over Nintendo Wi-Fi. Use it on a new game before you accept any quest, and do not connect to Wi-Fi afterwards.
 Unlock All Extra Quests V2, with the Wi-Fi quests	Like V2, but also opens the extra quests that the game used to download over Nintendo Wi-Fi. Use it after you have finished quests 2, 117 and 120, and do not connect to Wi-Fi afterwards.
@@ -183,13 +183,13 @@ Hero Max Attack/Defense/Agility	Raises the hero's attack, defence and agility to
 Re-Zoom To Any Location	Zoom is the spell that teleports you to a place you have already visited. With this cheat L+START stores the spot you are standing on, and after casting Zoom to somewhere else, L+A pastes the stored spot as your destination, so you can return to exactly that place. The spot is the one the game remembers after the screen blacks out (through a door, leaving the battle records).
 Walkthrough A Door/Stairs to Go Observatory/Stornway	Hold L or R while you walk through a door or over stairs and you are sent to the Observatory or to Stornway instead of the normal place. The author's title does not say which button leads where; let go of L and R for normal doors.
 No Random Battles	Switches random battles off, so nothing attacks you on the ship. Press START+RIGHT to start a battle whenever you want one.
-Fight Three of The Same Monster	Hold A and RIGHT just before a battle starts: you face three of the same monster instead of the usual mix.
+Fight Three of The Same Monster	Every battle is against three of the same monster instead of the usual mix. Works the whole time it is switched on: you don't have to hold anything.
 Day	While it is on, press START+UP in the game and the in-game clock jumps to daytime. Use does it at once.
 Night	While it is on, press START+DOWN in the game and the in-game clock jumps to night. Use does it at once.
 All 444 Accolades Earned	Gives you every accolade (title) at once.
 One Hit Kill	Activate it before you attack: the next hit kills the enemy outright.
 Invincibility (Soul Asylum)	Hold L in battle and the party is covered by Soul Asylum, so nothing can hurt it.
-View Character Animation Before A Battle	Switch it on right before a battle to see the characters' entrance animation in that one battle.
+View Character Animation Before A Battle	Every battle starts with the characters' entrance animation. Works the whole time it is switched on: you don't have to hold anything.
 Weapons	Puts 99 of every weapon into the bag. This replaces that part of the bag, so save first.
 Item Amount Modifier	In the item bag, move the cursor to an item and press START+R: you get 99 of it. Only works for items already in the bag (not in the Stornway inn).
 High Tension - 1st Character	Press Y in battle: the first party member goes to high tension.
@@ -211,3 +211,5 @@ Max/Infinite Skill Points - Player 2	Press SELECT: player 2 gets 9,999 skill poi
 Max/Infinite Skill Points - Player 3	Press SELECT: player 3 gets 9,999 skill points to spend.
 Max/Infinite Skill Points - Player 4	Press SELECT: player 4 gets 9,999 skill points to spend.
 Max/Infinite Skill Points - All Players v1	Press SELECT: every party member gets 9,999 skill points to spend.
+Every time	Every mix in the Krak Pot is an Alchemiracle, with a recipe and with Try your luck. A try-your-luck mix whose ingredients are no recipe at all still makes nothing, as in the game.
+Never	No mix in the Krak Pot is an Alchemiracle, with a recipe and with Try your luck.

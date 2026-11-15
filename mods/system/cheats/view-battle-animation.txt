@@ -1,0 +1,7 @@
+# name: View character animation before a battle
+# category: Battle
+# status: untested
+# replaces: To View Character Animation Before A Battle|View Character Animation Before A Battle
+# about: Every battle starts with the characters' entrance animation. Works the whole time it is switched on: no need to hold R and UP as with the Action Replay code.
+220F97AD 00000001
+D2000000 00000000

@@ -1,4 +1,15 @@
 # name: Alchemy ingredients on the field never run out
 # enabled: no
+# category: Alchemy
+# status: untested
+# replaces: Ingredients Never Run Out On Field
 # about: The sparkly spots on the field can be picked again and again.
-patch 021987A0 0A000022 E1A00000
+# How: the field's gathering code (ov017 021986fc) only picks a spot whose "ready" bit is set, then clears that bit
+# (and a second mask next to it) and starts the respawn timer. The two stores that clear the bits are taken out
+# (0219896c, 02198994), so every spot stays ready. The R4 code took out the "is it ready?" test (021987a0) instead:
+# a spot already picked was then picked again on every frame while you stood near it, which piled up effects and
+# made the game lag until you entered a new area.
+check 021986FC E92D4FF0
+check 021987A0 0A000022
+patch 0219896C E5871000 E1A00000
+patch 02198994 E5850004 E1A00000
