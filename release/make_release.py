@@ -39,6 +39,8 @@ INCLUDE = [
     ("VERSION", "VERSION"),
     ("release/README.txt", "README.txt"),
     ("mods/Apply.bat", "mods/Apply.bat"),
+    ("mods/Update.bat", "mods/Update.bat"),
+    ("installer/Install.ps1", "mods/system/installer/Install.ps1"),   # the updater (mods\Update.bat) runs this copy
     ("USER GUIDE.txt", "USER GUIDE.txt"),
     ("mods/settings.txt", "mods/settings.txt"),
     ("mods/system/about.tsv", "mods/system/about.tsv"),

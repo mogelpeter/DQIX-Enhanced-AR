@@ -4,18 +4,28 @@
 #   1. finds your DQIX Enhanced folder (asks you in a folder window when it is not sure)
 #   2. puts the files of this download into its "mods" folder (your settings stay)
 #   3. builds the cheats into the game ("mods\Apply.bat")
+# Before that it checks the requirements (and offers to fix what is missing) once, and looks on GitHub for a newer
+# version of itself. "mods\Update.bat" in the game folder runs just the update.
 #
 # Switches (for tests and for people who know what they do):
 #   -GameFolder <path>   skip the question
 #   -NoApply             only copy the files, do not build
 #   -Quiet               no windows, no questions (the answers are the default ones), no waiting at the end
+#   -Update              only look for a newer version and install it (mods\Update.bat)
+#   -Recheck             check the requirements again even if they were checked before
+#   -NoUpdateCheck       do not look for a newer version
+#   -UpdateCheck         look for a newer version even with -Quiet
 #
 # This file is plain ASCII on purpose: no character can be changed by a different code page.
 
 param(
     [Parameter(Position = 0)][string]$GameFolder = '',
     [switch]$NoApply,
-    [switch]$Quiet
+    [switch]$Quiet,
+    [switch]$Update,
+    [switch]$Recheck,
+    [switch]$NoUpdateCheck,
+    [switch]$UpdateCheck
 )
 
 Set-StrictMode -Version 2.0
@@ -25,6 +35,9 @@ $ErrorActionPreference = 'Stop'
 $script:Here = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
 $script:LogFile = Join-Path ([System.IO.Path]::GetTempPath()) 'dqix-cheats-install.log'
 $script:Exit = 0
+$script:Handed = $false      # a newer installer took over: it does the waiting at the end
+$script:Repo = 'mogelpeter/DQIX-Enhanced-AR'
+$script:GameRepoZip = 'https://github.com/sackchief/dqix-enhanced/archive/HEAD.zip'
 
 # ---------------------------------------------------------------- the small helpers
 
@@ -81,6 +94,60 @@ function Wait-Key {
     Write-Host ''
     Write-Host 'Press Enter to close this window.' -ForegroundColor DarkGray
     [void](Read-Host)
+}
+
+# ---------------------------------------------------------------- downloads, remembered answers
+
+function Initialize-Net {
+    try { [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12 } catch { }
+    $global:ProgressPreference = 'SilentlyContinue'
+}
+
+function Test-Online {
+    try {
+        Initialize-Net
+        $r = Invoke-WebRequest -Uri 'https://github.com' -Method Head -UseBasicParsing -TimeoutSec 8
+        return ($r.StatusCode -ge 200 -and $r.StatusCode -lt 400)
+    } catch { return $false }
+}
+
+function Get-File([string]$Url, [string]$Dest) {
+    Initialize-Net
+    Write-Log ('download ' + $Url)
+    Invoke-WebRequest -Uri $Url -OutFile $Dest -UseBasicParsing -TimeoutSec 600 -Headers @{ 'User-Agent' = 'DQIX-Enhanced-AR-installer' }
+    if (-not (Test-Path -LiteralPath $Dest) -or (Get-Item -LiteralPath $Dest).Length -lt 1024) { throw "The download failed: $Url" }
+}
+
+function New-TempFolder {
+    $d = Join-Path ([System.IO.Path]::GetTempPath()) ('dqix-ar-' + [Guid]::NewGuid().ToString('N').Substring(0, 8))
+    [void](New-Item -ItemType Directory -Path $d -Force)
+    return $d
+}
+
+# what was checked before: %LOCALAPPDATA%\DQIX-Enhanced-AR\requirements.txt, lines of key=value
+function Get-StateFile {
+    return (Join-Path ([Environment]::GetFolderPath('LocalApplicationData')) 'DQIX-Enhanced-AR\requirements.txt')
+}
+
+function Read-State {
+    $h = @{}
+    $f = Get-StateFile
+    if (Test-Path -LiteralPath $f) {
+        foreach ($l in @(Get-Content -LiteralPath $f -ErrorAction SilentlyContinue)) {
+            $i = ([string]$l).IndexOf('=')
+            if ($i -gt 0) { $h[$l.Substring(0, $i).Trim()] = $l.Substring($i + 1).Trim() }
+        }
+    }
+    return $h
+}
+
+function Write-State([hashtable]$H) {
+    try {
+        $f = Get-StateFile
+        if (-not (Test-Path -LiteralPath (Split-Path -Parent $f))) { [void](New-Item -ItemType Directory -Path (Split-Path -Parent $f) -Force) }
+        $lines = @(); foreach ($k in ($H.Keys | Sort-Object)) { $lines += ($k + '=' + $H[$k]) }
+        Set-Content -LiteralPath $f -Value $lines -Encoding ASCII
+    } catch { }
 }
 
 # ---------------------------------------------------------------- the DQIX Enhanced folder
@@ -162,6 +229,33 @@ function Select-GameFolder([string]$Start) {
     }
 }
 
+# downloads DQIX Enhanced (the game's own files, as the "Download ZIP" button gives them) into <Parent>\DQIX-Enhanced
+function Install-GameFolder([string]$Parent) {
+    $tmp = New-TempFolder
+    try {
+        if (-not (Test-Online)) { Say '  No internet connection: cannot download DQIX Enhanced.' 'Yellow'; return $null }
+        Say '  Downloading DQIX Enhanced from github.com/sackchief/dqix-enhanced ...' 'Gray'
+        $zip = Join-Path $tmp 'game.zip'
+        Get-File $script:GameRepoZip $zip
+        Say '  Unpacking ...' 'Gray'
+        Expand-Archive -LiteralPath $zip -DestinationPath (Join-Path $tmp 'x') -Force
+        $inner = @(Get-ChildItem -LiteralPath (Join-Path $tmp 'x') -Directory | Where-Object { Test-GameFolder $_.FullName })
+        if ($inner.Count -ne 1) { throw 'The download does not look like DQIX Enhanced (no BUILD.bat in it).' }
+        $dest = Join-Path $Parent 'DQIX-Enhanced'
+        $n = 2
+        while (Test-Path -LiteralPath $dest) { $dest = Join-Path $Parent ('DQIX-Enhanced-' + $n); $n++ }
+        Move-Item -LiteralPath $inner[0].FullName -Destination $dest
+        try { Get-ChildItem -LiteralPath $dest -Recurse -File | Unblock-File -ErrorAction SilentlyContinue } catch { }
+        Say ('  DQIX Enhanced is now in ' + $dest) 'Green'
+        return $dest
+    } catch {
+        Say ('  ' + $_.Exception.Message) 'Yellow'
+        return $null
+    } finally {
+        Remove-Item -LiteralPath $tmp -Recurse -Force -ErrorAction SilentlyContinue
+    }
+}
+
 function Get-TargetFolder {
     if ($GameFolder) {
         $r = Resolve-GameFolder $GameFolder
@@ -175,7 +269,14 @@ function Get-TargetFolder {
         $a = Show-Box ("Found your DQIX Enhanced folder:`r`n`r`n" + $cands[0] + "`r`n`r`nInstall the cheats there?`r`n(No = choose another folder)") 'YesNo' 'Question'
         if ($a -eq 'Yes') { return $cands[0] }
     } else {
-        [void](Show-Box "Next, choose your DQIX Enhanced folder: the one with BUILD.bat in it.`r`n`r`nDo not have it yet? Get DQIX Enhanced from github.com/sackchief/dqix-enhanced, set it up with your own ROM (its installer does that), then start this installer again." 'OK' 'Information')
+        if ($Quiet) { throw 'No DQIX Enhanced folder found. Give one with -GameFolder.' }
+        $docs = [Environment]::GetFolderPath('MyDocuments')
+        $a = Show-Box ("No DQIX Enhanced folder was found on this PC.`r`n`r`nDQIX Enhanced is the game these cheats go into. Download it now from github.com/sackchief/dqix-enhanced and put it in:`r`n`r`n" + (Join-Path $docs 'DQIX-Enhanced') + "`r`n`r`nYes = download it (needs the internet)`r`nNo = I have it already: let me choose the folder") 'YesNo' 'Question'
+        if ($a -eq 'Yes') {
+            $r = Install-GameFolder $docs
+            if ($r) { return $r }
+            [void](Show-Box 'The download did not work. Choose your DQIX Enhanced folder yourself, or get the game from github.com/sackchief/dqix-enhanced and start this installer again.' 'OK' 'Warning')
+        }
     }
     if ($Quiet) { throw 'No DQIX Enhanced folder found. Give one with -GameFolder.' }
     $r = Select-GameFolder $start
@@ -283,6 +384,209 @@ function Wait-GameClosed {
     }
 }
 
+# ---------------------------------------------------------------- the requirements
+
+function Get-MsysRoot([string]$Target) {
+    $f = Join-Path $Target 'mods\system\msys2-root.txt'
+    $c = @()
+    if (Test-Path -LiteralPath $f) { $c += ([string](Get-Content -LiteralPath $f -TotalCount 1)).Trim() }
+    $c += 'C:\msys64'
+    foreach ($r in $c) { if ($r -and (Test-Path -LiteralPath (Join-Path $r 'usr\bin\bash.exe'))) { return $r } }
+    return $null
+}
+
+function Get-Csc {
+    foreach ($d in @('Framework64', 'Framework')) {
+        $p = Join-Path $env:WINDIR ('Microsoft.NET\' + $d + '\v4.0.30319\csc.exe')
+        if (Test-Path -LiteralPath $p) { return $p }
+    }
+    return $null
+}
+
+function Get-Rom([string]$Target) {
+    $rom = Join-Path $Target 'rom'
+    if (Test-Path -LiteralPath $rom) {
+        foreach ($pat in @('*.nds', '*.zip')) {
+            $f = @(Get-ChildItem -LiteralPath $rom -Filter $pat -File -ErrorAction SilentlyContinue)
+            if ($f.Count -gt 0) { return $f[0].FullName }
+        }
+    }
+    return $null
+}
+
+# asks for the ROM and copies it to <game>\rom (the build takes it from there). Returns the path or $null.
+function Request-Rom([string]$Target) {
+    if ($Quiet) { return $null }
+    [void](Show-Box "Your Dragon Quest IX ROM is needed to build the game.`r`n`r`nIt is the .nds file you made from your own cartridge (a .zip with it inside also works). It stays on this PC, nothing is uploaded.`r`n`r`nChoose the file in the next window." 'OK' 'Information')
+    $owner = New-Owner
+    try {
+        $dlg = New-Object System.Windows.Forms.OpenFileDialog
+        $dlg.Title = 'Choose your Dragon Quest IX ROM (.nds or .zip)'
+        $dlg.Filter = 'Nintendo DS ROM (*.nds;*.zip)|*.nds;*.zip|All files (*.*)|*.*'
+        if ($dlg.ShowDialog($owner).ToString() -ne 'OK') { return $null }
+        $romDir = Join-Path $Target 'rom'
+        if (-not (Test-Path -LiteralPath $romDir)) { [void](New-Item -ItemType Directory -Path $romDir -Force) }
+        $dst = Join-Path $romDir (Split-Path -Leaf $dlg.FileName)
+        Copy-Item -LiteralPath $dlg.FileName -Destination $dst -Force
+        return $dst
+    } finally { $owner.Close(); $owner.Dispose() }
+}
+
+function Report-Req([bool]$Ok, [string]$What) {
+    if ($Ok) { Say ('  ok       ' + $What) 'Gray' } else { Say ('  MISSING  ' + $What) 'Yellow' }
+}
+
+# prints one line per requirement and fixes what it can with the player's OK. Returns $false when the player stops
+# (or something that cannot be fixed here is missing).
+function Test-Requirements([string]$Target, [bool]$Built) {
+    $os64 = [Environment]::Is64BitOperatingSystem
+    Report-Req $os64 'Windows 10 or 11, 64-bit'
+    if (-not $os64) { [void](Show-Box 'This needs a 64-bit Windows 10 or 11. The game and its build tools do not run on 32-bit Windows.' 'OK' 'Error'); return $false }
+    Report-Req ($PSVersionTable.PSVersion.Major -ge 5) ('Windows PowerShell ' + $PSVersionTable.PSVersion)
+
+    $writable = $false
+    try {
+        $t = Join-Path $Target ('.write-test-' + [Guid]::NewGuid().ToString('N').Substring(0, 6))
+        Set-Content -LiteralPath $t -Value 'x'; Remove-Item -LiteralPath $t -Force; $writable = $true
+    } catch { }
+    Report-Req $writable ('Write access to ' + $Target)
+    if (-not $writable) {
+        [void](Show-Box ("The installer cannot write into this folder:`r`n`r`n" + $Target + "`r`n`r`nMove DQIX Enhanced to a normal place such as Documents (not Program Files), then start this installer again.") 'OK' 'Error')
+        return $false
+    }
+    if ($Target -match '\\OneDrive[^\\]*\\') {
+        Say '  note: the game folder is inside OneDrive. Syncing can disturb the build; a folder in Documents outside OneDrive is safer.' 'Yellow'
+    }
+
+    # free space: 4 GB for a first build, 0.5 GB otherwise
+    $need = 0.5
+    if (-not $Built) { $need = 4 }
+    try {
+        $drive = New-Object System.IO.DriveInfo ($Target.Substring(0, 1))
+        $free = [math]::Round($drive.AvailableFreeSpace / 1GB, 1)
+        Report-Req ($free -ge $need) ('Free space on ' + $drive.Name + ' ' + $free + ' GB (needs ' + $need + ' GB)')
+        if ($free -lt $need) {
+            $a = Show-Box ("Only " + $free + " GB are free on " + $drive.Name + "; about " + $need + " GB are needed.`r`n`r`nFree some space and press Retry, or Cancel to stop.") 'RetryCancel' 'Warning'
+            if ($a -eq 'Retry') { return (Test-Requirements $Target $Built) }
+            return $false
+        }
+    } catch { }
+
+    if (-not $Built) {
+        # the first build: the ROM, the build tools (MSYS2), the internet
+        $rom = Get-Rom $Target
+        Report-Req ($null -ne $rom) 'Your Dragon Quest IX ROM in the "rom" folder'
+        if (-not $rom) {
+            $rom = Request-Rom $Target
+            if (-not $rom) { Say '  No ROM chosen.' 'Yellow'; return $false }
+            Say ('  ok       ROM copied to ' + $rom) 'Green'
+        }
+        $msys = Get-MsysRoot $Target
+        if ($msys) { Report-Req $true ('Build tools (MSYS2): ' + $msys) } else { Say '  to do    Build tools (MSYS2): the build installs them for you (free, a few hundred MB)' 'Yellow' }
+        $online = Test-Online
+        Report-Req $online 'Internet connection'
+        if (-not $online -and -not $msys) {
+            while (-not $online) {
+                $a = Show-Box "There is no internet connection, and the build tools (MSYS2) have to be downloaded for the first build.`r`n`r`nConnect to the internet and press Retry, or Cancel to stop." 'RetryCancel' 'Warning'
+                if ($a -ne 'Retry') { return $false }
+                $online = Test-Online
+            }
+            Report-Req $true 'Internet connection'
+        }
+    }
+
+    $csc = Get-Csc
+    Report-Req ($null -ne $csc) 'C# compiler of .NET Framework 4 (for the save editor helper)'
+    if (-not $csc) {
+        $a = Show-Box ("The save editor helper needs .NET Framework 4, which is part of Windows but switched off here.`r`n`r`nThe cheats work without it; only Cheats > Save editor needs it.`r`n`r`nOpen the Windows features window now to switch it on? (tick '.NET Framework 4.8 Advanced Services', press OK there, then come back)") 'YesNo' 'Question'
+        if ($a -eq 'Yes') {
+            try { Start-Process -FilePath (Join-Path $env:SystemRoot 'System32\OptionalFeatures.exe') -Wait } catch { }
+            Report-Req ($null -ne (Get-Csc)) 'C# compiler (after the change)'
+        }
+    }
+    return $true
+}
+
+# ---------------------------------------------------------------- updates
+
+function Get-OwnVersion([string]$Target) {
+    foreach ($f in @((Join-Path $script:Here 'VERSION'), (Join-Path $Target 'mods\system\version.txt'))) {
+        if (Test-Path -LiteralPath $f) {
+            $v = ([string](Get-Content -LiteralPath $f -TotalCount 1)).Trim()
+            if ($v -match '^\d+\.\d+\.\d+$') { return $v }
+        }
+    }
+    return $null
+}
+
+function Get-LatestRelease {
+    try {
+        Initialize-Net
+        $api = 'https://api.github.com/repos/' + $script:Repo + '/releases/latest'
+        if ($env:DQIX_AR_API) { $api = $env:DQIX_AR_API }       # for tests: a local server that pretends to be GitHub
+        $r = Invoke-RestMethod -Uri $api -Headers @{ 'User-Agent' = 'DQIX-Enhanced-AR-installer' } -TimeoutSec 10
+        $tag = ([string]$r.tag_name).TrimStart('v')
+        if ($tag -notmatch '^\d+\.\d+\.\d+$') { return $null }
+        $asset = @($r.assets | Where-Object { $_.name -like 'release-*.zip' }) | Select-Object -First 1
+        if (-not $asset) { return $null }
+        return @{ Version = $tag; Url = [string]$asset.browser_download_url; Page = [string]$r.html_url }
+    } catch { Write-Log ('update check failed: ' + $_.Exception.Message); return $null }
+}
+
+# looks for a newer release; when there is one and the player agrees, downloads it and lets ITS installer do the job.
+# Returns $true when a newer installer took over (this one is finished then).
+function Invoke-UpdateCheck([string]$Target, [string]$Current) {
+    if (-not $Current) { return $false }
+    $rel = Get-LatestRelease
+    if (-not $rel) {
+        if ($Update) { Say 'Could not look for a newer version (no internet?).' 'Yellow' }
+        return $false
+    }
+    if ([version]$rel.Version -le [version]$Current) {
+        Say ('  Up to date: you have version ' + $Current + ', the newest is ' + $rel.Version + '.') 'Gray'
+        if ($Update) { [void](Show-Box ('You have the newest version (' + $Current + ').') 'OK' 'Information') }
+        return $false
+    }
+    Say ('  A newer version is available: ' + $rel.Version + ' (you have ' + $Current + ').') 'Cyan'
+    $a = Show-Box ("A newer version of DQIX Enhanced AR is available.`r`n`r`nYou have: " + $Current + "`r`nNewest:   " + $rel.Version + "`r`n`r`nWhat is new: " + $rel.Page + "`r`n`r`nDownload and install it now? Your settings, your cheat choices and your save are kept.") 'YesNo' 'Question'
+    if ($a -ne 'Yes') { Say '  Staying with the version you have.' 'Gray'; return $false }
+
+    $tmp = New-TempFolder
+    try {
+        Say ('  Downloading version ' + $rel.Version + ' ...') 'Gray'
+        $zip = Join-Path $tmp 'release.zip'
+        Get-File $rel.Url $zip
+        Expand-Archive -LiteralPath $zip -DestinationPath (Join-Path $tmp 'new') -Force
+        $root = Join-Path $tmp 'new'
+        if (-not (Test-Path -LiteralPath (Join-Path $root 'installer\Install.ps1'))) {
+            $in = @(Get-ChildItem -LiteralPath $root -Directory | Where-Object { Test-Path -LiteralPath (Join-Path $_.FullName 'installer\Install.ps1') })
+            if ($in.Count -eq 1) { $root = $in[0].FullName }
+        }
+        $newPs1 = Join-Path $root 'installer\Install.ps1'
+        if (-not (Test-Path -LiteralPath $newPs1) -or -not (Test-Path -LiteralPath (Join-Path $root 'mods\Apply.bat'))) { throw 'The downloaded update is not complete (no installer or mods folder in it).' }
+        $nv = ([string](Get-Content -LiteralPath (Join-Path $root 'VERSION') -TotalCount 1)).Trim()
+        if ($nv -ne $rel.Version) { throw ('The downloaded update says it is version ' + $nv + ', not ' + $rel.Version + '.') }
+        try { Get-ChildItem -LiteralPath $root -Recurse -File | Unblock-File -ErrorAction SilentlyContinue } catch { }
+
+        Say ('  Installing version ' + $rel.Version + ' ...') 'Cyan'
+        $ps = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
+        $argList = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-STA', '-File', ('"' + $newPs1 + '"'), '-GameFolder', ('"' + $Target + '"'))
+        if ($NoApply) { $argList += '-NoApply' }
+        if ($Quiet) { $argList += '-Quiet' }
+        $p = Start-Process -FilePath $ps -ArgumentList $argList -Wait -PassThru -NoNewWindow
+        Write-Log ('the new installer ended with ' + $p.ExitCode)
+        $script:Exit = $p.ExitCode
+        $script:Handed = $true
+        return $true
+    } catch {
+        Say ('  The update did not work: ' + $_.Exception.Message) 'Yellow'
+        Say '  Continuing with the version you have.' 'Yellow'
+        return $false
+    } finally {
+        Remove-Item -LiteralPath $tmp -Recurse -Force -ErrorAction SilentlyContinue
+    }
+}
+
 # ---------------------------------------------------------------- main
 
 function Invoke-Install {
@@ -297,7 +601,7 @@ function Invoke-Install {
 
     Initialize-Windows
 
-    Step '[1/4] Looking for your DQIX Enhanced folder...'
+    Step '[1/5] Looking for your DQIX Enhanced folder...'
     $target = Get-TargetFolder
     if (-not $target) {
         Say 'Cancelled: no folder chosen. Nothing was changed.' 'Yellow'
@@ -312,12 +616,36 @@ function Invoke-Install {
     } catch { }
 
     $built = (Test-Path -LiteralPath (Join-Path $target 'game\dqix.exe'))
+
+    # a newer version on GitHub? (not with -Quiet, unless asked; mods\Update.bat does only this)
+    if ($Update -or ($UpdateCheck) -or (-not $Quiet -and -not $NoUpdateCheck)) {
+        Step '[2/5] Looking for a newer version...'
+        if (Invoke-UpdateCheck $target (Get-OwnVersion $target)) { return }
+    }
+    if ($Update) { return }
+
+    # the requirements: checked once, then remembered for this folder
+    Step '[3/5] Checking the requirements...'
+    $state = Read-State
+    $known = $false
+    if (-not $Recheck -and $built -and $state.ContainsKey('checked') -and $state['game'] -eq $target) { $known = $true }
+    if ($known) {
+        Say ('  Checked before (' + $state['checked'] + '): everything was fine. Run the installer with -Recheck to check again.') 'Gray'
+    } else {
+        if (-not (Test-Requirements $target $built)) {
+            Say 'Stopped: a requirement is missing. Nothing was changed.' 'Yellow'
+            $script:Exit = 2
+            return
+        }
+        if ($built -or $NoApply) { Write-State @{ checked = (Get-Date -Format 'yyyy-MM-dd'); game = $target } }
+    }
+
     if (-not $built -and -not $NoApply) {
-        $a = Show-Box ("The game in this folder is not built yet:`r`n`r`n" + $target + "`r`n`r`nThe installer will build it now, together with the cheats. That asks for your own Dragon Quest IX ROM (.nds) and takes 10 to 20 minutes the first time.`r`n`r`nContinue?") 'YesNo' 'Question'
+        $a = Show-Box ("The game in this folder is not built yet:`r`n`r`n" + $target + "`r`n`r`nThe installer will build it now, together with the cheats. This installs the free build tools (MSYS2) if needed and takes 10 to 20 minutes the first time.`r`n`r`nContinue?") 'YesNo' 'Question'
         if ($a -ne 'Yes') { Say 'Cancelled. Nothing was changed.' 'Yellow'; $script:Exit = 2; return }
     }
 
-    Step '[2/4] Checking that the game is closed...'
+    Step '[4/5] Checking that the game is closed...'
     if (-not (Wait-GameClosed)) {
         Say 'Cancelled: the game is still running. Nothing was changed.' 'Yellow'
         $script:Exit = 2
@@ -325,15 +653,15 @@ function Invoke-Install {
     }
     Say '  ok' 'Gray'
 
-    Step '[3/4] Putting the files in...'
+    Step '[4/5] Putting the files in...'
     Install-Files $target
 
     if ($NoApply) {
-        Step '[4/4] Building skipped (-NoApply).'
+        Step '[5/5] Building skipped (-NoApply).'
         return
     }
 
-    Step '[4/4] Building the cheats into the game (the first time this takes a few minutes; black windows are normal)...'
+    Step '[5/5] Building the cheats into the game (the first time this takes a few minutes; black windows are normal)...'
     $apply = Join-Path $target 'mods\Apply.bat'
     if (-not (Test-Path -LiteralPath $apply)) { throw "The file was not put in: $apply" }
     Remove-Item Env:NoDefaultCurrentDirectoryInExePath -ErrorAction SilentlyContinue
@@ -350,9 +678,11 @@ function Invoke-Install {
         throw ("Building the cheats into the game failed (code $rc). The details are above and in:`r`n" + (Join-Path $target 'mods\system\bin\build.log'))
     }
 
+    Write-State @{ checked = (Get-Date -Format 'yyyy-MM-dd'); game = $target }
     Write-Host ''
     Say 'Done. The Cheats tab is in the game.' 'Green'
     Say 'Start the game as always. In its menu bar: Cheats > Cheats...   Nothing is switched on until you do it.' 'Green'
+    Say 'To update later: double-click mods\Update.bat in the game folder (or run a newer Install.bat).' 'Gray'
     $a = Show-Box ("Done. The cheats are installed.`r`n`r`nIn the game's menu bar: Cheats > Cheats...`r`nNothing is switched on until you do it.`r`n`r`nStart the game now?") 'YesNo' 'Information'
     if ($a -eq 'Yes' -and -not $Quiet) {
         $play = Join-Path $target 'game\play.bat'
@@ -374,5 +704,5 @@ try {
     try { [void](Show-Box ("Something went wrong:`r`n`r`n" + $msg + "`r`n`r`nA log of this run is in:`r`n" + $script:LogFile) 'OK' 'Error') } catch { }
     $script:Exit = 1
 }
-Wait-Key
+if (-not $script:Handed) { Wait-Key }
 exit $script:Exit

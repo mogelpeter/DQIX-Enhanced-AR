@@ -57,6 +57,8 @@ The ROM and the game itself are never part of this repo.
 2. Download **`release-<version>.zip`** from the [latest release](https://github.com/mogelpeter/DQIX-Enhanced-AR/releases/latest), extract it and double-click **`Install.bat`**. It asks where your DQIX Enhanced folder is (the one with `BUILD.bat` in it; it usually finds it itself), puts the files in and builds the **Cheats** tab into the game (a few minutes the first time).
 3. Start the game as always with `game\dqix.exe`. Whether you want cheats is up to you: open **Cheats > Cheats...** in the menu bar and switch on what you like.
 
+The installer checks the requirements first (Windows, free space, your ROM, the build tools, the C# compiler for the save editor) and offers to fix what is missing; it remembers that it checked. It also looks for a newer version on GitHub and installs it for you.
+
 Trouble? `mods\system\dev.bat doctor` says what is missing and how to fix it.
 
 ---
@@ -149,7 +151,7 @@ The game's menu bar (Game, Graphics, Screen, View, Wireless, Modern, Mods, **Che
 The tab is not a copy of the game's files: it is a handful of small, clearly marked changes (`>>> mods ... <<< mods`) that `mods\system\tools\apply_runtime_mod.py` puts into the game's source before it is built. An update of the game replaces those files, so:
 
 - **Update from inside the game (Help > Check for updates):** the updater also runs `mods\Apply.bat apply` (the patcher) before it rebuilds, so the new game comes out with the tab, the cheats and your switches again. Nothing to do.
-- **Update by hand (a new download):** download the new `release-<version>.zip`, extract it and run its **`Install.bat`**; the files are replaced (the ones that are not in it any more are removed), every change is put back and the game is rebuilt.
+- **Update the cheats:** double-click **`mods\Update.bat`** in the game folder (or just run `Install.bat` again: it asks first). It looks for a newer release on GitHub, downloads it and installs it; your settings, cheat choices and save are kept. Or do it by hand: download the new `release-<version>.zip`, extract it and run its **`Install.bat`**; the files are replaced (the ones that are not in it any more are removed), every change is put back and the game is rebuilt.
 - **A place the new version wrote differently:** it is skipped with a message and the rest still works.
 - The update never deletes the `mods` folder, so what you switched on stays (`mods\system\menu-state.txt`).
 

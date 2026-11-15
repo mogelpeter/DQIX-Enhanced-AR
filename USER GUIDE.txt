@@ -33,12 +33,21 @@ anyway (other spacing or line breaks, the newer menu bar made from a table). If 
 doesn't build with one of them, that one is left out and the game is built without it (the
 window says which; mods\system\bin\build.log has the build's output, repatch.txt how each
 place was found). It is tried again with the next update of the game or of the mods.
-If you update by hand (a new download), extract it and run its Install.bat once more.
+To update the cheats themselves: double-click mods\Update.bat in the game folder. It looks on GitHub
+for a newer version, downloads it and installs it (your settings, cheat choices and save are kept).
+Running Install.bat does the same check first. Or update by hand: extract the new download and run
+its Install.bat once more.
 
 
 INSTALL
 -------
-Extract the download (release.zip), then double-click "Install.bat". It asks where your
+Extract the download (release-<version>.zip), then double-click "Install.bat". Before it does anything it
+checks that your PC is ready: Windows 10/11 64-bit, free space, write access, your Dragon Quest IX ROM
+(it asks for the file and puts it in the rom folder), the build tools (MSYS2: the build installs them),
+the internet and the C# compiler of .NET Framework 4 (only for the save editor; it offers to switch it
+on). If DQIX Enhanced is not on the PC at all it offers to download it for you. The check is remembered
+(in %LOCALAPPDATA%\DQIX-Enhanced-AR); to run it again start the installer from a command window with
+-Recheck. Then: It asks where your
 DQIX Enhanced folder is (the one with BUILD.bat in it; it usually finds it by itself), puts
 the files into that folder's "mods" folder and builds the Cheats tab into the game (a few
 minutes the first time). If the game is not built yet, it builds it too (it asks for your ROM).
