@@ -586,7 +586,7 @@ def main():
             print(f"   [on] {what}")
         elif state == "unknown":
             print(f"   [skipped] {what}: this version of the game has runtime\\{name} written differently."
-                  + ("  Cheats still work when you play alone." if i == 0 else "  Cheats can still be switched in the files (see mods\\README.txt)."
+                  + ("  Cheats still work when you play alone." if i == 0 else "  Cheats can still be switched in the files (see USER GUIDE.txt in the download)."
                      if name in ("menu_win32.c", "frontend_sdl.c", "update.c") else "  \"Instant loading\" stays off."))
     for f in GONE:
         dst = os.path.join(root, "runtime", f)

@@ -39,7 +39,7 @@ INCLUDE = [
     ("VERSION", "VERSION"),
     ("release/README.txt", "README.txt"),
     ("mods/Apply.bat", "mods/Apply.bat"),
-    ("mods/README.txt", "mods/README.txt"),
+    ("USER GUIDE.txt", "USER GUIDE.txt"),
     ("mods/settings.txt", "mods/settings.txt"),
     ("mods/system/about.tsv", "mods/system/about.tsv"),
     ("mods/system/verified.txt", "mods/system/verified.txt"),

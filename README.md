@@ -1,15 +1,38 @@
+<div align="center">
+
 # DQIX Enhanced AR
 
-A cheat list and code mods for [DQIX Enhanced](https://github.com/sackchief/dqix-enhanced) (Dragon Quest IX on PC), in the style of an R4 / Action Replay cheat menu, built into the game's own menu bar.
+**An Action Replay style cheat menu, built into DQIX Enhanced.**
 
-- **218 cheats that switch while you play** (code mods included; none needs a rebuild), and launch options such as *Battle any monster you want* (288 monsters). All are checked against your own ROM before they can run, so they cannot crash the game, and every one of them was tried out in the game (the *untested* label is only for codes you add yourself or a newer R4 list).
-- **A "Cheats" tab inside the game's own menu bar**: *Cheats...* opens the cheat list in a window of the game itself, and a switch works at once while you play: no restart, no rebuild, code mods included. There is no separate cheat program. *Save editor...* and *Treasure maps...* open the web tools. The tab is put back automatically after the game updates itself.
-- **Works alone and in sessions with friends** (cheats travel with the buttons, so every PC stays in sync).
-- **Save editor** and **Treasure maps**: the DQIX project's browser editor opens with your save already loaded (downloaded on first use, needs the internet once; not part of this repo), and the map search website.
-- **Five languages in the save editor**: English, Deutsch, Francais, Espanol, Italiano (box in the editor page). Game words come from your own ROM's texts, also the item names.
-- **Your save is protected**: the save editor copies your save to `mods\system\save-backups` before it writes (the last 30 are kept).
+[![Release](https://img.shields.io/github/v/release/mogelpeter/DQIX-Enhanced-AR?style=flat-square&color=2b6cb0)](https://github.com/mogelpeter/DQIX-Enhanced-AR/releases/latest)
+[![Downloads](https://img.shields.io/github/downloads/mogelpeter/DQIX-Enhanced-AR/total?style=flat-square&color=2f855a)](https://github.com/mogelpeter/DQIX-Enhanced-AR/releases)
+[![License: GPL v3](https://img.shields.io/github/license/mogelpeter/DQIX-Enhanced-AR?style=flat-square&color=718096)](LICENSE)
+[![Platform](https://img.shields.io/badge/platform-Windows%2010%20%7C%2011-4a5568?style=flat-square)](#quick-install)
+[![Last commit](https://img.shields.io/github/last-commit/mogelpeter/DQIX-Enhanced-AR?style=flat-square&color=718096)](https://github.com/mogelpeter/DQIX-Enhanced-AR/commits/main)
+[![Built for](https://img.shields.io/badge/built%20for-DQIX%20Enhanced-b7791f?style=flat-square)](https://github.com/sackchief/dqix-enhanced)
+
+[Download](https://github.com/mogelpeter/DQIX-Enhanced-AR/releases/latest) &nbsp;|&nbsp; [Quick install](#quick-install) &nbsp;|&nbsp; [Beginner guide](#step-by-step-for-complete-beginners) &nbsp;|&nbsp; [Troubleshooting](#troubleshooting)
+
+</div>
+
+---
+
+A cheat list and code mods for [DQIX Enhanced](https://github.com/sackchief/dqix-enhanced) (Dragon Quest IX on PC), in the style of an R4 / Action Replay cheat menu, built into the game's own menu bar. Switch a cheat on while you play: no restart, no rebuild.
+
+## Highlights
+
+| | |
+|---|---|
+| **218 live cheats** | Code mods included, none needs a rebuild. Launch options such as *Battle any monster you want* (288 monsters). Every cheat is checked against your own ROM before it can run, so it cannot crash the game, and every shipped one was tried out in the game (*untested* marks only codes you add yourself or a newer R4 list). |
+| **A Cheats tab in the game** | *Cheats...* opens the list in a window of the game itself. There is no separate cheat program. The tab is put back automatically after the game updates itself. |
+| **Solo or with friends** | Cheats travel with the buttons, so every PC in a session stays in sync. |
+| **Save editor and Treasure maps** | The DQIX project's browser editor opens with your save already loaded (downloaded on first use, needs the internet once, not part of this repo), plus the map search website. |
+| **Five languages** | The save editor speaks English, Deutsch, Francais, Espanol and Italiano. Game words, item names included, come from your own ROM. |
+| **Your save is protected** | The editor copies your save to `mods\system\save-backups` before it writes (the last 30 are kept). |
 
 The ROM and the game itself are never part of this repo.
+
+> **New here?** Download the zip from the [latest release](https://github.com/mogelpeter/DQIX-Enhanced-AR/releases/latest) and open **`USER GUIDE.txt`** in it: the full manual, install included.
 
 ---
 
@@ -89,7 +112,7 @@ The very first time after an update of the cheats the game is built once (a few 
 
 ## Using the cheats
 
-The cheat window has pages on the left: **Enabled** (everything that is on), then Speed & comfort, Camera, Experience & gold, Party, Battle, Items, Treasure maps, Alchemy, World, Unlocks, Records & quests, Fun and Miscellaneous. Big pages are folded into sections you click open (Party: Whole party, Hero, Player 2-4; Battle: Party buffs, Enemy debuffs, Monster AI, Encounters). The search box above them looks through every page (all words must fit; inside a choice like *Battle any monster you want* only the fitting options are offered; the first 60 hits are shown). Keep the window open while you play and switch cheats on the fly. The **Nuzlocke** menu (menu bar: *Nuzlocke > Settings...*) turns the game into a challenge run: *Permadeath* (a party member who falls stays dead; revives are undone), the hero's death ending the run, soul-linked pairs, gold punishments, and randomizers for monsters, skill trees, class spells, stat growth, drops and shop wares from a seed (details in `mods\README.txt`). The grey line under a cheat says who needs it in a session (*One player* in yellow, *All players* in pink), the buttons to hold (in blue) and its labels; hover a row for a longer explanation of what the cheat does.
+The cheat window has pages on the left: **Enabled** (everything that is on), then Speed & comfort, Camera, Experience & gold, Party, Battle, Items, Treasure maps, Alchemy, World, Unlocks, Records & quests, Fun and Miscellaneous. Big pages are folded into sections you click open (Party: Whole party, Hero, Player 2-4; Battle: Party buffs, Enemy debuffs, Monster AI, Encounters). The search box above them looks through every page (all words must fit; inside a choice like *Battle any monster you want* only the fitting options are offered; the first 60 hits are shown). Keep the window open while you play and switch cheats on the fly. The **Nuzlocke** menu (menu bar: *Nuzlocke > Settings...*) turns the game into a challenge run: *Permadeath* (a party member who falls stays dead; revives are undone), the hero's death ending the run, soul-linked pairs, gold punishments, and randomizers for monsters, skill trees, class spells, stat growth, drops and shop wares from a seed (details in `USER GUIDE.txt`). The grey line under a cheat says who needs it in a session (*One player* in yellow, *All players* in pink), the buttons to hold (in blue) and its labels; hover a row for a longer explanation of what the cheat does.
 
 Each cheat is one of these:
 
@@ -113,7 +136,7 @@ The labels in the grey line:
 
 **Share** copies what you have on as one line of text to the clipboard; paste it to your friends. They copy it and press **Import** to get exactly the same cheats on (what they had on before is switched off).
 
-You can also add your own cheats: put a text file in `mods\system\cheats` (see `mods\README.txt`, section "Make your own").
+You can also add your own cheats: put a text file in `mods\system\cheats` (see `USER GUIDE.txt`, section "Make your own").
 
 ---
 
@@ -205,11 +228,12 @@ Your save (`game\dqix.sav`) is never touched.
 
 ## For development
 
-See [docs/WORKFLOW.md](docs/WORKFLOW.md) (fast loop, which test for which change, moving to another PC) and [docs/NOTES.md](docs/NOTES.md) (change notes). `mods\README.txt` is the user manual that goes into the game folder.
+See [docs/WORKFLOW.md](docs/WORKFLOW.md) (fast loop, which test for which change, moving to another PC) and [docs/NOTES.md](docs/NOTES.md) (change notes). `USER GUIDE.txt` is the full user manual (it is in the release zip next to `Install.bat`).
 
 Layout:
 
 ```
+USER GUIDE.txt       the full manual (also first in the release zip)
 Install.bat, installer\Install.ps1  the installer (asks for the game folder, copies mods\, runs Apply.bat); release\ builds release.zip
 mods\Apply.bat       the patcher: cheat list for your ROM, cheats into the game's source, build, save editor helper
                             (also run by the game's updater and by the Cheats window for a rebuild)

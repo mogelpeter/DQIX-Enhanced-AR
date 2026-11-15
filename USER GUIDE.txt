@@ -52,7 +52,6 @@ What is in the mods folder:
                           installer, the game's updater and the Cheats window run it
                           for you; run it yourself after an update by hand or after you
                           changed a cheat file.
-    README.txt            this file
     settings.txt          one switch (yes / no), explained inside
     system\               everything the cheats run on: the cheat lists (system\cheats,
                           yours go there too), the save editor's translations, your

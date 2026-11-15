@@ -22,4 +22,4 @@ your choices in the game and your save are kept.
 
 Something went wrong?  A log of the installer is in %TEMP%\dqix-cheats-install.log.
 The build's own log is in <your DQIX Enhanced folder>\mods\system\bin\build.log.
-More help: mods\README.txt, or github.com/mogelpeter/DQIX-Enhanced-AR
+More help: USER GUIDE.txt, or github.com/mogelpeter/DQIX-Enhanced-AR

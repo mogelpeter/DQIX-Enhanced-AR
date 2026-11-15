@@ -2,6 +2,9 @@
 
 Newest first. One block per working session: what changed, why, how it was checked.
 
+## 2026-11-15 (51)  README with badges, manual to the top folder
+- `README.md` gets a centered header with badges (release, downloads, license, platform, last commit) and a Highlights table. `mods\README.txt` -> `USER GUIDE.txt` in the repo's top folder (and the zip's); `release\make_release.py`, the docs and the message in apply_runtime_mod.py follow. The manual is no longer copied into the game's `mods` folder. Checked: release build (nothing published) has `USER GUIDE.txt` and `README.txt` at the top.
+
 ## 2026-11-15 (50)  Shorter names, installer script out of sight
 - `Install cheats.bat` -> `Install.bat`, `Install cheats.ps1` -> `installer\Install.ps1` (the only file in the download's top folder to run is Install.bat), `mods\Apply cheats.bat` -> `mods\Apply.bat`. Every mention (the game's updater in update.c, the Cheats window's rebuild, messages, docs, tests) follows. The marker lines in apply_runtime_mod.py are not reworded (games that have the old blocks are found by them); the updater block is replaced, so a game patched before gets the new name at the next apply. The installer removes the old `mods\Apply cheats.bat`. Checked: release.zip extracted, installer run on this game folder (old Apply removed, update.c has `mods\Apply.bat`), `test fast`.
 
