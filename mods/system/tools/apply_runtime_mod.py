@@ -205,6 +205,15 @@ UPD_ORIGINAL = r"""    "echo == Building the game again from your ROM (this can 
 UPD_PATCHED = UPD_BEGIN + UPD_ORIGINAL + r"""    "if exist \"mods\\Apply.bat\" call \"mods\\Apply.bat\" apply\r\n"
 """ + END
 
+FAST_BEGIN = "    /* >>> mods: DQIX_FAST for runs without a window (mods/tools/apply_runtime_mod.py; an update removes this, Play with mods.bat puts it back) */\n"
+FAST_ORIGINAL = """    } else g_fe_keys = pad_bits();
+"""
+FAST_PATCHED = FAST_BEGIN + """    } else {   /* tests: DQIX_FAST=1 also lifts the 60 fps pacing of a run without a window (the window's own runs already do) */
+        static int ff = -1; if (ff < 0) ff = getenv("DQIX_FAST") != NULL;
+        g_fe_keys = pad_bits(); g_fast = ff;
+    }
+""" + END
+
 # (file in runtime/, the lines as the game has them, with the mods, first marker line, what it is)
 # The marker lines (*_BEGIN, WRAP_BEGIN) are found by their exact text in games that already have them: never reword
 # them (they still name "Play with mods.bat", the patcher's old name), or those games keep an orphaned block.
@@ -215,9 +224,10 @@ SITES = [
     ("menu_win32.c", MENU_ORIGINAL, MENU_PATCHED, MENU_BEGIN, "Cheats tab in the menu bar"),
     ("frontend_sdl.c", ACT_ORIGINAL, ACT_PATCHED, ACT_BEGIN, "Cheats tab: what it does"),
     ("update.c", UPD_ORIGINAL, UPD_PATCHED, UPD_BEGIN, "Cheats stay after an update of the game"),
+    ("frontend_sdl.c", FAST_ORIGINAL, FAST_PATCHED, FAST_BEGIN, "Fast test runs without a window"),
 ]
 NEEDS_INPUT = {"data", "act"}                                       # they call the mods' own files, which come with "input"
-SITE_KEYS = ["input", "card", "data", "menu", "act", "update"]   # SITES in order; "wrap" is the lines in wrap.txt (live code mods)
+SITE_KEYS = ["input", "card", "data", "menu", "act", "update", "fast"]   # SITES in order; "wrap" is the lines in wrap.txt (live code mods)
 VARIANTS = {"menu": [(MENU2_ORIGINAL, MENU2_PATCHED, MENU2_BEGIN)]}    # other forms of a place: tried after the first one
 FILES = ["mod_cheats.c", "ar_engine.h", "mod_data.c", "livepatch.c", "mod_cheatwin.c", "nuzlocke.c"]       # belong to the first site
 MENU_FILES = ["mod_menu.c"]                                  # belong to the "what it does" site (frontend_sdl.c)

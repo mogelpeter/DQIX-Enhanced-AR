@@ -314,9 +314,10 @@ def tagged_records(b):
     return out
 
 
-def monsters(nds):
+def monsters(nds, bosses=False):
     """[(monster number, English name)] of the ordinary monsters, the ones that roam the field (fld_mondata.bin:
-    the tag 0x65 records; value 2, the margin by which the party's level must pass the monster's before it runs, is 0 on the bosses only)"""
+    the tag 0x65 records; value 2, the margin by which the party's level must pass the monster's before it runs, is 0 on the bosses only).
+    bosses=True: the named bosses instead (a boss that has several forms or levels gets its level behind the name; the claws are no fight on their own)"""
     arc = gpc2(nds.read("data/prm/mon_list.gp2"))
     b = arc["mon_list_en.nat"]
     count = struct.unpack_from("<I", b, 0)[0] & 0xFFF
@@ -327,8 +328,14 @@ def monsters(nds):
         num = struct.unpack_from("<H", b, 4 + 32 * i + 12)[0]
         e = b.find(b"\0", base + off)
         names.setdefault(num, clean(b[base + off:e if e >= 0 else None].decode("latin1")))
-    ordinary = [v[0] for t, v in tagged_records(nds.read("data/prm/fld_mondata.bin")) if t == 0x65 and len(v) >= 3 and v[2] != 0]
-    return sorted((n, names[n]) for n in set(ordinary) if n in names and names[n])
+    recs = [v for t, v in tagged_records(nds.read("data/prm/fld_mondata.bin")) if t == 0x65 and len(v) >= 3]
+    if not bosses:
+        return sorted((n, names[n]) for n in set(v[0] for v in recs if v[2] != 0) if n in names and names[n])
+    found = sorted((v[0], names[v[0]], v[1]) for v in recs if v[2] == 0 and names.get(v[0]) and not names[v[0]].endswith(" claw"))
+    count_of = {}
+    for _, n, _ in found:
+        count_of[n] = count_of.get(n, 0) + 1
+    return [(num, "%s (level %d)" % (n, lvl) if count_of[n] > 1 else n) for num, n, lvl in found]
 
 
 def write_tables(rom_path, out):

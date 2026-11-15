@@ -17,3 +17,6 @@ CLAUDE.md
 mods/system/tools/pac-out/
 
 dist/
+
+# local test save (not published)
+mods/system/tests/dqix_test.sav

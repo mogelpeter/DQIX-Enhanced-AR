@@ -184,14 +184,22 @@ def battle_entries():
         who = "p%d" % (i + 1)
         hp, mp = (b + 0x5C, b + 0x58), (b + 0x5E, b + 0x5A)
         copy = lambda cur, mx: [(0xA2000000 | cur, 0), (0xDA000000, cur), (0xD7000000, mx), (0xD2000000, 0)]
-        keep = copy(*hp) + copy(*mp)
+        keep = copy(*hp) + copy(*mp) + [(W8 | b + 0x70, 0x40)]     # + the game's invincible flag: a hit bigger than their HP kills before the copy can undo it (checked in a real fight, Dragonlord Lv. 99)
         out += [
-            ("live:battle:%s:keep" % who, "Never go down", who, keep, "always", "The R4 database's \"HP never decrease\" code, for this member only."),
+            ("live:battle:%s:keep" % who, "Never go down", who, keep, "always", "HP and MP are put back to full every frame and the game's own invincible flag is set, so even one hit that is bigger than their HP can't knock them out."),
             ("live:battle:%s:max" % who, "HP/MP 9999", who, [(W16 | b + 0x58, 9999), (W16 | b + 0x5C, 9999), (W16 | b + 0x5A, 9999), (W16 | b + 0x5E, 9999)], "once",
              "Their maximum and current HP and MP become 9999 for this battle."),
             ("live:battle:%s:tension" % who, "High tension", who, [(W8 | b + 0x6F, 1), (W8 | b + 0x7C, 4)], "once", "Their tension goes to the top."),
             ("live:battle:%s:coup" % who, "Coup ready", who, [(W8 | b + 0x93, 0x98)], "once", "They can use Coup de Grace this turn."),
         ]
+        # the effects on a member (found by casting Buff and Insulate in a real fight): effect slot k has its turn counter at +0xC7 + 6k (down by one every round,
+        # 5 when Buff is cast), a state byte at +0x6D + k and a flag word at +0xB0 + 2k. While a slot's counter is not 0 it is put back to 9 every frame, so it
+        # never runs out; a slot Disruptive Wave (or anything else) emptied stays empty. Slots 0..8 (0xC6..0xFB; the record goes on with other data at 0x100).
+        lasting = []
+        for k in range(9):
+            lasting += [(0xA0000000 | b + 0xC6 + 6 * k, 0x00FF0000), (W8 | b + 0xC7 + 6 * k, 9), (0xD0000000, 0)]
+        out.append(("live:battle:%s:lasting" % who, "Effects last all battle", who, lasting, "always",
+                    "Buffs and debuffs on them don't run out until Disruptive Wave (or the battle) ends them. Found for Buff and Insulate; Bounce is not told apart."))
         if i:
             out.append(("live:battle:%s:invincible" % who, "Invincible", who, [(W8 | b + 0x70, 0x40)], "once", "The game's own \"invincible\" flag, as the R4 code sets it."))
     status = [("sleep", "Sleep", [(0x14, 0x10)]), ("poison", "Poison", [(0x14, 0x02), (0x22, 0x02)]),
@@ -203,6 +211,9 @@ def battle_entries():
             ("live:battle:%s:defeat" % who, "Defeat", who, [(W16 | b, 0)], "once", "HP to 0."),
             ("live:battle:%s:hp1" % who, "HP 1", who, [(W16 | b, 1)], "once", ""),
             ("live:battle:%s:mp0" % who, "MP 0", who, [(W16 | b + 4, 0)], "once", ""),
+            # the enemy record carries its species' maximums at +8 (HP) and +10 (MP): copy them over the current values (DA = load 16 bits, D7 = store them)
+            ("live:battle:%s:refill" % who, "Refill HP", who, [(0xDA000000, b + 8), (0xD7000000, b), (0xD2000000, 0)], "once", "Its HP goes back to full, just for fun."),
+            ("live:battle:%s:refillmp" % who, "Refill MP", who, [(0xDA000000, b + 10), (0xD7000000, b + 4), (0xD2000000, 0)], "once", "Its MP goes back to full."),
         ]
         for sid, sname, writes in status:
             out.append(("live:battle:%s:%s" % (who, sid), sname, who, [(W8 | b + off, v) for off, v in writes], "once", ""))
@@ -1179,16 +1190,18 @@ def build(root):
     # ---- "Battle any monster you want": our own version of the database's code, one choice with every ordinary monster
     try:
         import rom_text
-        mons = rom_text.monsters(rom_text.Nds(os.path.join(root, "game", "data", "dqix.nds")))
+        nds = rom_text.Nds(os.path.join(root, "game", "data", "dqix.nds"))
+        mons = rom_text.monsters(nds)
+        mons_boss = rom_text.monsters(nds, bosses=True)
     except Exception:
-        mons = []
+        mons, mons_boss = [], []
     if mons:
         entries = [e for e in entries if not (e["id"].startswith("db:") and e["name"].lower().startswith("battle any monsters you want"))]
         gid = "group:battle-any-monster"
-        groups.append(dict(id=gid, cat="Battle", title="Battle any monster you want", note="", kind="launch"))
-        for num, mname in mons:
+        groups.append(dict(id=gid, cat="Battle", title="Battle any monster you want", note="Every monster that roams the field, and the bosses (marked boss).", kind="launch"))
+        for num, mname in mons + [(n, "%s (boss)" % m) for n, m in mons_boss]:
             # tested: tests/test_force_data.c (all 288 hand out exactly that monster) and the 288-run crash check (NOTES 2026-11-13)
-            entries.append(dict(id=f"launch:monster:{num}", name=mname, note="", cat="Battle", group=gid, kind="launch", status="tested",
+            entries.append(dict(id=f"launch:monster:{num}", name=mname, note="", cat="Battle", group=gid, kind="launch", status="untested" if mname.endswith("(boss)") else "tested",
                                 mode="", ops=[], keys=[], reason="", file="", on=False, patch=[], env=f"DQIX_MOD_FORCE={num}", option=mname, also=""))
 
     # ---- the Nuzlocke randomizers: one launch option each, and the seed as one choice
