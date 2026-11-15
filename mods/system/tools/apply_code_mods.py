@@ -124,6 +124,8 @@ def parse_mod(path):
         if not p:
             continue
         try:
+            if p and p[-1].startswith("@"):                    # @module: see mod_tags
+                p = p[:-1]
             if p[0].lower() == "check" and len(p) == 3:
                 checks.append((int(p[1], 16), int(p[2], 16)))
             elif p[0].lower() == "patch" and len(p) == 4:      # patch <addr> <old> <new>
@@ -139,6 +141,23 @@ def parse_mod(path):
     if patches and not checks:
         errors.append("no 'check' line: a mod has to say what it expects to find")
     return name, on, checks, patches, errors
+
+
+def mod_tags(path):
+    """{address: module name} for the lines of a hand-made code mod that end in @main / @ov002 ...: a mod that changes several
+    modules of the game (the checks and patches of a tag are looked for in that module only)"""
+    out = {}
+    for line in open(path, encoding="utf-8-sig"):
+        s = line.strip()
+        if s.startswith("#"):
+            continue
+        p = s.split("#")[0].split()
+        if len(p) >= 3 and p[0].lower() in ("check", "patch") and p[-1].startswith("@"):
+            try:
+                out[int(p[1], 16)] = p[-1][1:]
+            except ValueError:
+                pass
+    return out
 
 
 def main():

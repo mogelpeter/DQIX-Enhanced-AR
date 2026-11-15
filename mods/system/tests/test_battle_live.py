@@ -88,7 +88,7 @@ def at(frame, what):
 
 
 once = ops_of("live:battle:e1:hp1") + ops_of("live:battle:e2:sleep") + ops_of("live:battle:p2:tension") + ops_of("live:battle:p2:coup") \
-    + ops_of("live:battle:p1:max") + ops_of("live:battle:p3:invincible")     + [(0x10000000 | ENEMY0 + 2 * ESTRIDE + 8, 50), (0x10000000 | ENEMY0 + 2 * ESTRIDE + 10, 20)] + ops_of("live:battle:e3:defeat")     + ops_of("live:battle:e3:refill") + ops_of("live:battle:e3:refillmp")         # enemy 3: maximums 50 / 20, HP to 0, then "Refill" brings both back
+    + ops_of("live:battle:p1:max") + ops_of("live:battle:p3:invincible")     + [(0x10000000 | ENEMY0 + 2 * ESTRIDE + 4, 50), (0x10000000 | ENEMY0 + 2 * ESTRIDE + 6, 20)] + ops_of("live:battle:e3:defeat")     + ops_of("live:battle:e3:refill") + ops_of("live:battle:e3:refillmp")         # enemy 3: maximums 50 / 20, HP to 0, then "Refill" brings both back
 at(AT - 60, lambda: send(1, None, once))
 at(AT + 130, lambda: send(1, None, [(0x10000000 | PARTY0 - STRIDE + 0x5C, 3)]))                   # member 2's HP now: 3
 at(AT + 190, lambda: send(2, 9, ops_of("live:battle:p2:keep")))                                   # "HP and MP never go down" (member 2)
@@ -114,8 +114,8 @@ expect(ram(f, p2 + 0x6F, 1) == 1 and ram(f, p2 + 0x7C, 1) == 4, "member 2 must h
 expect(ram(f, p2 + 0x93, 1) == 0x98, "member 2 must have Coup de Grace ready (%#x)" % ram(f, p2 + 0x93, 1))
 expect(ram(f, PARTY0 + 0x5C, 2) == 9999 and ram(f, PARTY0 + 0x5E, 2) == 9999, "member 1 HP and MP must be 9999")
 expect(ram(f, PARTY0 - 2 * STRIDE + 0x70, 1) == 0x40, "member 3 must carry the invincible flag")
-expect(ram(f, ENEMY0 + 2 * ESTRIDE, 2) == 50 and ram(f, ENEMY0 + 2 * ESTRIDE + 4, 2) == ram(f, ENEMY0 + 2 * ESTRIDE + 10, 2) == 20,
-       "enemy 3 must be refilled to 50 HP / 20 MP (is %d / %d)" % (ram(f, ENEMY0 + 2 * ESTRIDE, 2), ram(f, ENEMY0 + 2 * ESTRIDE + 4, 2)))
+expect(ram(f, ENEMY0 + 2 * ESTRIDE, 2) == 50 and ram(f, ENEMY0 + 2 * ESTRIDE + 2, 2) == 20,
+       "enemy 3 must be refilled to 50 HP / 20 MP (is %d / %d)" % (ram(f, ENEMY0 + 2 * ESTRIDE, 2), ram(f, ENEMY0 + 2 * ESTRIDE + 2, 2)))
 last = AT + 320
 expect(ram(last, p2 + 0x5C, 2) == ram(last, p2 + 0x58, 2) == 3,
        "'never go down' must copy member 2's HP (3) into the actual HP: HP now %d, actual %d" % (ram(last, p2 + 0x5C, 2), ram(last, p2 + 0x58, 2)))

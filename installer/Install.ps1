@@ -368,6 +368,18 @@ function Install-Files([string]$Target) {
         [void]$new.Add($versionRel)
     }
 
+    # the updater (mods\Update.bat) runs this very script from the game folder: always leave a copy there, even when the download's mods folder had none
+    try {
+        $selfRel = 'mods\system\installer\Install.ps1'
+        $selfDst = Join-Path $Target $selfRel
+        if ($PSCommandPath -and ((Resolve-Path -LiteralPath $PSCommandPath).Path -ne [IO.Path]::GetFullPath($selfDst))) {
+            $selfDir = Split-Path -Parent $selfDst
+            if (-not (Test-Path -LiteralPath $selfDir)) { [void](New-Item -ItemType Directory -Path $selfDir -Force) }
+            if (-not (Test-SameFile $PSCommandPath $selfDst)) { Copy-Item -LiteralPath $PSCommandPath -Destination $selfDst -Force }
+        }
+        if ($new -notcontains $selfRel) { [void]$new.Add($selfRel) }
+    } catch { Write-Log ('could not leave a copy of the installer for the updater: ' + $_.Exception.Message) }
+
     # files an older download had and this one has not (copying never deletes by itself)
     $removed = 0
     $old = @()

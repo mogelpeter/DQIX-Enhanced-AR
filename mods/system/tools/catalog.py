@@ -176,6 +176,30 @@ def battle_addr_set():
     return out
 
 
+def effect_ops(st):
+    """The effects of a fighter: st is its record of current stats (a party member: record + 0x58; an enemy: its record). Found in a real fight (Buff and
+    Insulate cast on the hero), with the layout of a trainer for the same game as a guide: eight effects in this order: attack, defence, agility, charm,
+    magical might, magical mending, magic resistance, breath resistance. Effect j has its flag in the status word at st+0x14 (0x400 << j, the last two 0x10000
+    and 0x20000), its level (3 bits, +2 = 2, -2 = 6) at st+0x58 (24 bits) and its turn counter at st+0x6E+j, which goes down by one every round (5 when cast).
+    Bounce (flag 0x200, counter st+0x61) is not one of them.  -> (lasting, all buffs, all debuffs)"""
+    lasting = []
+    for j in range(8):
+        pos = st + 0x6E + j
+        # counter 1..5: back to 6 (the game takes one off at the end of a round and ends the effect with a chance that is 0 from 5 down); 0 stays 0, 6 and up are left alone
+        lasting += [(0xA0000000 | pos, 0xFF000000), (0x70000000 | pos, 0xFF000006), (W8 | pos, 6), (0xD0000000, 0), (0xD0000000, 0)]
+    def flags():
+        out = []
+        for byte, bit in [(st + 0x15, 1 << k) for k in range(2, 8)] + [(st + 0x16, 1), (st + 0x16, 2)]:
+            # the bit is clear -> add it (there is no OR: read the byte, add the bit, write it back)
+            out += [(0x90000000 | byte, (~bit & 0xFFFF) << 16), (0xD3000000, byte), (0xDB000000, 0), (0xD4000000, bit), (0xD8000000, 0), (0xD3000000, 0), (0xD0000000, 0)]   # (D3 0: the offset is back to 0 for the plain writes after it)
+        return out
+    def counters():
+        return [(W8 | st + 0x6E + j, 5) for j in range(8)]
+    buffs = flags() + [(W16 | st + 0x58, 0x2492), (W8 | st + 0x5A, 0x49)] + counters() + [(0xD2000000, 0)]
+    debuffs = flags() + [(W16 | st + 0x58, 0x6DB6), (W8 | st + 0x5A, 0xDB)] + counters() + [(0xD2000000, 0)]
+    return lasting, buffs, debuffs
+
+
 def battle_entries():
     """-> the live battle entries: (id, name, who, ops, mode, note)"""
     out = []
@@ -192,14 +216,9 @@ def battle_entries():
             ("live:battle:%s:tension" % who, "High tension", who, [(W8 | b + 0x6F, 1), (W8 | b + 0x7C, 4)], "once", "Their tension goes to the top."),
             ("live:battle:%s:coup" % who, "Coup ready", who, [(W8 | b + 0x93, 0x98)], "once", "They can use Coup de Grace this turn."),
         ]
-        # the effects on a member (found by casting Buff and Insulate in a real fight): effect slot k has its turn counter at +0xC7 + 6k (down by one every round,
-        # 5 when Buff is cast), a state byte at +0x6D + k and a flag word at +0xB0 + 2k. While a slot's counter is not 0 it is put back to 9 every frame, so it
-        # never runs out; a slot Disruptive Wave (or anything else) emptied stays empty. Slots 0..8 (0xC6..0xFB; the record goes on with other data at 0x100).
-        lasting = []
-        for k in range(9):
-            lasting += [(0xA0000000 | b + 0xC6 + 6 * k, 0x00FF0000), (W8 | b + 0xC7 + 6 * k, 9), (0xD0000000, 0)]
-        out.append(("live:battle:%s:lasting" % who, "Effects last all battle", who, lasting, "always",
-                    "Buffs and debuffs on them don't run out until Disruptive Wave (or the battle) ends them. Found for Buff and Insulate; Bounce is not told apart."))
+        la = effect_ops(b + 0x58)[0]
+        out += [("live:battle:%s:lasting" % who, "Effects last all battle", who, la, "always",
+                 "Buffs and debuffs on them don't run out until Disruptive Wave (or the battle) ends them. Bounce is not touched.")]
         if i:
             out.append(("live:battle:%s:invincible" % who, "Invincible", who, [(W8 | b + 0x70, 0x40)], "once", "The game's own \"invincible\" flag, as the R4 code sets it."))
     status = [("sleep", "Sleep", [(0x14, 0x10)]), ("poison", "Poison", [(0x14, 0x02), (0x22, 0x02)]),
@@ -211,10 +230,12 @@ def battle_entries():
             ("live:battle:%s:defeat" % who, "Defeat", who, [(W16 | b, 0)], "once", "HP to 0."),
             ("live:battle:%s:hp1" % who, "HP 1", who, [(W16 | b, 1)], "once", ""),
             ("live:battle:%s:mp0" % who, "MP 0", who, [(W16 | b + 4, 0)], "once", ""),
-            # the enemy record carries its species' maximums at +8 (HP) and +10 (MP): copy them over the current values (DA = load 16 bits, D7 = store them)
-            ("live:battle:%s:refill" % who, "Refill HP", who, [(0xDA000000, b + 8), (0xD7000000, b), (0xD2000000, 0)], "once", "Its HP goes back to full, just for fun."),
-            ("live:battle:%s:refillmp" % who, "Refill MP", who, [(0xDA000000, b + 10), (0xD7000000, b + 4), (0xD2000000, 0)], "once", "Its MP goes back to full."),
+            # the enemy record: HP +0, MP +2, maximum HP +4, maximum MP +6 (not +8 / +10: those are the species' field values): copy the maximums over the current values (DA = load 16 bits, D7 = store them)
+            ("live:battle:%s:refill" % who, "Refill HP", who, [(0xDA000000, b + 4), (0xD7000000, b), (0xD2000000, 0)], "once", "Its HP goes back to full, just for fun."),
+            ("live:battle:%s:refillmp" % who, "Refill MP", who, [(0xDA000000, b + 6), (0xD7000000, b + 2), (0xD2000000, 0)], "once", "Its MP goes back to full."),
         ]
+        la = effect_ops(b)[0]
+        out += [("live:battle:%s:lasting" % who, "Effects last all battle", who, la, "always", "Buffs and debuffs on it don't run out until Disruptive Wave (or the battle) ends them. Untested on enemies.")]
         for sid, sname, writes in status:
             out.append(("live:battle:%s:%s" % (who, sid), sname, who, [(W8 | b + off, v) for off, v in writes], "once", ""))
     return out
@@ -758,15 +779,32 @@ def file_header(path, key):
     return " ".join(out)
 
 
-def fit_code_file(rom, checks, patches):
-    """A hand-made code mod's instructions in this ROM: [(module, address, word)], or None."""
+def fit_code_file(rom, checks, patches, tags=None):
+    """A hand-made code mod's instructions in this ROM: [(module, address, word)], or None.
+    tags ({address: module name}, see apply_code_mods.mod_tags): lines that name their module are looked for there only, and every
+    module the file names has to fit; the untagged lines are found in whichever one module fits them all."""
+    tags = tags or {}
     out = []
-    for m in [rom.main] + rom.overlays:
-        ways = [rom.to_rom, lambda a: a] if m is rom.main else [lambda a: a]
-        for ra in ways:
-            if all(m.word(ra(a)) == w for a, w in checks) and all(m.word(ra(a)) is not None for a, _ in patches):
-                out += [(m.name, ra(a), w) for a, w in patches]
+    groups = {}
+    for a, w in checks:
+        groups.setdefault(tags.get(a), ([], []))[0].append((a, w))
+    for a, w in patches:
+        groups.setdefault(tags.get(a), ([], []))[1].append((a, w))
+    for tag, (cks, pts) in groups.items():
+        found = False
+        for m in [rom.main] + rom.overlays:
+            if tag and m.name != tag:
+                continue
+            ways = [rom.to_rom, lambda a: a] if m is rom.main else [lambda a: a]
+            for ra in ways:
+                if all(m.word(ra(a)) == w for a, w in cks) and all(m.word(ra(a)) is not None for a, _ in pts):
+                    out += [(m.name, ra(a), w) for a, w in pts]
+                    found = True
+                    break
+            if found:
                 break
+        if not found:
+            return None
     return sorted(set(out)) or None
 
 
@@ -984,7 +1022,7 @@ def build(root):
                  group="", kind="code", status=file_header(f, "status") or "tested", mode="", ops=[], keys=[], reason="",
                  file="system/cheats/" + base, on=on, patch=[], env="",
                  also=file_header(f, "also"), replaces=file_header(f, "replaces"))
-        fit = None if errors else fit_code_file(rom, checks, patches)
+        fit = None if errors else fit_code_file(rom, checks, patches, acm.mod_tags(f))
         if errors:
             e.update(kind="blocked", status="blocked", reason="The file has a mistake: " + "; ".join(errors))
         elif not fit:

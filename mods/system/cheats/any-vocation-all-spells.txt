@@ -1,0 +1,15 @@
+# name: Every vocation can use every spell and ability
+# enabled: no
+# category: Party
+# about: Spells and abilities show up in the menus whatever the vocation (and the weapon), as long as the character knows them. Use "Learn every spell and ability" (Party page) once to teach everything. Both together: any class casts any spell and uses any ability, in the field and in battle.
+# How: a character's vocation (record + 0x950) decides which spells the menus list: 0 means "every learned spell, every ability". The vocation is looked at in four places and each is told it is 0:
+# the "is this spell on the vocation's list" check (main 0209ac28), the spell list of the field menu (ov002 02157294) and of ov026 (021dcae8), and the battle Abilities list (ov000 0217c404).
+check 0209AC28 E92D4038 @main
+patch 0209AC28 E92D4038 E3A00001 @main
+patch 0209AC2C E1A05000 E12FFF1E @main
+check 02157284 E5900950 @ov002
+patch 02157294 1A000005 E1A00000 @ov002
+check 021DCAE0 E5900950 @ov026
+patch 021DCAE8 1A000004 E1A00000 @ov026
+check 0217C400 E5911950 @ov000
+patch 0217C404 E3510000 E1510001 @ov000

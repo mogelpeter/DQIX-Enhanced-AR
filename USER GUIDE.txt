@@ -15,11 +15,15 @@ Start the game as always (game\dqix.exe). In its menu bar (next to Mods and Help
   running. Tick a cheat and it is on at once: no restart, and no rebuild for almost all code
   mods too. What you tick is saved in mods\system\menu-state.txt and sent again by itself
   when the game starts. Nothing is on until you switch it on.
+- Party page: "Every vocation can use every spell and ability" (switch it on BEFORE a battle starts: the spell list of a
+  battle is made when it begins; abilities show up at once) together with the button "Learn every spell and ability"
+  gives every character every spell and ability, whatever the vocation or the weapon.
 - Cheats > Battle cheats...  (or the Open button at the top of the Cheats window's Battle page)  the live battle window: for every party member and every enemy
   that is really in the fight (it looks every half second, so a member who joins or an enemy
   who falls appears or goes by itself) buttons like High tension, Coup de Grace ready,
   HP and MP 9999, Invincible, HP to 1, Put to sleep, Poison, Stun, Confuse, Defeat and a
-  switch "HP and MP never go down". Nobody who isn't there is listed; outside a battle the
+  switches "Never go down" (HP and MP stay full, and nothing can knock the member out) and "Effects last all
+  battle" (buffs and debuffs do not run out until Disruptive Wave ends them), and for enemies Refill HP / MP. Nobody who isn't there is listed; outside a battle the
   window says so. The same goes for the Cheats window: cheats for party member 2-4 are
   shown only while that member is in the party.
 - Cheats > Save editor...  opens your save in the editor website (the language box is in the

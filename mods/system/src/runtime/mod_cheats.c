@@ -133,7 +133,7 @@ void mod_roster(ModRoster* r) {
             uint32_t e = 0x022A4638u + (uint32_t)n * 0xA4u;
             uint16_t hp = ram16(e);
             r->enemy_hp[n] = hp; r->enemy[n] = hp > 0;
-            r->enemy_max_hp[n] = ram16(e + 8); r->enemy_max_mp[n] = ram16(e + 10);       /* the enemy record carries its maximums (the field's stats of the species) */
+            r->enemy_max_hp[n] = ram16(e + 4); r->enemy_max_mp[n] = ram16(e + 6);         /* the enemy record: HP +0, MP +2, maximum HP +4, maximum MP +6 (+8 / +10 are the species' field values) */
         }
 }
 

@@ -81,6 +81,12 @@ def sync(src, dst, quiet=False):
         os.makedirs(os.path.dirname(q), exist_ok=True)
         shutil.copy2(p, q)
         changed.append(rel)
+    inst = os.path.join(os.path.dirname(os.path.abspath(src)), "installer", "Install.ps1")     # the repo's installer is the game folder's updater (mods\Update.bat runs it)
+    q = os.path.join(dst, "system", "installer", "Install.ps1")
+    if os.path.isfile(inst) and not (os.path.isfile(q) and digest(inst) == digest(q)):
+        os.makedirs(os.path.dirname(q), exist_ok=True)
+        shutil.copy2(inst, q)
+        changed.append(os.path.join("system", "installer", "Install.ps1"))
     if changed and not quiet:
         print("  deployed:", ", ".join(changed[:8]) + (f" (+{len(changed) - 8} more)" if len(changed) > 8 else ""))
     return changed
