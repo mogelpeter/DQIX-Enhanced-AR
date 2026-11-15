@@ -89,6 +89,20 @@ MENU_BEGIN = "    /* >>> mods: Cheats tab in the menu bar (mods/tools/apply_runt
 MENU_ORIGINAL = """\
     HMENU help = sub(g_bar, L"&Help");
 """
+# The Nuzlocke menu is off while the Nuzlocke page is not finished (same flag as in apply_code_mods.py); the text stays here.
+from apply_code_mods import NUZLOCKE_ENABLED
+NZ_MENU = """\n    HMENU nuzlocke = sub(g_bar, L"&Nuzlocke");
+    item(nuzlocke, 365, L"&Settings...");                   /* 365, 366: handled in frontend_sdl.c, mod_cheatwin.c */
+    sep(nuzlocke);
+    item(nuzlocke, 366, L"&What is this?");
+"""
+NZ_MENU2 = """\n        HMENU nuzlocke = CreatePopupMenu();
+        item(nuzlocke, 365, L"&Settings...");               /* 365, 366: handled in frontend_sdl.c, mod_cheatwin.c */
+        sep(nuzlocke);
+        item(nuzlocke, 366, L"&What is this?");
+        InsertMenuW(g_bar, (UINT)at + 1, MF_BYPOSITION | MF_POPUP | MF_STRING, (UINT_PTR)nuzlocke, L"&Nuzlocke");
+"""
+
 MENU_PATCHED = MENU_BEGIN + """\
     HMENU cheats = sub(g_bar, L"&Cheats");
     item(cheats, 360, L"&Cheats...");                       /* 360-363, 367: handled in frontend_sdl.c, mod_menu.c, mod_cheatwin.c */
@@ -97,11 +111,7 @@ MENU_PATCHED = MENU_BEGIN + """\
     item(cheats, 363, L"&Treasure maps...");
     sep(cheats);
     item(cheats, 361, L"&What is this?");
-    HMENU nuzlocke = sub(g_bar, L"&Nuzlocke");
-    item(nuzlocke, 365, L"&Settings...");                   /* 365, 366: handled in frontend_sdl.c, mod_cheatwin.c */
-    sep(nuzlocke);
-    item(nuzlocke, 366, L"&What is this?");
-""" + MENU_ORIGINAL + END
+""" + (NZ_MENU if NUZLOCKE_ENABLED else "") + """""" + MENU_ORIGINAL + END
 
 # Newer versions of the game (v34 on) build the menu bar from a table (runtime/menu_items.c): there is no "Help" line to put
 # the tab in front of. There the tab goes in after the table is built, in front of Help.
@@ -122,12 +132,7 @@ MENU2_PATCHED = MENU2_BEGIN + """\
         int n = GetMenuItemCount(g_bar), at = n; wchar_t t[32];
         if (n > 0 && GetMenuStringW(g_bar, (UINT)(n - 1), t, 32, MF_BYPOSITION) && !lstrcmpW(t, L"&Help")) at = n - 1;
         InsertMenuW(g_bar, (UINT)at, MF_BYPOSITION | MF_POPUP | MF_STRING, (UINT_PTR)cheats, L"&Cheats");
-        HMENU nuzlocke = CreatePopupMenu();
-        item(nuzlocke, 365, L"&Settings...");               /* 365, 366: handled in frontend_sdl.c, mod_cheatwin.c */
-        sep(nuzlocke);
-        item(nuzlocke, 366, L"&What is this?");
-        InsertMenuW(g_bar, (UINT)at + 1, MF_BYPOSITION | MF_POPUP | MF_STRING, (UINT_PTR)nuzlocke, L"&Nuzlocke");
-    }
+""" + (NZ_MENU2 if NUZLOCKE_ENABLED else "") + """    }
 """ + MENU2_ORIGINAL + END
 
 ACT_BEGIN = "    /* >>> mods: what the Cheats tab does (mods/tools/apply_runtime_mod.py; an update removes this, Play with mods.bat puts it back) */\n"

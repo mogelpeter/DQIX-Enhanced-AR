@@ -2,6 +2,9 @@
 
 Newest first. One block per working session: what changed, why, how it was checked.
 
+## 2026-11-15 (52)  Nuzlocke switched off (code kept)
+- The Nuzlocke page is not finished, so it is off: no Nuzlocke menu in the menu bar (`NZ_MENU` text in apply_runtime_mod.py is only added when `NUZLOCKE_ENABLED` is True), no `nuzlocke-*.txt` cheats and no randomizer/seed entries in the catalog (`apply_code_mods.hand_files`, `catalog.py`), and `nz_frame` / `nz_overlay` in nuzlocke.c do nothing unless `NZ_ENABLED` is 1. All code, files and tests stay. To bring it back: `NUZLOCKE_ENABLED = True` in apply_code_mods.py, `#define NZ_ENABLED 1` (or -DNZ_ENABLED=1) for nuzlocke.c, run Apply.bat. USER GUIDE.txt says the menu is switched off, README no longer mentions it; `dev.py nz-data` compiles with -DNZ_ENABLED=1. Checked: `test fast` 5/5, Apply.bat build in this game folder, catalog has no Nuzlocke page. The `dev test nuzlocke` rules tests were not run (they need the switch on).
+
 ## 2026-11-15 (51)  README with badges, manual to the top folder
 - `README.md` gets a centered header with badges (release, downloads, license, platform, last commit) and a Highlights table. `mods\README.txt` -> `USER GUIDE.txt` in the repo's top folder (and the zip's); `release\make_release.py`, the docs and the message in apply_runtime_mod.py follow. The manual is no longer copied into the game's `mods` folder. Checked: release build (nothing published) has `USER GUIDE.txt` and `README.txt` at the top.
 

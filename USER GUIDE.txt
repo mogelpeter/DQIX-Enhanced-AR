@@ -104,8 +104,11 @@ Before the save editor writes your save, a copy
 goes to mods\system\save-backups (the last 30).
 
 
-THE NUZLOCKE MENU (menu bar: Nuzlocke > Settings...)
----------------------------------------------------
+THE NUZLOCKE MENU (switched off in this version)
+-----------------------------------------------
+The Nuzlocke menu is not finished and is switched off for now: there is no Nuzlocke menu in the game and its rules
+and randomizers do nothing. The text below describes what it will do once it is back.
+
 It has a menu of its own in the game's menu bar, next to Cheats, and opens in the same kind of window
 (only the Nuzlocke page; the Cheats window doesn't show it, and its Enabled page, search and
 "Everything off" leave the Nuzlocke switches alone).

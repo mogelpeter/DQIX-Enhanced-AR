@@ -1192,14 +1192,15 @@ def build(root):
                                 mode="", ops=[], keys=[], reason="", file="", on=False, patch=[], env=f"DQIX_MOD_FORCE={num}", option=mname, also=""))
 
     # ---- the Nuzlocke randomizers: one launch option each, and the seed as one choice
-    for lid, name, env, note in NZ_LAUNCH:
-        entries.append(dict(id=lid, name=name, note=note, cat="Nuzlocke", group="", kind="launch", status=NZ_STATUS,
-                            mode="", ops=[], keys=[], reason="", file="", on=False, patch=[], env=env, option=name, also=""))
-    gid = "group:nz-seed"
-    groups.append(dict(id=gid, cat="Nuzlocke", title="Seed", note="Which game the randomizers make. Without a choice the seed is 1. The same seed always gives the same game; pick another one before you start a new run.", kind="launch"))
-    for n in range(1, NZ_SEEDS + 1):
-        entries.append(dict(id=f"launch:nz-seed:{n}", name=f"Seed {n}", note="", cat="Nuzlocke", group=gid, kind="launch", status=NZ_STATUS,
-                            mode="", ops=[], keys=[], reason="", file="", on=False, patch=[], env=f"DQIX_MOD_NZ_SEED={n}", option=f"Seed {n}", also=""))
+    if acm.NUZLOCKE_ENABLED:
+        for lid, name, env, note in NZ_LAUNCH:
+            entries.append(dict(id=lid, name=name, note=note, cat="Nuzlocke", group="", kind="launch", status=NZ_STATUS,
+                                mode="", ops=[], keys=[], reason="", file="", on=False, patch=[], env=env, option=name, also=""))
+        gid = "group:nz-seed"
+        groups.append(dict(id=gid, cat="Nuzlocke", title="Seed", note="Which game the randomizers make. Without a choice the seed is 1. The same seed always gives the same game; pick another one before you start a new run.", kind="launch"))
+        for n in range(1, NZ_SEEDS + 1):
+            entries.append(dict(id=f"launch:nz-seed:{n}", name=f"Seed {n}", note="", cat="Nuzlocke", group=gid, kind="launch", status=NZ_STATUS,
+                                mode="", ops=[], keys=[], reason="", file="", on=False, patch=[], env=f"DQIX_MOD_NZ_SEED={n}", option=f"Seed {n}", also=""))
     # ---- a button on the Battle page that opens the battle window (the cards); kind "ui": no code, the window opens the window
     entries.append(dict(id="ui:battle-window", name="Battle window", option="Battle window", note="A window with a card for every party member and enemy in the fight, and big buttons for buffs and debuffs.",
                         cat="Battle", group="", kind="ui", status="tested", mode="once", ops=[], keys=[], reason="", file="", on=False, patch=[], env="", also=""))

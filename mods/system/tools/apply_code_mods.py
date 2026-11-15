@@ -90,6 +90,11 @@ def load_modules(extract):
     return mods
 
 
+# The Nuzlocke page is not finished: off for now. The code (src/runtime/nuzlocke.c, the catalog entries, cheats/nuzlocke-*.txt, the menu text in
+# apply_runtime_mod.py) is all still here; set this to True in apply_code_mods.py AND apply_runtime_mod.py and rebuild to bring it back.
+NUZLOCKE_ENABLED = False
+
+
 def hand_files(root):
     """-> (live cheat files, code mod files) of mods/system/cheats, told apart by their content:
     a file with "patch <address> <word>" lines changes the game's code, any other is a live cheat.
@@ -97,7 +102,7 @@ def hand_files(root):
     live, code = [], []
     for f in sorted(glob.glob(os.path.join(root, "mods", "system", "cheats", "*.txt"))):
         base = os.path.basename(f)
-        if base.startswith("_") or base.lower().startswith("r4-"):
+        if base.startswith("_") or base.lower().startswith("r4-") or (not NUZLOCKE_ENABLED and base.startswith("nuzlocke-")):
             continue
         is_code = any(re.match(r"patch\s", l.strip()) for l in open(f, encoding="utf-8-sig"))
         (code if is_code else live).append(f)

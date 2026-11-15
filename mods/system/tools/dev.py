@@ -253,7 +253,7 @@ def t_nzdata(root, work):
     if not gcc or not os.path.isfile(rom):
         print("no gcc (%s) or no ROM copy (%s)" % (gcc, rom)); print("RESULT: FAIL"); return 1
     exe = os.path.join(work, "t.exe")
-    c = subprocess.run([gcc, "-O1", "-I", os.path.join(root, "runtime"), "-o", exe, os.path.join(root, "mods", "system", "tests", "test_nuzlocke_data.c")],
+    c = subprocess.run([gcc, "-O1", "-DNZ_ENABLED=1", "-I", os.path.join(root, "runtime"), "-o", exe, os.path.join(root, "mods", "system", "tests", "test_nuzlocke_data.c")],
                        capture_output=True, text=True, errors="replace", env=dict(os.environ, PATH=os.path.dirname(gcc) + os.pathsep + os.environ.get("PATH", "")))
     if c.returncode:
         print(c.stderr[-1500:]); print("RESULT: FAIL (compile)"); return 1

@@ -21,6 +21,11 @@
  *     (DQIX_MOD_NZ_ENC=1, random monsters in the field, lives in mod_data.c: it needs the encounter tables.)
  *  DQIX_MODLOG=1 prints what was done.
  */
+
+/* The Nuzlocke page is off while it is not finished (same switch as NUZLOCKE_ENABLED in tools/apply_code_mods.py). 1 = on; the tests build with -DNZ_ENABLED=1. */
+#ifndef NZ_ENABLED
+#define NZ_ENABLED 0
+#endif
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -204,7 +209,7 @@ static void nz_build(void) {
 /* mod_data.c's mod_card_overlay, after it filled the buffer with the cartridge's bytes at ROM address addr */
 void nz_overlay(uint32_t addr, uint32_t len, uint8_t* buf) {
     static int init;
-    if (!len || !g_rom) return;
+    if (!NZ_ENABLED || !len || !g_rom) return;
     if (!init) {
         init = 1;
         if (env_u("DQIX_MOD_NZ_SKILLS", 0) || env_u("DQIX_MOD_NZ_SPELLS", 0) || env_u("DQIX_MOD_NZ_GROWTH", 0) || env_u("DQIX_MOD_NZ_DROPS", 0) || env_u("DQIX_MOD_NZ_SHOPS", 0)) nz_build();
@@ -296,6 +301,7 @@ static void kill_slot(int i, int session, const char* why) {
 
 /* flags: the switches that are on this frame (bit n = the address 02F5A5C0 + 4n written). cmd: a one-off command. */
 void nz_frame(uint32_t flags, int session) {
+    if (!NZ_ENABLED) return;
     if (!g_loaded) { g_loaded = 1; if (!session) load_run(); }
     if (g_cmd & 1) {                                    /* "Start a new run": nobody is dead */
         g_cmd = 0; g_ndead = 0; g_deaths = 0;
