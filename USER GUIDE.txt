@@ -322,3 +322,9 @@ Codes: the community's Action Replay codes for DQIX (USA and Europe), from DeadS
 NDS(i) Cheat Databases (gbatemp.net) and as collected at almarsguides.com. The
 "99 of every..." bag cheats, the whole party's HP / MP and the battle HP / MP and
 walk-through-walls mods are from the latter's European list.
+
+Thanks to Duwang2 (github.com/Duwang2): he shared the source of his own DQIX trainer
+(cheats.c) and skill table generator (gen_skills.py), which showed where a character's
+learned spells and abilities are kept, what decides which spells a vocation may use,
+and how buffs and debuffs are laid out in a fighter's memory. "Every vocation can use
+every spell and ability" and "Effects last all battle" are built on that.
