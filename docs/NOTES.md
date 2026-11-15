@@ -2,6 +2,10 @@
 
 Newest first. One block per working session: what changed, why, how it was checked.
 
+## 2026-11-15 (54)  Installer: wrong remembered folder, installed-version detection
+- The folder dialog showed a scratch test folder: my own test runs had saved it as the remembered game folder. Tests with -Quiet no longer remember anything (only with env DQIX_AR_STATE_DIR set, which also moves the state files for tests).
+- The installer now reads mods\system\version.txt of the game folder: candidates with the cheats installed come first, the dialog says whether (and which version) is installed, the update check compares GitHub's newest release with the newer of installed and download, an installed version newer than the download is kept (asks), the same version asks before a repair/reinstall. Checked with four cases (installed newer / same / older download / old download + old install, the last one fetched 1.0.4 from GitHub and handed over).
+
 ## 2026-11-15 (53)  Installer: requirements check, updates
 - **Requirements** (Test-Requirements in installer\Install.ps1): Windows 64-bit, PowerShell, write access, OneDrive note, free space (4 GB first build / 0.5 GB), your ROM (file dialog, copied to rom\), MSYS2 (the build installs it), internet, csc.exe (offers the Windows features window). No DQIX Enhanced folder found: offers to download the game's zip from GitHub into Documents. Remembered in %LOCALAPPDATA%\DQIX-Enhanced-AR\requirements.txt (game folder + date) and skipped next time while the game is built; -Recheck forces it.
 - **Updates**: the installer asks api.github.com for the latest release and, when newer (and the player says yes), downloads release-X.zip, checks it (files, VERSION = tag) and runs ITS installer with -GameFolder (so the new version's own steps run). mods\Update.bat (the zip also carries the installer as mods\system\installer\Install.ps1) does just that from the game folder (-Update). Test hook: env DQIX_AR_API. Checked: a local mock of the API served 9.9.9, update ran through (version.txt 9.9.9), remembered check skipped, -Recheck, requirements stop without ROM. NOT possible while the repo is private (api 404).

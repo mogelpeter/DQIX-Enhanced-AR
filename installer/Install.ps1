@@ -126,7 +126,7 @@ function New-TempFolder {
 
 # what was checked before: %LOCALAPPDATA%\DQIX-Enhanced-AR\requirements.txt, lines of key=value
 function Get-StateFile {
-    return (Join-Path ([Environment]::GetFolderPath('LocalApplicationData')) 'DQIX-Enhanced-AR\requirements.txt')
+    return (Join-Path (Get-StateDir) 'requirements.txt')
 }
 
 function Read-State {
@@ -175,8 +175,23 @@ function Resolve-GameFolder([string]$Path) {
     return $null
 }
 
+function Get-StateDir {
+    if ($env:DQIX_AR_STATE_DIR) { return $env:DQIX_AR_STATE_DIR }       # for tests: keeps them away from the real remembered answers
+    return (Join-Path ([Environment]::GetFolderPath('LocalApplicationData')) 'DQIX-Enhanced-AR')
+}
+
 function Get-RememberedFile {
-    return (Join-Path ([Environment]::GetFolderPath('LocalApplicationData')) 'DQIX-Enhanced-AR\game-folder.txt')
+    return (Join-Path (Get-StateDir) 'game-folder.txt')
+}
+
+# the version of the cheats that are installed in a game folder (mods\system\version.txt), or $null
+function Get-InstalledVersion([string]$Folder) {
+    $f = Join-Path $Folder 'mods\system\version.txt'
+    if (Test-Path -LiteralPath $f) {
+        $v = ([string](Get-Content -LiteralPath $f -TotalCount 1)).Trim()
+        if ($v -match '^\d+\.\d+\.\d+$') { return $v }
+    }
+    return $null
 }
 
 # places where the folder usually is, best guess first
@@ -204,7 +219,9 @@ function Find-Candidates {
             if (-not ($list -contains $full)) { [void]$list.Add($full) }
         } catch { }
     }
-    return @($list)
+    $with = @($list | Where-Object { Get-InstalledVersion $_ })
+    $without = @($list | Where-Object { -not (Get-InstalledVersion $_) })
+    return @($with + $without)
 }
 
 function Select-GameFolder([string]$Start) {
@@ -266,7 +283,10 @@ function Get-TargetFolder {
     $start = $null
     if ($cands.Count -ge 1) {
         $start = $cands[0]
-        $a = Show-Box ("Found your DQIX Enhanced folder:`r`n`r`n" + $cands[0] + "`r`n`r`nInstall the cheats there?`r`n(No = choose another folder)") 'YesNo' 'Question'
+        $iv = Get-InstalledVersion $cands[0]
+        $what = 'The cheats are not installed there yet.'
+        if ($iv) { $what = 'The cheats are already installed there (version ' + $iv + '); the installer will check for an update.' }
+        $a = Show-Box ("Found your DQIX Enhanced folder:`r`n`r`n" + $cands[0] + "`r`n`r`n" + $what + "`r`n`r`nUse this folder?`r`n(No = choose another folder)") 'YesNo' 'Question'
         if ($a -eq 'Yes') { return $cands[0] }
     } else {
         if ($Quiet) { throw 'No DQIX Enhanced folder found. Give one with -GameFolder.' }
@@ -509,12 +529,12 @@ function Test-Requirements([string]$Target, [bool]$Built) {
 
 # ---------------------------------------------------------------- updates
 
-function Get-OwnVersion([string]$Target) {
-    foreach ($f in @((Join-Path $script:Here 'VERSION'), (Join-Path $Target 'mods\system\version.txt'))) {
-        if (Test-Path -LiteralPath $f) {
-            $v = ([string](Get-Content -LiteralPath $f -TotalCount 1)).Trim()
-            if ($v -match '^\d+\.\d+\.\d+$') { return $v }
-        }
+# the version of this download (the folder around installer\)
+function Get-OwnVersion {
+    $f = Join-Path $script:Here 'VERSION'
+    if (Test-Path -LiteralPath $f) {
+        $v = ([string](Get-Content -LiteralPath $f -TotalCount 1)).Trim()
+        if ($v -match '^\d+\.\d+\.\d+$') { return $v }
     }
     return $null
 }
@@ -609,20 +629,35 @@ function Invoke-Install {
         return
     }
     Say ('  ' + $target) 'White'
-    try {
+    if (-not $Quiet -or $env:DQIX_AR_STATE_DIR) { try {
         $mem = Get-RememberedFile
         if (-not (Test-Path -LiteralPath (Split-Path -Parent $mem))) { [void](New-Item -ItemType Directory -Path (Split-Path -Parent $mem) -Force) }
         Set-Content -LiteralPath $mem -Value $target -Encoding ASCII
-    } catch { }
+    } catch { } }
 
     $built = (Test-Path -LiteralPath (Join-Path $target 'game\dqix.exe'))
 
-    # a newer version on GitHub? (not with -Quiet, unless asked; mods\Update.bat does only this)
+    # is it installed already, and is there a newer version on GitHub? (not with -Quiet, unless asked; mods\Update.bat does only this)
+    $installed = Get-InstalledVersion $target
+    $mine = Get-OwnVersion
+    if ($Update) { $mine = $installed }
+    if ($installed -and $Update) { Say ('  The cheats are installed here: version ' + $installed + '.') 'Gray' }
+    elseif ($installed) { Say ('  The cheats are installed here: version ' + $installed + '. This download is version ' + $mine + '.') 'Gray' }
+    else { Say '  The cheats are not installed here yet.' 'Gray' }
+    $current = $mine
+    if ($installed -and (-not $mine -or [version]$installed -gt [version]$mine)) { $current = $installed }
     if ($Update -or ($UpdateCheck) -or (-not $Quiet -and -not $NoUpdateCheck)) {
         Step '[2/5] Looking for a newer version...'
-        if (Invoke-UpdateCheck $target (Get-OwnVersion $target)) { return }
+        if (Invoke-UpdateCheck $target $current) { return }
     }
     if ($Update) { return }
+    if ($installed -and $mine -and [version]$installed -gt [version]$mine) {
+        $a = Show-Box ("Version " + $installed + " of the cheats is already installed, and it is newer than this download (" + $mine + ").`r`n`r`nKeep the installed version?") 'YesNo' 'Question'
+        if ($a -eq 'Yes') { Say '  Keeping the installed version. Nothing was changed.' 'Green'; return }
+    } elseif ($installed -and $mine -and $installed -eq $mine -and -not $Quiet -and -not $Recheck) {
+        $a = Show-Box ("The newest version (" + $installed + ") is already installed here.`r`n`r`nReinstall / repair it anyway? (The game is rebuilt only if something changed.)") 'YesNo' 'Question'
+        if ($a -ne 'Yes') { Say '  Already up to date. Nothing was changed.' 'Green'; return }
+    }
 
     # the requirements: checked once, then remembered for this folder
     Step '[3/5] Checking the requirements...'
@@ -637,7 +672,7 @@ function Invoke-Install {
             $script:Exit = 2
             return
         }
-        if ($built -or $NoApply) { Write-State @{ checked = (Get-Date -Format 'yyyy-MM-dd'); game = $target } }
+        if (($built -or $NoApply) -and (-not $Quiet -or $env:DQIX_AR_STATE_DIR)) { Write-State @{ checked = (Get-Date -Format 'yyyy-MM-dd'); game = $target } }
     }
 
     if (-not $built -and -not $NoApply) {
@@ -678,7 +713,7 @@ function Invoke-Install {
         throw ("Building the cheats into the game failed (code $rc). The details are above and in:`r`n" + (Join-Path $target 'mods\system\bin\build.log'))
     }
 
-    Write-State @{ checked = (Get-Date -Format 'yyyy-MM-dd'); game = $target }
+    if (-not $Quiet -or $env:DQIX_AR_STATE_DIR) { Write-State @{ checked = (Get-Date -Format 'yyyy-MM-dd'); game = $target } }
     Write-Host ''
     Say 'Done. The Cheats tab is in the game.' 'Green'
     Say 'Start the game as always. In its menu bar: Cheats > Cheats...   Nothing is switched on until you do it.' 'Green'
