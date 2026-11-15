@@ -50,7 +50,7 @@ One rule: **do the cheapest check that can catch the mistake, and never repeat a
 
 1. Install Python 3.8+ (or just build the game once: the MSYS2 tools bring their own).
 2. Build the game once with the project's `BUILD.bat` (needs your own ROM in `rom\`).
-3. Run `Install.bat` from a clone of this repo (or from release.zip): it asks for the game folder, copies `mods\` and runs `Apply.bat`.
+3. Run `Install.bat` from a clone of this repo (or from the release zip): it asks for the game folder, copies `mods\` and runs `Apply.bat`.
 4. `mods\system\dev.bat doctor` lists anything still missing and how to fix it.
 5. Working from the repo on that PC: `mods\system\dev-root.txt` (one line, the game folder) or `set DQIX_ROOT=...`.
 
@@ -83,4 +83,4 @@ experiment can be repeated and compared.
 
 ## Releasing
 
-`python release/make_release.py` checks the files that go to players (ASCII and CRLF in .bat/.ps1, PowerShell parse, batch labels, Python/sh syntax, no dev files), builds `dist/release.zip` and prints the release notes; it publishes nothing. Only when the user asks for a release: `python release/make_release.py --publish` (commit first; `--minor`/`--major` change the number): takes the next version (VERSION = the last release), commits it, pushes, tags `vX.Y.Z` and publishes release.zip with the token git already has. The notes are made from the commit messages and the new NOTES.md blocks since the last release, so write them for players. The zip holds only what a player needs (list in the script). Every update of the release gets a new version number.
+`python release/make_release.py` checks the files that go to players (ASCII and CRLF in .bat/.ps1, PowerShell parse, batch labels, Python/sh syntax, no dev files), builds `dist/release.zip` and prints the release notes; it publishes nothing. Only when the user asks for a release: `python release/make_release.py --publish` (commit first; `--minor`/`--major` change the number): takes the next version (VERSION = the last release), commits it, pushes, tags `vX.Y.Z` and publishes release-X.Y.Z.zip with the token git already has. The notes are made from the commit messages and the new NOTES.md blocks since the last release, so write them for players. The zip holds only what a player needs (list in the script). Every update of the release gets a new version number.
