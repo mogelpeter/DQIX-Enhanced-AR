@@ -385,7 +385,7 @@ def main():
     # tidy changes before the commit, so a failed publish does not leave a version nobody can download
     run("git", "add", "VERSION")
     if run("git", "status", "--porcelain"):
-        run("git", "commit", "-m", "Release v%s\n\nCo-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>" % version)
+        run("git", "commit", "-m", "Release v%s" % version)
     run("git", "push", "origin", "main")
     notes = make_notes(version, a.notes, digest=sha256(zip_path))
     publish(version, zip_path, notes)
