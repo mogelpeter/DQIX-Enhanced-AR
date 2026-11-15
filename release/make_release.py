@@ -1,8 +1,11 @@
 #!/usr/bin/env python3
 """Builds release.zip (only what a player needs) and publishes it as a GitHub release.
 
-    python release/make_release.py            check, bump the version, build, commit, tag, push, publish
-    python release/make_release.py --dry-run  only check and build dist/release.zip (version and repo stay as they are)
+    python release/make_release.py            only check and build dist/release.zip, print the release notes (nothing is changed or sent)
+    python release/make_release.py --publish  check, bump the version, build, commit, tag, push, publish   (only when asked for!)
+
+The release notes are made from what changed since the last release: the commit messages and the new blocks of
+docs/NOTES.md. --notes "text" adds a line of your own at the top.
 
 The version (file VERSION) is the version of the last release. Every release takes the next one (1.0.0 -> 1.0.1 ...;
 --minor / --major count the other places); the very first release takes the number in VERSION as it is.
@@ -211,6 +214,68 @@ def build_zip(version):
     return out
 
 
+def previous_tag():
+    tags = remote_tags() | set(run("git", "tag", "--list", "v*.*.*").split())
+    key = lambda t: tuple(int(x) for x in t[1:].split("."))
+    return max(tags, key=key) if tags else None
+
+
+def notes_blocks(text):
+    """docs/NOTES.md as {number: (heading, body)}; a block starts with '## date (N)  title'"""
+    out = {}
+    text = text.replace("\r\n", "\n")
+    for m in re.finditer(r"^## (.+?\((\d+)\).*?)\n(.*?)(?=^## |\Z)", text, re.M | re.S):
+        out[int(m.group(2))] = (m.group(1).strip(), m.group(3).strip())
+    return out
+
+
+def make_notes(version, extra, prev=..., ref="HEAD"):
+    """the release notes: what changed since the last release (commit messages, new blocks of docs/NOTES.md)"""
+    run("git", "fetch", "origin", "--tags", "--quiet")
+    if prev is ...:
+        prev = previous_tag()
+    rng = (prev + ".." + ref) if prev else ref
+    log = run("git", "log", rng, "--format=%x1e%s%n%b")
+    commits = []
+    for c in log.split("\x1e"):
+        keep = [l for l in c.strip().splitlines() if l.strip() and not l.startswith(("Co-Authored-By:", "Generated with"))]
+        if keep and not re.match(r"Release v\d", keep[0]):
+            commits.append(keep)
+    old = {}
+    if prev:
+        r = subprocess.run(["git", "show", prev + ":docs/NOTES.md"], cwd=ROOT, capture_output=True, text=True, encoding="utf-8")
+        if r.returncode == 0:
+            old = notes_blocks(r.stdout)
+    if ref != "HEAD":                    # an older release: its own notes, as of its tag
+        new = notes_blocks(run("git", "show", ref + ":docs/NOTES.md"))
+    else:
+        with open(os.path.join(ROOT, "docs", "NOTES.md"), encoding="utf-8") as f:
+            new = notes_blocks(f.read())
+    fresh = [new[k] for k in sorted(new, reverse=True) if k not in old or new[k] != old[k]]
+    lines = []
+    if extra:
+        lines += [extra, ""]
+    lines += ["## What is new in %s" % version, ""]
+    if commits:
+        for c in commits:
+            lines.append("- **" + c[0] + "**")
+            lines += ["  " + l for l in c[1:]]
+        lines.append("")
+    else:
+        lines += ["- (no commits since %s)" % prev, ""]
+    if fresh:
+        lines += ["## Details", ""]
+        for head, body in fresh:
+            lines += ["### " + head, "", body, ""]
+    lines += ["## Install", "",
+              "Download `release.zip`, extract it and double-click `Install.bat`. It asks where your DQIX Enhanced folder is, "
+              "puts the files in and builds the cheats into the game. Close the game first. "
+              "An update over an older version keeps your settings and your save.", ""]
+    if prev:
+        lines.append("All changes since %s: https://github.com/%s/compare/%s...v%s" % (prev, REPO, prev, version))
+    return "\n".join(lines).strip() + "\n"
+
+
 def token():
     r = subprocess.run(["git", "credential", "fill"], cwd=ROOT, input="protocol=https\nhost=github.com\n\n",
                        capture_output=True, text=True)
@@ -250,16 +315,18 @@ def publish(version, zip_path, notes):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--dry-run", action="store_true", help="check and build dist/release.zip only")
+    ap.add_argument("--publish", action="store_true", help="really release (version, commit, push, tag, GitHub); only when the user asked for it")
     g = ap.add_mutually_exclusive_group()
     g.add_argument("--minor", action="store_true")
     g.add_argument("--major", action="store_true")
-    ap.add_argument("--notes", default="", help="text of the release")
+    ap.add_argument("--notes", default="", help="a line of your own at the top of the release notes")
     a = ap.parse_args()
 
     current = read_version()
-    if a.dry_run:
+    if not a.publish:
         build_zip(current)
+        print("\n--- release notes (preview, for the next version) ---\n" + make_notes("next", a.notes))
+        print("Nothing was published. To release: --publish (only when asked).")
         return
 
     if run("git", "status", "--porcelain"):
@@ -286,8 +353,7 @@ def main():
     if run("git", "status", "--porcelain"):
         run("git", "commit", "-m", "Release v%s\n\nCo-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>" % version)
     run("git", "push", "origin", "main")
-    notes = a.notes or ("Unzip, then double-click `Install.bat`. It asks where your DQIX Enhanced folder is, "
-                        "puts the files in and builds the cheats into the game.")
+    notes = make_notes(version, a.notes)
     publish(version, zip_path, notes)
 
 
