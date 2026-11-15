@@ -2,7 +2,7 @@
 hero fights metal slimes (DQIX_MOD_FORCE=3 turns every roaming monster of the dungeon into one) with A pressed
 on a timer. Without the cheat the slimes flee in this fight; with it every "Flee" the AI picks must be asked again:
 the log must say so ("mod: noflee asked again"), and the game must run on to the end of the frames.
-Needs the game built with the mods (Apply cheats.bat) and the save of the test machine (game\\dqix.sav:
+Needs the game built with the mods (Apply.bat) and the save of the test machine (game\\dqix.sav:
 a hero in a dungeon with monsters). Slow: about 3 minutes.
    test_noflee.py <project root> <work dir> [frames]
 Uses TEST_EXE (a separate build) when set. A build with "Monsters don't chase you" may not reach the fight in time:

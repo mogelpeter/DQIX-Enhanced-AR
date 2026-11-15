@@ -923,7 +923,7 @@ static void restart_game(int rebuild) {
     wchar_t exe[MAX_PATH * 2], *rootw = wide(g_root), cmd[MAX_PATH * 6], script[MAX_PATH * 5];
     (void)exe;
     const wchar_t* cl = GetCommandLineW();
-    if (rebuild) swprintf(script, MAX_PATH * 5, L"ping -n 4 127.0.0.1 >nul & call \"%ls\\mods\\Apply cheats.bat\" apply & start \"\" %ls", rootw, cl);
+    if (rebuild) swprintf(script, MAX_PATH * 5, L"ping -n 4 127.0.0.1 >nul & call \"%ls\\mods\\Apply.bat\" apply & start \"\" %ls", rootw, cl);
     else swprintf(script, MAX_PATH * 5, L"ping -n 3 127.0.0.1 >nul & start \"\" %ls", cl);
     swprintf(cmd, MAX_PATH * 6, L"cmd.exe /s /c \"%ls\"", script);
     free(rootw);
@@ -1876,7 +1876,7 @@ static void open_mode(int mode) {
     if (!g_cs_init) { InitializeCriticalSection(&g_cs); g_cs_init = 1; }
     if (!g_loaded) { load_catalog(); if (g_loaded) { load_state(); migrate_state(); } }
     if (!g_loaded) {
-        MessageBoxW(NULL, L"There is no cheat list yet. Run \"mods\\Apply cheats.bat\" once (it makes the list), then try again.", L"Cheats", MB_OK | MB_ICONINFORMATION);
+        MessageBoxW(NULL, L"There is no cheat list yet. Run \"mods\\Apply.bat\" once (it makes the list), then try again.", L"Cheats", MB_OK | MB_ICONINFORMATION);
         return;
     }
     static HANDLE th;

@@ -14,7 +14,7 @@
    a session runs, whatever the window says.
 
 Each change sits between two marker lines. An update of the game brings fresh
-files without them; running this again (Apply cheats.bat does, every time)
+files without them; running this again (Apply.bat does, every time)
 puts them back. How a place is found when an update changed the game's code:
 
   - each patched file is made from an untouched copy of the game's own file
@@ -105,7 +105,7 @@ MENU_PATCHED = MENU_BEGIN + """\
 
 # Newer versions of the game (v34 on) build the menu bar from a table (runtime/menu_items.c): there is no "Help" line to put
 # the tab in front of. There the tab goes in after the table is built, in front of Help.
-MENU2_BEGIN = "    /* >>> mods: Cheats tab in the menu bar, table menus (mods/system/tools/apply_runtime_mod.py; an update removes this, Apply cheats.bat puts it back) */\n"
+MENU2_BEGIN = "    /* >>> mods: Cheats tab in the menu bar, table menus (mods/system/tools/apply_runtime_mod.py; an update removes this, Apply.bat puts it back) */\n"
 MENU2_ORIGINAL = """\
     SetMenu(g_hwnd, g_bar);
     SDL_EventState(SDL_SYSWMEVENT, SDL_ENABLE);
@@ -158,7 +158,7 @@ ACT_PATCHED = ACT_BEGIN + r"""
                 "Your save is not touched by the cheats (copies go to mods\system\save-backups). Updating the game from the Help menu keeps this tab.", g_win);
             break;
         }
-        if (id == 362) { if (!mod_editor_launch("party")) info_box(SDL_MESSAGEBOX_ERROR, "Save editor", "The editor couldn't be started: the editor helper is missing. Run Install cheats.bat again.", g_win); break; }
+        if (id == 362) { if (!mod_editor_launch("party")) info_box(SDL_MESSAGEBOX_ERROR, "Save editor", "The editor couldn't be started: the editor helper is missing. Run Install.bat again.", g_win); break; }
         if (id == 363) { if (!mod_open_url("https://dqix.github.io/Grotto-Searcher/")) info_box(SDL_MESSAGEBOX_ERROR, "Treasure maps", "The browser couldn't be opened. The page is https://dqix.github.io/Grotto-Searcher/", g_win); break; }
         mod_cheatwin_show();
         break;
@@ -197,7 +197,7 @@ ACT_PATCHED = ACT_PATCHED.replace(ACT_BEGIN + "\n", ACT_BEGIN, 1)
 UPD_BEGIN = "    /* >>> mods: put the mods back after an update (mods/tools/apply_runtime_mod.py; an update removes this, Play with mods.bat puts it back) */\n"
 UPD_ORIGINAL = r"""    "echo == Building the game again from your ROM (this can take a while)\r\n"
 """
-UPD_PATCHED = UPD_BEGIN + UPD_ORIGINAL + r"""    "if exist \"mods\\Apply cheats.bat\" call \"mods\\Apply cheats.bat\" apply\r\n"
+UPD_PATCHED = UPD_BEGIN + UPD_ORIGINAL + r"""    "if exist \"mods\\Apply.bat\" call \"mods\\Apply.bat\" apply\r\n"
 """ + END
 
 # (file in runtime/, the lines as the game has them, with the mods, first marker line, what it is)

@@ -47,7 +47,7 @@ try:
         errors.append("the Cheats tab is missing an item in the menu bar (Cheats..., Save editor..., Treasure maps...)")
     if b"case 364:" not in on1["frontend_sdl.c"] or b"mod_editor_take" not in on1["frontend_sdl.c"] or b"mod_editor_take" not in (on1["mod_menu.c"] or b""):
         errors.append("the game doesn't take the save editor's export (menu command 364, mod_editor_take)")
-    if b"Apply cheats.bat" not in on1["update.c"]:
+    if b"Apply.bat" not in on1["update.c"]:
         errors.append("the updater does not put the mods back")
     if on1["noflee.c"] is None:
         errors.append("noflee.c not put in")

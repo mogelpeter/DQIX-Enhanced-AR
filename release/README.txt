@@ -8,7 +8,7 @@ What you need
 
 How to install
   1. Right-click release.zip, choose "Extract All...", then Extract.
-  2. Open the new folder and double-click "Install cheats.bat".
+  2. Open the new folder and double-click "Install.bat".
      (If Windows says "Windows protected your PC": More info, then Run anyway.)
   3. The installer asks where your DQIX Enhanced folder is (the one with BUILD.bat in it).
      It usually finds it by itself and only asks you to confirm.

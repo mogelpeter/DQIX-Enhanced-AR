@@ -7,7 +7,7 @@ The recompiler already has a way to change single ARM instructions while
 translating the game: patches.txt (the project removes an anti-piracy trap
 with it). This adds the code mods there, between two marker lines, and takes
 out the ones that are off. An update of the game brings a fresh patches.txt
-without them; running this again (Apply cheats.bat does, every time) puts
+without them; running this again (Apply.bat does, every time) puts
 them back.
 
 Which mods: the files in mods/system/cheats that say "enabled: yes", and the codes from

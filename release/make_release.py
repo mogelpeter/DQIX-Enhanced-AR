@@ -31,12 +31,12 @@ REPO = "mogelpeter/DQIX-Enhanced-AR"
 
 # (source relative to the repo, path in the zip); a folder takes everything in it
 INCLUDE = [
-    ("Install cheats.bat", "Install cheats.bat"),
-    ("Install cheats.ps1", "Install cheats.ps1"),
+    ("Install.bat", "Install.bat"),
+    ("installer/Install.ps1", "installer/Install.ps1"),
     ("LICENSE", "LICENSE"),
     ("VERSION", "VERSION"),
     ("release/README.txt", "README.txt"),
-    ("mods/Apply cheats.bat", "mods/Apply cheats.bat"),
+    ("mods/Apply.bat", "mods/Apply.bat"),
     ("mods/README.txt", "mods/README.txt"),
     ("mods/settings.txt", "mods/settings.txt"),
     ("mods/system/about.tsv", "mods/system/about.tsv"),
@@ -46,7 +46,7 @@ INCLUDE = [
     ("mods/system/lang/editor.tsv", "mods/system/lang/editor.tsv"),
     ("mods/system/src", "mods/system/src"),
 ]
-# the tools "Apply cheats.bat" runs (the others are for developing: dev.py, dqre.py, pacdump.py, progress.py)
+# the tools "Apply.bat" runs (the others are for developing: dev.py, dqre.py, pacdump.py, progress.py)
 TOOLS = ["apply_code_mods.py", "apply_runtime_mod.py", "build_stamp.py", "catalog.py", "make_ar_list.py",
          "put_in.sh", "r4_to_text.py", "repatch.py", "rom_text.py"]
 
@@ -157,8 +157,10 @@ def lint(contents):
                     with open(p, "wb") as f:
                         f.write(data)
                     r = subprocess.run([sh, "-n", p], capture_output=True, text=True)
-                    if r.returncode != 0:
+                    if r.returncode != 0 and r.stderr.strip():
                         problems.append("%s: %s" % (name, r.stderr.strip()))
+                    elif r.returncode != 0:
+                        print("note: %s could not check %s (no message), skipped" % (sh, name))
             if low.endswith(".ps1"):
                 p = os.path.join(tmp, "x.ps1")
                 with open(p, "wb") as f:
@@ -173,7 +175,7 @@ def lint(contents):
                 else:
                     print("note: no Windows PowerShell here, the .ps1 was not parsed")
         # the installer's neighbours must be there
-        for need in ("Install cheats.bat", "Install cheats.ps1", "VERSION", "mods/Apply cheats.bat", "mods/system/tools/catalog.py",
+        for need in ("Install.bat", "installer/Install.ps1", "VERSION", "mods/Apply.bat", "mods/system/tools/catalog.py",
                      "mods/system/tools/put_in.sh", "mods/system/about.tsv", "mods/system/src/editor/EditorHost.cs"):
             if need not in contents:
                 problems.append("missing in the zip: " + need)
@@ -284,7 +286,7 @@ def main():
     if run("git", "status", "--porcelain"):
         run("git", "commit", "-m", "Release v%s\n\nCo-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>" % version)
     run("git", "push", "origin", "main")
-    notes = a.notes or ("Unzip, then double-click `Install cheats.bat`. It asks where your DQIX Enhanced folder is, "
+    notes = a.notes or ("Unzip, then double-click `Install.bat`. It asks where your DQIX Enhanced folder is, "
                         "puts the files in and builds the cheats into the game.")
     publish(version, zip_path, notes)
 

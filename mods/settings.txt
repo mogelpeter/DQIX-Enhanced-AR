@@ -1,4 +1,4 @@
-# Settings for "Apply cheats.bat" (the patcher)
+# Settings for "Apply.bat" (the patcher)
 
 # Live cheats that also work while playing with friends: yes / no
 # (yes: a small part of the mods, with the Cheats tab, is built into the game;

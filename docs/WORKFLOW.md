@@ -15,7 +15,7 @@ One rule: **do the cheapest check that can catch the mistake, and never repeat a
 
 | You changed | Run | Why this and not more |
 |---|---|---|
-| `mod_cheatwin.c` (the Cheats window) | `dev test cheatwin` after `mods\Apply cheats.bat apply` (the test uses the built game) | opens the window, switches a cheat on like a click, checks RAM + state file |
+| `mod_cheatwin.c` (the Cheats window) | `dev test cheatwin` after `mods\Apply.bat apply` (the test uses the built game) | opens the window, switches a cheat on like a click, checks RAM + state file |
 | `EditorHost.cs` (save editor helper) | `dev test editor` | starts the helper on a scratch save: token checks, export + backup, language box |
 | `catalog.py`, `cheats\` | `dev test static` then `dev test all-quick` | static reads every catalog line in 0.1 s; all-quick sends 12 cheats to a headless game |
 | `mod_cheats.c`, `ar_engine.h` | `dev test live session all-single all-session` after a build | the only code that runs inside the game and inside friends' sessions |
@@ -50,7 +50,7 @@ One rule: **do the cheapest check that can catch the mistake, and never repeat a
 
 1. Install Python 3.8+ (or just build the game once: the MSYS2 tools bring their own).
 2. Build the game once with the project's `BUILD.bat` (needs your own ROM in `rom\`).
-3. Run `Install cheats.bat` from a clone of this repo (or from release.zip): it asks for the game folder, copies `mods\` and runs `Apply cheats.bat`.
+3. Run `Install.bat` from a clone of this repo (or from release.zip): it asks for the game folder, copies `mods\` and runs `Apply.bat`.
 4. `mods\system\dev.bat doctor` lists anything still missing and how to fix it.
 5. Working from the repo on that PC: `mods\system\dev-root.txt` (one line, the game folder) or `set DQIX_ROOT=...`.
 

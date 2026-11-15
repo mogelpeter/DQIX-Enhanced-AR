@@ -31,7 +31,7 @@ The ROM and the game itself are never part of this repo.
 ## Quick install
 
 1. Build DQIX Enhanced once (its installer, or its `BUILD.bat`, with your own ROM).
-2. Download **`release.zip`** from the [latest release](https://github.com/mogelpeter/DQIX-Enhanced-AR/releases/latest), extract it and double-click **`Install cheats.bat`**. It asks where your DQIX Enhanced folder is (the one with `BUILD.bat` in it; it usually finds it itself), puts the files in and builds the **Cheats** tab into the game (a few minutes the first time).
+2. Download **`release.zip`** from the [latest release](https://github.com/mogelpeter/DQIX-Enhanced-AR/releases/latest), extract it and double-click **`Install.bat`**. It asks where your DQIX Enhanced folder is (the one with `BUILD.bat` in it; it usually finds it itself), puts the files in and builds the **Cheats** tab into the game (a few minutes the first time).
 3. Start the game as always with `game\dqix.exe`. Whether you want cheats is up to you: open **Cheats > Cheats...** in the menu bar and switch on what you like.
 
 Trouble? `mods\system\dev.bat doctor` says what is missing and how to fix it.
@@ -67,7 +67,7 @@ If it says it can't find your ROM, copy the `.nds` file (or a `.zip` that has it
 
 ### Step 4: Install the cheats
 
-1. Open the extracted folder and double-click **`Install cheats.bat`**. If Windows says **"Windows protected your PC"**: **More info**, then **Run anyway**.
+1. Open the extracted folder and double-click **`Install.bat`**. If Windows says **"Windows protected your PC"**: **More info**, then **Run anyway**.
 2. A window asks whether the DQIX Enhanced folder it found is the right one (the one with `BUILD.bat` in it, from Step 1). If it found none, or you say *No*, a folder window opens: pick the folder.
 3. Wait. The installer puts the files into that folder's `mods` folder and builds the **Cheats** tab into your game. **A few minutes the first time.** Do not close the window; it says *"Done."* when it is finished and offers to start the game.
 
@@ -125,8 +125,8 @@ The game's menu bar (Game, Graphics, Screen, View, Wireless, Modern, Mods, **Che
 
 The tab is not a copy of the game's files: it is a handful of small, clearly marked changes (`>>> mods ... <<< mods`) that `mods\system\tools\apply_runtime_mod.py` puts into the game's source before it is built. An update of the game replaces those files, so:
 
-- **Update from inside the game (Help > Check for updates):** the updater also runs `mods\Apply cheats.bat apply` (the patcher) before it rebuilds, so the new game comes out with the tab, the cheats and your switches again. Nothing to do.
-- **Update by hand (a new download):** download the new `release.zip`, extract it and run its **`Install cheats.bat`**; the files are replaced (the ones that are not in it any more are removed), every change is put back and the game is rebuilt.
+- **Update from inside the game (Help > Check for updates):** the updater also runs `mods\Apply.bat apply` (the patcher) before it rebuilds, so the new game comes out with the tab, the cheats and your switches again. Nothing to do.
+- **Update by hand (a new download):** download the new `release.zip`, extract it and run its **`Install.bat`**; the files are replaced (the ones that are not in it any more are removed), every change is put back and the game is rebuilt.
 - **A place the new version wrote differently:** it is skipped with a message and the rest still works.
 - The update never deletes the `mods` folder, so what you switched on stays (`mods\system\menu-state.txt`).
 
@@ -140,7 +140,7 @@ The cheats work in sessions as long as every player's game has them built in.
 
 In a session every PC runs every player's DS, and they must all compute exactly the same. So a cheat can't just be written into your PC's memory. It travels with your button presses instead: your game sends it to the others like a button, and every PC carries it out for your DS in the same frame.
 
-1. Give every player this download; each extracts it and runs `Install cheats.bat` once.
+1. Give every player this download; each extracts it and runs `Install.bat` once.
 2. Host and join as usual (Wireless > Play with friends).
 3. Use the cheats as when alone. They only change your own DS (hero, gold, bag), on every PC at once. Friends don't need the same cheats on.
 
@@ -183,11 +183,11 @@ The cheat list comes from the community's R4 database (DeadSkullzJr's NDS(i) Che
 | *"Windows protected your PC"* | Click **More info**, then **Run anyway**. The files are plain batch scripts you can open in Notepad. |
 | The installer says *"cannot find its files"* | You started it from inside the ZIP. Extract the whole ZIP first (right-click, **Extract All...**). |
 | The installer says *"This is not a DQIX Enhanced folder"* | Pick the folder with `BUILD.bat` in it. The game is built the first time by the installer (it asks for your ROM). |
-| *"The game is still running"* | Close the game, run `Install cheats.bat` again. |
-| The **Cheats** tab is missing in the game | The game was built without it (for example after a hand-made update). Run `Install cheats.bat` or `mods\Apply cheats.bat` once, wait for the build. |
+| *"The game is still running"* | Close the game, run `Install.bat` again. |
+| The **Cheats** tab is missing in the game | The game was built without it (for example after a hand-made update). Run `Install.bat` or `mods\Apply.bat` once, wait for the build. |
 | *"cmp: command not found"* at the end of a build | Harmless. To silence it: open the MSYS2 UCRT64 terminal and run `pacman -S diffutils`. |
 | The build fails | Read the last lines of the black window; run `mods\system\dev.bat doctor`; check that you have ~4 GB free and the internet on. |
-| *Cheats > Save editor* does nothing | The editor helper needs the C# compiler that comes with Windows 10/11 (.NET Framework 4); run `Install cheats.bat` again. The cheat list works without it. |
+| *Cheats > Save editor* does nothing | The editor helper needs the C# compiler that comes with Windows 10/11 (.NET Framework 4); run `Install.bat` again. The cheat list works without it. |
 | A friend's session says OUT OF SYNC | Everyone needs the same version of these cheats (and the same `needs a rebuild` mods, if you added any). See [Playing with friends](#playing-with-friends). |
 | Something else | Press **F10** in the game: it saves a bug report and can open GitHub for you. |
 
@@ -196,7 +196,7 @@ The cheat list comes from the community's R4 database (DeadSkullzJr's NDS(i) Che
 ## Uninstall
 
 1. Press **Everything off** in the Cheats window and close the game.
-2. Set `sync_cheats = no` in `mods\settings.txt` and double-click `mods\Apply cheats.bat`: it takes the Cheats tab and everything else out of the game's source and rebuilds it.
+2. Set `sync_cheats = no` in `mods\settings.txt` and double-click `mods\Apply.bat`: it takes the Cheats tab and everything else out of the game's source and rebuilds it.
 3. Delete the `mods` folder.
 
 Your save (`game\dqix.sav`) is never touched.
@@ -210,8 +210,8 @@ See [docs/WORKFLOW.md](docs/WORKFLOW.md) (fast loop, which test for which change
 Layout:
 
 ```
-Install cheats.bat/.ps1     the installer (asks for the game folder, copies mods\, runs Apply cheats.bat); release\ builds release.zip
-mods\Apply cheats.bat       the patcher: cheat list for your ROM, cheats into the game's source, build, save editor helper
+Install.bat, installerInstall.ps1  the installer (asks for the game folder, copies mods\, runs Apply.bat); release\ builds release.zip
+mods\Apply.bat       the patcher: cheat list for your ROM, cheats into the game's source, build, save editor helper
                             (also run by the game's updater and by the Cheats window for a rebuild)
 mods\settings.txt           sync_cheats
 mods\system\src\runtime\    mod_cheatwin.c (the cheat window), mod_cheats.c, ar_engine.h, mod_menu.c, livepatch.c, ... (built into the game)

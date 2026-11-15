@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Build the game with the mods, and when the build fails because of one of the mods' places in the game's code,
-build it again without that place (Apply cheats.bat runs this, also after an update of the game).
+build it again without that place (Apply.bat runs this, also after an update of the game).
 
   repatch.py [project folder]           build; on a failure caused by the mods: leave that place out, build again
   repatch.py [project folder] --why LOG which places of the mods the compiler errors in LOG point at (no build)

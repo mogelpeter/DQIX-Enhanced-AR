@@ -28,32 +28,27 @@ Start the game as always (game\dqix.exe). In its menu bar (next to Mods and Help
 - Cheats > Treasure maps...  opens the treasure map search website.
 
 When the game updates itself (Help > Check for updates) the tab is put back automatically.
-If an update changed the game's code where the mods go in, Apply cheats.bat finds the places
+If an update changed the game's code where the mods go in, Apply.bat finds the places
 anyway (other spacing or line breaks, the newer menu bar made from a table). If the game then
 doesn't build with one of them, that one is left out and the game is built without it (the
 window says which; mods\system\bin\build.log has the build's output, repatch.txt how each
 place was found). It is tried again with the next update of the game or of the mods.
-If you update by hand (a new download), copy Install cheats.bat and this mods folder over
-the old ones and run Install cheats.bat once more.
+If you update by hand (a new download), extract it and run its Install.bat once more.
 
 
 INSTALL
 -------
-Build the game once the normal way first (if you haven't already). Then copy
-"Install cheats.bat" and this "mods" folder from the download into your DQIX Enhanced
-folder, next to BUILD.bat (replace the files if Windows asks), and double-click
-"Install cheats.bat" there. It builds the Cheats tab into the game (a few minutes the
-first time):
+Extract the download (release.zip), then double-click "Install.bat". It asks where your
+DQIX Enhanced folder is (the one with BUILD.bat in it; it usually finds it by itself), puts
+the files into that folder's "mods" folder and builds the Cheats tab into the game (a few
+minutes the first time). If the game is not built yet, it builds it too (it asks for your ROM).
 
-    DQIX Enhanced\
-        BUILD.bat
-        Install cheats.bat   <- here
-        game\
-        mods\                <- here
+    DQIX Enhanced        BUILD.bat
+        game        mods\                <- the installer puts this in
 
 What is in the mods folder:
 
-    Apply cheats.bat      puts the cheats into the game and rebuilds what changed. The
+    Apply.bat             puts the cheats into the game and rebuilds what changed. The
                           installer, the game's updater and the Cheats window run it
                           for you; run it yourself after an update by hand or after you
                           changed a cheat file.
@@ -191,7 +186,7 @@ codes can make a save odd. That is what "untested" warns about, and what the sav
 are for.
 
 A newer usrcheat.dat? "mods\system\tools\r4_to_text.py usrcheat.dat YDQP
-mods\system\cheats\r4-YDQP.txt" brings the list up to date; "Apply cheats.bat catalog"
+mods\system\cheats\r4-YDQP.txt" brings the list up to date; "Apply.bat catalog"
 reads it (then restart the game).
 
 
@@ -202,11 +197,11 @@ and instructions these cheats use never change either, whatever the developer ch
 the PC side of the game.
 
 - The Cheats tab, its window and the part that carries the cheats out are a handful of
-  small, marked changes in the game's source that Apply cheats.bat makes before the game
-  is built. An update replaces those files; the game's updater runs Apply cheats.bat
+  small, marked changes in the game's source that Apply.bat makes before the game
+  is built. An update replaces those files; the game's updater runs Apply.bat
   before it rebuilds, so they are back at once.
 - A code mod that needs a rebuild goes into the game's patches.txt between two marker
-  lines. An update replaces patches.txt; Apply cheats.bat notices
+  lines. An update replaces patches.txt; Apply.bat notices
   (mods\system\bin\built.txt remembers what the built game has in it), puts it back and
   rebuilds.
 - The update never deletes the mods folder (it only copies new files over the project),
@@ -226,7 +221,7 @@ write, and the overlays, where most code mods are, are in the same place.
   instructions are in your ROM 16 bytes further on, it is moved there (its note says
   so); otherwise it is left out.
 - "system\AR-codes-EU.txt" (or -USA) lists your own files as Action Replay codes for
-  your ROM. Apply cheats.bat writes it again each time.
+  your ROM. Apply.bat writes it again each time.
 
 
 PLAYING WITH FRIENDS (WIRELESS)
@@ -240,8 +235,7 @@ sends it to the others like a button, and every PC carries it out for your DS in
 frame. Code mods switched in the window travel the same way.
 
 What to do:
-1. Give every player this download. Each copies Install cheats.bat and the mods folder
-   into their DQIX Enhanced folder and runs Install cheats.bat once.
+1. Give every player this download. Each extracts it and runs Install.bat once.
 2. Host and join as usual.
 3. Use the cheats as when alone. They only change your own DS (your hero, your gold,
    your bag), on every PC at once. Your friends don't need the same cheats on, and can
@@ -282,20 +276,20 @@ Code mod (mods\system\cheats\anything.txt, with "patch" lines):
 
 Most code mods become a switch in the window that works while you play. The few the game
 can't switch live say so in the window; for those, set "# enabled: yes" in the file and
-run Apply cheats.bat.
+run Apply.bat.
 
 An Action Replay "5XXXXXXX YYYYYYYY" line is a check; the "0XXXXXXX YYYYYYYY" lines after
 it that write instructions are patches. USA or European addresses. Swapping an
 instruction for another (nop, mov, a branch to a place inside the game's code) is safe;
 a jump to code of your own is not, and isn't possible.
 
-Run "Apply cheats.bat catalog" after you add or change a file, then restart the game.
+Run "Apply.bat catalog" after you add or change a file, then restart the game.
 
 
 UNDO EVERYTHING
 ---------------
 Press "Everything off" in the Cheats window and close the game. Set "sync_cheats = no" in
-settings.txt and run "Apply cheats.bat" once: it takes the Cheats tab and everything else
+settings.txt and run "Apply.bat" once: it takes the Cheats tab and everything else
 out of the game's source and rebuilds it. Then delete the mods folder. Your save
 (game\dqix.sav) is never touched.
 

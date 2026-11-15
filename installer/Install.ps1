@@ -1,9 +1,9 @@
 # Installer for DQIX Enhanced AR (cheats for DQIX Enhanced).
-# Started by "Install cheats.bat". Works with Windows PowerShell 5.1 (comes with Windows 10 and 11).
+# Started by "Install.bat". Works with Windows PowerShell 5.1 (comes with Windows 10 and 11).
 #
 #   1. finds your DQIX Enhanced folder (asks you in a folder window when it is not sure)
 #   2. puts the files of this download into its "mods" folder (your settings stay)
-#   3. builds the cheats into the game ("mods\Apply cheats.bat")
+#   3. builds the cheats into the game ("mods\Apply.bat")
 #
 # Switches (for tests and for people who know what they do):
 #   -GameFolder <path>   skip the question
@@ -21,7 +21,8 @@ param(
 Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Stop'
 
-$script:Here = Split-Path -Parent $MyInvocation.MyCommand.Path
+# this file is in the folder 'installer'; the download's own folder (with Install.bat and mods) is the one around it
+$script:Here = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
 $script:LogFile = Join-Path ([System.IO.Path]::GetTempPath()) 'dqix-cheats-install.log'
 $script:Exit = 0
 
@@ -253,7 +254,7 @@ function Install-Files([string]$Target) {
         if (Test-Path -LiteralPath $p -PathType Leaf) { Remove-Item -LiteralPath $p -Force; $removed++ }
     }
     # names of earlier versions of this installer's files
-    foreach ($rel in @('mods\Play with mods.bat', 'mods\system\cheats\no-touch-battles.txt')) {
+    foreach ($rel in @('mods\Apply cheats.bat', 'mods\Play with mods.bat', 'mods\system\cheats\no-touch-battles.txt')) {
         $p = Join-Path $Target $rel
         if (Test-Path -LiteralPath $p -PathType Leaf) { Remove-Item -LiteralPath $p -Force; $removed++ }
     }
@@ -333,7 +334,7 @@ function Invoke-Install {
     }
 
     Step '[4/4] Building the cheats into the game (the first time this takes a few minutes; black windows are normal)...'
-    $apply = Join-Path $target 'mods\Apply cheats.bat'
+    $apply = Join-Path $target 'mods\Apply.bat'
     if (-not (Test-Path -LiteralPath $apply)) { throw "The file was not put in: $apply" }
     Remove-Item Env:NoDefaultCurrentDirectoryInExePath -ErrorAction SilentlyContinue
     $env:DQIX_NOPAUSE = '1'
@@ -341,7 +342,7 @@ function Invoke-Install {
     $argLine = '/d /c ""' + $apply + '" apply"'
     $p = Start-Process -FilePath $cmd -ArgumentList $argLine -WorkingDirectory $target -NoNewWindow -Wait -PassThru
     $rc = $p.ExitCode
-    Write-Log ('Apply cheats.bat ended with ' + $rc)
+    Write-Log ('Apply.bat ended with ' + $rc)
     if ($rc -eq 3) {
         throw 'The game was started while it was being built. Close it and start this installer again.'
     }

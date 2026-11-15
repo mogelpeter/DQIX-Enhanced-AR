@@ -1,5 +1,5 @@
 #!/bin/sh
-# The mods into the game's build (run by "Apply cheats.bat", from the DQIX
+# The mods into the game's build (run by "Apply.bat", from the DQIX
 # Enhanced folder). Leaves 0 = the game that is built has them, 10 = the game
 # has to be rebuilt, 1 = something is wrong (nothing was changed).
 PY=python3; command -v python3 >/dev/null 2>&1 || PY=python

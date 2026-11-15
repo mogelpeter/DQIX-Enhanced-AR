@@ -7,7 +7,7 @@
  * into mods\system\save-backups), and opens the page in your browser. The language of the page is chosen in the page
  * itself (box at the top right). It leaves by itself when the page has been closed for a few minutes.
  *
- * Built by "Apply cheats.bat" with the C# compiler that comes with Windows (.NET Framework 4): C# 5, no newer syntax.
+ * Built by "Apply.bat" with the C# compiler that comes with Windows (.NET Framework 4): C# 5, no newer syntax.
  */
 using System;
 using System.Collections.Generic;

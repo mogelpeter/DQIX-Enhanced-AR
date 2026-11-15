@@ -1,11 +1,11 @@
 @echo off
-rem The patcher for DQIX Enhanced: puts the cheats into the game and builds it. Install cheats.bat runs it,
+rem The patcher for DQIX Enhanced: puts the cheats into the game and builds it. Install.bat runs it,
 rem the game's updater runs it after an update, and the Cheats window runs it when a built-in code mod
 rem was switched. You can run it yourself any time (after an update by hand, after you changed a cheat file).
 rem
-rem   Apply cheats.bat            = apply, then wait for a key
-rem   Apply cheats.bat apply      = the same, nothing waits (installer, updater, Cheats window)
-rem   Apply cheats.bat catalog    = only make the cheat list again
+rem   Apply.bat            = apply, then wait for a key
+rem   Apply.bat apply      = the same, nothing waits (installer, updater, Cheats window)
+rem   Apply.bat catalog    = only make the cheat list again
 rem
 rem What "apply" does:
 rem   1. works the cheat list out against your ROM (mods\system\tools\catalog.py)
