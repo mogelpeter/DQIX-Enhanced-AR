@@ -111,6 +111,7 @@ MENU_PATCHED = MENU_BEGIN + """\
     item(cheats, 363, L"&Treasure maps...");
     sep(cheats);
     item(cheats, 361, L"&What is this?");
+    item(cheats, 368, L"Check for &update...");           /* 368: handled in frontend_sdl.c, mod_cheatwin.c */
 """ + (NZ_MENU if NUZLOCKE_ENABLED else "") + """""" + MENU_ORIGINAL + END
 
 # Newer versions of the game (v34 on) build the menu bar from a table (runtime/menu_items.c): there is no "Help" line to put
@@ -129,6 +130,7 @@ MENU2_PATCHED = MENU2_BEGIN + """\
         item(cheats, 363, L"&Treasure maps...");
         sep(cheats);
         item(cheats, 361, L"&What is this?");
+        item(cheats, 368, L"Check for &update...");        /* 368: handled in frontend_sdl.c, mod_cheatwin.c */
         int n = GetMenuItemCount(g_bar), at = n; wchar_t t[32];
         if (n > 0 && GetMenuStringW(g_bar, (UINT)(n - 1), t, 32, MF_BYPOSITION) && !lstrcmpW(t, L"&Help")) at = n - 1;
         InsertMenuW(g_bar, (UINT)at, MF_BYPOSITION | MF_POPUP | MF_STRING, (UINT_PTR)cheats, L"&Cheats");
@@ -140,6 +142,7 @@ ACT_ORIGINAL = """\
     case MI_UPDATE: update_menu(); break;
 """
 ACT_PATCHED = ACT_BEGIN + r"""
+    case 368: { void mod_update_check(void); mod_update_check(); break; }
     case 360: case 361: case 362: case 363: case 365: case 366: case 367: {
         void mod_cheatwin_show(void);
         void mod_nuzlocke_show(void);

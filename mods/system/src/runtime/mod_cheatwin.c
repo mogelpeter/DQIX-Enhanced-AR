@@ -400,7 +400,7 @@ static wchar_t* wide(const char* s) {
     return w;
 }
 
-/* ---- a newer release on GitHub: asked about once, a little after the start ----
+/* ---- a newer release on GitHub: asked about once, a moment after the start (and on demand: Cheats > Check for update) ----
  * mods\system\version.txt says which version of these cheats is installed (the installer writes it; a development folder has none, then
  * nothing is checked). A thread asks api.github.com for the latest release (the same WinHTTP the game's own updater uses). When it is newer
  * and was not turned down before, a box asks. Yes: the game closes by itself and mods\Update.bat -Auto downloads and installs it (a console
@@ -477,31 +477,45 @@ static void upd_run(void) {                                   /* the game closes
 }
 
 static DWORD WINAPI upd_thread(LPVOID u) {
-    (void)u;
+    int manual = u != NULL;                                    /* Cheats > Check for update: always answers, ignores "turned down" */
     int test = getenv("DQIX_AR_UPDATE_TEST") != NULL;
-    Sleep(test ? 500 : 20000);                                 /* the game's window comes first */
+    Sleep(test ? 500 : manual ? 0 : 1500);                     /* at the start: a moment for the window, so the box comes before the game is played */
     char path[MAX_PATH * 2 + 64], have[32] = "", tag[32] = "", no[32] = "";
     snprintf(path, sizeof path, "%s\\mods\\system\\version.txt", g_root);
-    FILE* f = fopen(path, "r"); if (!f) return 0;
+    FILE* f = fopen(path, "r");
+    if (!f) { if (manual) MessageBoxW(NULL, L"This folder has no version number (a development copy), so it can't be compared.", L"DQIX Enhanced AR - update", MB_OK | MB_ICONINFORMATION | MB_TOPMOST); return 0; }
     if (fgets(have, sizeof have, f)) { char* e = strpbrk(have, "\r\n"); if (e) *e = 0; }
     fclose(f);
     int hv[3]; if (!ver_parse(have, hv)) return 0;
-    if (!upd_fetch(tag, sizeof tag) || !ver_newer(tag, have)) return 0;
+    if (!upd_fetch(tag, sizeof tag)) {
+        if (manual) MessageBoxW(NULL, L"The newest version couldn't be looked up. Is the computer online?", L"DQIX Enhanced AR - update", MB_OK | MB_ICONWARNING | MB_TOPMOST);
+        return 0;
+    }
+    if (!ver_newer(tag, have)) {
+        if (manual) MessageBoxW(NULL, L"DQIX Enhanced AR is up to date.", L"DQIX Enhanced AR - update", MB_OK | MB_ICONINFORMATION | MB_TOPMOST);
+        return 0;
+    }
     snprintf(path, sizeof path, "%s\\mods\\system\\update-declined.txt", g_root);
-    if ((f = fopen(path, "r")) != NULL) { if (fgets(no, sizeof no, f)) { char* e = strpbrk(no, "\r\n"); if (e) *e = 0; } fclose(f); }
+    if (!manual && (f = fopen(path, "r")) != NULL) { if (fgets(no, sizeof no, f)) { char* e = strpbrk(no, "\r\n"); if (e) *e = 0; } fclose(f); }
     if (!strcmp(no, tag)) return 0;                            /* turned down once: not asked again for this version */
     if (test) { fprintf(stderr, "update: %s is available (installed %s)\n", tag, have); fflush(stderr); return 0; }
     wchar_t msg[600], wt[32], wh[32];
     MultiByteToWideChar(CP_ACP, 0, tag, -1, wt, 32); MultiByteToWideChar(CP_ACP, 0, have, -1, wh, 32);
-    swprintf(msg, 600, L"A new version of DQIX Enhanced AR is available.\n\nInstalled: %ls\nNewest: %ls\n\nUpdate now? The game closes by itself, the update is installed (a few minutes) and the game can be started again.\nProgress you have not saved is lost: save first, then press Yes.\n\nNo = ask again for a later version. You can always run mods\\Update.bat.", wh, wt);
+    swprintf(msg, 600, L"A new version of DQIX Enhanced AR is available.\n\nInstalled: %ls\nNewest: %ls\n\nUpdate now? The game closes by itself, the update is installed (a few minutes) and the game can be started again.\nProgress you have not saved is lost: save first, then press Yes.\n\nNo = ask again for a later version. You can always run mods\\Update.bat, or Cheats > Check for update.", wh, wt);
     if (MessageBoxW(NULL, msg, L"DQIX Enhanced AR - update", MB_YESNO | MB_ICONQUESTION | MB_TOPMOST | MB_SETFOREGROUND) == IDYES) upd_run();
-    else if ((f = fopen(path, "w")) != NULL) { fprintf(f, "%s\n", tag); fclose(f); }
+    else if (!manual && (f = fopen(path, "w")) != NULL) { fprintf(f, "%s\n", tag); fclose(f); }
     return 0;
 }
 
 static void upd_start(void) {
     if (getenv("DQIX_AR_NO_UPDATE_CHECK") || !g_root[0]) return;
     HANDLE h = CreateThread(NULL, 0, upd_thread, NULL, 0, NULL);
+    if (h) CloseHandle(h);
+}
+/* the menu item Cheats > Check for update (frontend_sdl.c, command 368) */
+void mod_update_check(void) {
+    if (!g_root[0]) return;
+    HANDLE h = CreateThread(NULL, 0, upd_thread, (LPVOID)1, 0, NULL);
     if (h) CloseHandle(h);
 }
 
@@ -1031,6 +1045,10 @@ static void restart_game(int rebuild) {
     wchar_t exe[MAX_PATH * 2], *rootw = wide(g_root), cmd[MAX_PATH * 6], script[MAX_PATH * 5];
     (void)exe;
     const wchar_t* cl = GetCommandLineW();
+    /* the new game inherits this one's environment, where mod_cheatwin_boot put the launch options: take them all out, the new start sets the ones
+     * that are still on (otherwise "Battle any monster" switched off still forced the monster: nothing roamed) */
+    for (int i = 0; i < g_ne; i++)
+        if (!strcmp(g_e[i].kind, "launch") && strchr(g_e[i].env, '=')) { char nm[128]; snprintf(nm, sizeof nm, "%s", g_e[i].env); *strchr(nm, '=') = 0; strcat(nm, "="); _putenv(nm); }
     if (rebuild) swprintf(script, MAX_PATH * 5, L"ping -n 4 127.0.0.1 >nul & call \"%ls\\mods\\Apply.bat\" apply & start \"\" %ls", rootw, cl);
     else swprintf(script, MAX_PATH * 5, L"ping -n 3 127.0.0.1 >nul & start \"\" %ls", cl);
     swprintf(cmd, MAX_PATH * 6, L"cmd.exe /s /c \"%ls\"", script);

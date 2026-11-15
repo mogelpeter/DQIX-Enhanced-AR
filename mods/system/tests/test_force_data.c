@@ -52,6 +52,15 @@ int main(int argc, char** argv) {
                 p += hdr + 4u * (uint32_t)cnt;
             }
         }
+        /* a boss (no model in fld_mondata) must have borrowed one, so that it is drawn on the field; an ordinary monster's record is untouched */
+        { const uint8_t* b = g_f[2].data; uint32_t stab = rd32(b + 4), p = 16;
+          for (; p + 4 <= stab && p + 4 <= g_f[2].size; ) {
+              if (rd32(b + p) == 0xFFFFFFFFu) { p += 4; continue; }
+              uint16_t tag = (uint16_t)(b[p] | b[p + 1] << 8); int cnt = b[p + 2];
+              uint32_t hdr = ((3 + (uint32_t)(cnt * 2 + 7) / 8 + 3) / 4) * 4;
+              if (tag == 0x65 && cnt >= 5 && rd32(b + p + hdr) == (uint32_t)n && rd32(b + p + hdr + 8) == 0 && rd32(b + p + hdr + 12) == 0) { printf("FAIL n=%d: boss still has no field model\n", n); bad++; }
+              p += hdr + 4u * (uint32_t)cnt;
+          } }
         if (!roamers) { printf("FAIL n=%d: no roamer slots found\n", n); bad++; }
         if (!changed_words && n > 0) { printf("FAIL n=%d: nothing changed\n", n); bad++; }
         if (bad) fails++;

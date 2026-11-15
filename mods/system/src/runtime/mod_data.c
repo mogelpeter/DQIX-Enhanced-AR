@@ -127,6 +127,20 @@ static void metal_rec(uint8_t* v, uint16_t tag, int cnt, void* ctx) {
     if (tag == 0x65 && cnt >= 3 && (int32_t)rd32(v + 4) == -99 && g_nmetal < 128) g_metal[g_nmetal++] = (uint16_t)(rd32(v) & 0xFFF);
 }
 
+/* A boss has no field model in fld_mondata (value 3, the model, is 0 on every boss): forced onto the field it is not drawn and nothing
+ * roams ("nothing in the field", reported with Zoma and the Master of Nu'un). So the forced boss borrows the model of the first
+ * ordinary monster (the slime, number 1): it roams as that model, the battle is the boss's. */
+static uint32_t g_donor[2]; static int g_have_donor, g_mondata_changed;
+static void donor_rec(uint8_t* v, uint16_t tag, int cnt, void* ctx) {
+    (void)ctx;
+    if (tag == 0x65 && cnt >= 5 && !g_have_donor && rd32(v) == 1 && rd32(v + 8) != 0) { g_donor[0] = rd32(v + 12); g_donor[1] = rd32(v + 16); g_have_donor = 1; }
+}
+static void boss_rec(uint8_t* v, uint16_t tag, int cnt, void* ctx) {
+    if (tag == 0x65 && cnt >= 5 && rd32(v) == (uint32_t)(uintptr_t)ctx && rd32(v + 8) == 0 && rd32(v + 12) == 0 && g_have_donor) {
+        memcpy(v + 12, &g_donor[0], 4); memcpy(v + 16, &g_donor[1], 4); g_mondata_changed++;
+    }
+}
+
 #define ZMAX 256
 typedef struct { int roam_tag, comp_tag, force; uint8_t* rec[ZMAX]; int roamer[ZMAX]; int n; int changed; } Zone;
 
@@ -172,6 +186,8 @@ static void build(uint32_t key) {
     mod_each_record(g_f[2].data, g_f[2].size, metal_rec, NULL);
     if (!g_nmetal) return;
     Zone z;
+    g_have_donor = 0; g_mondata_changed = 0;
+    if (force) { mod_each_record(g_f[2].data, g_f[2].size, donor_rec, NULL); mod_each_record(g_f[2].data, g_f[2].size, boss_rec, (void*)(uintptr_t)force); }
     memset(g_swap, 0, sizeof g_swap);
     if (g_rand) {
         const char* sd0 = getenv("DQIX_MOD_NZ_SEED"); mod_nz_seed(sd0 && *sd0 ? (uint32_t)strtoul(sd0, NULL, 10) : 1u, 400);
@@ -203,7 +219,7 @@ void mod_card_overlay(uint32_t addr, uint32_t len, uint8_t* buf) {
     if (!len || !key) return;
     if (!g_ready || g_key != key) build(key);
     if (g_ready < 0) return;
-    for (int i = 0; i < 2; i++) {
+    for (int i = 0; i < (g_mondata_changed ? 3 : 2); i++) {
         const MdFile* f = &g_f[i];
         uint32_t lo = addr > f->start ? addr : f->start;
         uint32_t hi = addr + len < f->start + f->size ? addr + len : f->start + f->size;
