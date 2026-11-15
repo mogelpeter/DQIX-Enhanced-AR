@@ -2,6 +2,10 @@
 
 Newest first. One block per working session: what changed, why, how it was checked.
 
+## 2026-11-15 (48)  Reported: chest cheat forced steals, mini medals
+- **Monsters always drop a treasure chest** also made every steal (thief skill) succeed, from both drop tables, and gave two chests. The roll's result in ov023 021f454c is now multiplied by the pass number (r7), so only the defeat pass is sure (021f4a08 / 021f4ad0 `cmp r0,#0` -> `muls r0,r7,r0`); the branches and the jump past the second slot are left as the game has them. Static + fast tests pass; not tried in a real fight.
+- **Mini medals and "Ingredients never decrease"**: the report came from the old R4 code (bag functions). The new file only touches the Krak Pot's three calls (all four callers of 0215759c are in the alchemy code), so the medal shop is not affected.
+
 ## 2026-11-15 (47)  Reported issues: menus, Alchemiracle with Try your luck, ingredients lag
 - **Party page (USA list)**: the Hero section now also takes "Job modifier - Player 1", "Max/Infinite skill points - Player 1" and "Max EXP ...: Player 1" (they had fallen into "Other"); the long "Hero max skill: ..." list is its own section "Hero skills"; "Max/Infinite skill points - all players" goes to "Whole party". The option "Player 1" now shows its whole name.
 - **Push enemies away** is on Speed & comfort. **Unlock all Wi-Fi quests** / "...with the Wi-Fi quests" are hidden (the game's own wireless menu has them). **Quester's Rest** was there twice (file + the list's "Inn max level"): the file now `# replaces:` the list's code. The hover of "Defeated monster list" no longer talks about an option.
