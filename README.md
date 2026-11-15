@@ -267,8 +267,8 @@ The marked places in the game's source are listed in `SITES` in `apply_runtime_m
 
 ## Credits
 
-- **[Duwang2](https://github.com/Duwang2)** helped with the battle and spell features. He shared the source of his own DQIX trainer (`cheats.c`) and the skill table generator (`gen_skills.py`): where a character's learned spells and abilities are kept, which game functions decide what each vocation may use, and how a fighter's buffs and debuffs are laid out in memory. That is what the "Every vocation can use every spell and ability" cheats and the corrected "Effects last all battle" switch are built on. The code here is written for this project and checked in the game.
-- [DQIX Enhanced](https://github.com/sackchief/dqix-enhanced) by sackchief is the game port all of this is built into.
+- <img src="https://github.com/Duwang2.png?size=48" width="24" height="24" align="top"> **[Duwang2](https://github.com/Duwang2)** helped with the battle and spell features. He shared the source of his own DQIX trainer (`cheats.c`) and the skill table generator (`gen_skills.py`): where a character's learned spells and abilities are kept, which game functions decide what each vocation may use, and how a fighter's buffs and debuffs are laid out in memory. That is what the "Every vocation can use every spell and ability" cheats and the corrected "Effects last all battle" switch are built on. The code here is written for this project and checked in the game.
+- <img src="https://github.com/sackchief.png?size=48" width="24" height="24" align="top"> [DQIX Enhanced](https://github.com/sackchief/dqix-enhanced) by sackchief is the game port all of this is built into.
 
 ---
 

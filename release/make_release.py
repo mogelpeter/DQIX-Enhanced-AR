@@ -339,7 +339,8 @@ def publish(version, zip_path, notes):
     tok = token()
     rel = api("POST", "https://api.github.com/repos/%s/releases" % REPO, tok,
               {"tag_name": tag, "target_commitish": "main", "name": "DQIX Enhanced AR " + version,
-               "body": notes, "draft": False, "prerelease": False, "make_latest": "true"})
+               "body": re.sub(r"(?<![\w`])@(\w+)", r"`@`", notes),     # a bare @word would tag a GitHub user
+               "draft": False, "prerelease": False, "make_latest": "true"})
     with open(zip_path, "rb") as f:
         data = f.read()
     asset = api("POST", rel["upload_url"].split("{")[0] + "?name=" + os.path.basename(zip_path), tok, data, "application/zip")
