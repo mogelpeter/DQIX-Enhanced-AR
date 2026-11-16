@@ -297,6 +297,7 @@ def runners(root, work):
         "vanish-walk":    (fn("test_vanish_walk.py", []), True, 200),             # Vanish in the field: no battle, no frozen monster (vanish.c); TEST_SAVE as above
         "vanish-ghost":   (fn("test_vanish_ghost.py", []), True, 150),            # Vanish makes the party see-through (vanish.c); TEST_SAVE as above
         "battle-live":    (fn("test_battle_live.py", []), True, 130),             # the live battle cheats in a forced battle (Battle cheats window); TEST_SAVE as above
+        "session-cheats": (fn("test_session_cheats.py", ["{port}"]), True, 90),          # the host's cheats reach the guest's console in a session (the window's agent runs)
         "revive":        (fn("test_revive.py", []), True, 130),                  # Revive fallen party members, in the field and in a forced battle; TEST_SAVE as above
         "undo-fun":       (fn("test_undo_fun.py", []), True, 90),                 # Fun cheats switched off put the game back (SET_UNDO); TEST_SAVE as above
         # cheats with buttons, the buttons really pressed (test_keys.py); TEST_SAVE as above

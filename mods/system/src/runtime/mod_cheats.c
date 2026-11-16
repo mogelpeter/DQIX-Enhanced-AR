@@ -249,7 +249,9 @@ static int mc_write(void* u, uint32_t a, const void* in, size_t n) {
     if ((a & 0x0FFFFFFFu) == MC_SWITCH_REVIVE) { uint32_t w = 0; if (n >= 4) memcpy(&w, in, 4); mc_revive(w); return 1; }
     if ((a & 0x0FFFFFFFu) == MC_SWITCH_NZ_NEW) { nz_command(1); return 1; }
     if ((a & 0x0FFFFFFFu) >= MC_SWITCH_NZ && (a & 0x0FFFFFFFu) < MC_SWITCH_NZ + 0x3C) { g_mod_nz |= 1u << (((a & 0x0FFFFFFFu) - MC_SWITCH_NZ) >> 2); return 1; }
-    if (n == 4 && (a & 0x0FFFFFFFu) >= MC_LP_BASE && (a & 0x0FFFFFFFu) < MC_LP_BASE + 0x10000u) { uint32_t w; memcpy(&w, in, 4); return lp_set(a & 0x0FFFFFFFu, w); }
+    if (n == 4 && (a & 0x0FFFFFFFu) >= MC_LP_BASE && (a & 0x0FFFFFFFu) < MC_LP_BASE + 0x10000u) { uint32_t w; memcpy(&w, in, 4);
+        if (w == 0xE3A00FFFu) w = (g_frame & 1) ? 0xE3A00003u : 0xE3A00002u;     /* movement speed x1.25: the game's speed is a whole number of half steps (x1 = 2, x1.5 = 3), so it alternates 2 and 3 every frame: 2.5 on average = x1.25 */
+        return lp_set(a & 0x0FFFFFFFu, w); }
     a &= MAIN_RAM_SIZE - 1;
     if (a + n > MAIN_RAM_SIZE) return 0;
     if (g_journal) mc_note(a, (const uint8_t*)in, n);

@@ -2,6 +2,18 @@
 
 Newest first. One block per working session: what changed, why, how it was checked.
 
+## 2026-11-16 (67)  Movement speed x1.25
+- The speed is the integer `GetTrueDeltaTime` returns (`mov r0,#n`, x1 = 2, x1.5 = 3: units of half a step), so 1.25 = 2.5 can't be one instruction. New option `x1.25` in the Movement Speed Multiplier folder of both R4 lists (word `E3A00FFF`, a marker): `mc_write` (mod_cheats.c) turns that word into 3 on odd and 2 on even frames before `lp_set` (average 2.5; deterministic from `g_frame`, so sessions stay in sync). Catalog: the option is in the choice (checked with `catalog.py`).  Built; a headless run with x1.25 on ran without a crash (the alternation itself is not measured).
+
+## 2026-11-16 (66)  Session incidents are logged with the cheats; Reconnect
+- `mod_cheatwin.c` (`session_watch`, agent thread): every out-of-sync, every player that leaves or is lost and every session that ends or fails is appended to `mods\system\session-incidents.txt` (time, host/guest, the session's own message, the cheats that were on - for a guest the host's - and whether a cheat may be the reason), and to stderr (`last-run.log`).
+- Then a dialog offers **Reconnect** (`reconnect_ask` -> `restart_game(0)`): the game starts again with the same `DQIX_SESSION`; the host again with the same relay code (`DQIX_RELAY_CODE`), a guest joins again and keeps trying for a minute (`DQIX_JOIN_RETRY=30`, 2 s each). New patch sites in `apply_runtime_mod.py` for `session.c` (`relay`, `join1`, `join2`; all three "on (exact)" in a scratch copy). Both players press Reconnect; no leave-lobby / host-again dance.
+- Built (the three session.c sites apply, "on (exact)"); the dialog, the incident file and the rejoin are not tried yet: play one session and break it (close one PC); the relay's behaviour with a reused code is unknown (tools/relay/worker.js).
+
+## 2026-11-16 (65)  Guest takes the host's cheats: locked on, no state swapping
+- A guest's Cheats window shows exactly the host's cheats as on (`g_hon`, read by `ent_on`) and locks them (a cheat on for the host and off here would make the games differ); the guest's own switches are never touched, not shown or sent meanwhile, back when the session ends. The first version swapped `g_st` from the agent thread while the window read it (a race, the likely cause of a guest crash); that code is gone. New `tests/test_session_cheats.py` (`dev test session-cheats`: host with 5 cheats, guest with none, the window's agent running).
+- Not built or tested: the user's game was running a live session, `Apply.bat` refused to rebuild. Next: close the game, `Apply.bat apply`, `dev test session-cheats session cheatwin fast`. The guest's `game\last-run.log` and `game\sessionront.log` are needed for the reported crash (the host's front.log shows a clean sync until the relay connection ended).
+
 ## 2026-11-16 (64)  "Everything off" button removed
 - The Cheats window has no Everything off button any more (button, `all_off`, its message; README / USER GUIDE say to use the Enabled page instead). `dev test cheatwin` PASS.
 

@@ -220,6 +220,37 @@ FAST_PATCHED = FAST_BEGIN + """    } else {   /* tests: DQIX_FAST=1 also lifts t
 # (file in runtime/, the lines as the game has them, with the mods, first marker line, what it is)
 # The marker lines (*_BEGIN, WRAP_BEGIN) are found by their exact text in games that already have them: never reword
 # them (they still name "Play with mods.bat", the patcher's old name), or those games keep an orphaned block.
+RELAY_BEGIN = "    /* >>> mods: reconnect keeps the relay code (mods/tools/apply_runtime_mod.py; an update removes this, Play with mods.bat puts it back) */\n"
+RELAY_ORIGINAL = """\
+        relay_new_code(code, sizeof code);
+"""
+RELAY_PATCHED = RELAY_BEGIN + """\
+        {   /* Reconnect (the Cheats window) starts the host again with the code the friends already have */
+            const char* keep = getenv("DQIX_RELAY_CODE");
+            if (keep && *keep) snprintf(code, sizeof code, "%.15s", keep); else relay_new_code(code, sizeof code);
+        }
+""" + END
+
+JOIN1_BEGIN = "    /* >>> mods: reconnect joins again until the host is back (mods/tools/apply_runtime_mod.py; an update removes this, Play with mods.bat puts it back) */\n"
+JOIN1_ORIGINAL = """\
+        if (!relay_join_start(code, &lp, why, sizeof why)) { news("%s", why); g_state = 5; }
+"""
+JOIN1_PATCHED = JOIN1_BEGIN + """\
+        if (!({ int tr_ = getenv("DQIX_JOIN_RETRY") ? atoi(getenv("DQIX_JOIN_RETRY")) : 0, ok_;     /* Reconnect: the host needs a few seconds to be back */
+                while (!(ok_ = relay_join_start(code, &lp, why, sizeof why)) && tr_-- > 0) sleep_ms(2000);
+                ok_; })) { news("%s", why); g_state = 5; }
+""" + END
+
+JOIN2_BEGIN = "    /* >>> mods: reconnect joins again until the host is back, direct (mods/tools/apply_runtime_mod.py; an update removes this, Play with mods.bat puts it back) */\n"
+JOIN2_ORIGINAL = """\
+        if (!start_join(a, port)) { g_state = 5; }
+"""
+JOIN2_PATCHED = JOIN2_BEGIN + """\
+        if (!({ int tr_ = getenv("DQIX_JOIN_RETRY") ? atoi(getenv("DQIX_JOIN_RETRY")) : 0, ok_;
+                while (!(ok_ = start_join(a, port)) && tr_-- > 0) sleep_ms(2000);
+                ok_; })) { g_state = 5; }
+""" + END
+
 SITES = [
     ("input.c", INPUT_ORIGINAL, INPUT_PATCHED, INPUT_BEGIN, "Cheats with friends"),
     ("card.c", CARD_ORIGINAL, CARD_PATCHED, CARD_BEGIN, "Instant loading only alone"),
@@ -228,9 +259,12 @@ SITES = [
     ("frontend_sdl.c", ACT_ORIGINAL, ACT_PATCHED, ACT_BEGIN, "Cheats tab: what it does"),
     ("update.c", UPD_ORIGINAL, UPD_PATCHED, UPD_BEGIN, "Cheats stay after an update of the game"),
     ("frontend_sdl.c", FAST_ORIGINAL, FAST_PATCHED, FAST_BEGIN, "Fast test runs without a window"),
+    ("session.c", RELAY_ORIGINAL, RELAY_PATCHED, RELAY_BEGIN, "Reconnect: the same relay code"),
+    ("session.c", JOIN1_ORIGINAL, JOIN1_PATCHED, JOIN1_BEGIN, "Reconnect: joining again (relay)"),
+    ("session.c", JOIN2_ORIGINAL, JOIN2_PATCHED, JOIN2_BEGIN, "Reconnect: joining again (direct)"),
 ]
 NEEDS_INPUT = {"data", "act"}                                       # they call the mods' own files, which come with "input"
-SITE_KEYS = ["input", "card", "data", "menu", "act", "update", "fast"]   # SITES in order; "wrap" is the lines in wrap.txt (live code mods)
+SITE_KEYS = ["input", "card", "data", "menu", "act", "update", "fast", "relay", "join1", "join2"]   # SITES in order; "wrap" is the lines in wrap.txt (live code mods)
 VARIANTS = {"menu": [(MENU2_ORIGINAL, MENU2_PATCHED, MENU2_BEGIN)]}    # other forms of a place: tried after the first one
 FILES = ["mod_cheats.c", "ar_engine.h", "mod_data.c", "livepatch.c", "mod_cheatwin.c", "nuzlocke.c"]       # belong to the first site
 MENU_FILES = ["mod_menu.c"]                                  # belong to the "what it does" site (frontend_sdl.c)

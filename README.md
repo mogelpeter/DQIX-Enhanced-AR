@@ -171,6 +171,7 @@ In a session every PC runs every player's DS, and they must all compute exactly 
 
 Notes:
 
+- **When a session breaks** (out of sync, a player lost): the game logs it with the cheats that were on in `mods\system\session-incidents.txt` (send that file when something goes wrong) and offers **Reconnect**. Both players press it: the host's game waits again with the same code, the guest's game joins again by itself (it keeps trying for a minute). No leaving the lobby and hosting a new one.
 - **Locked during a session** (greyed out, with the reason in the grey line): everything that would put the PCs out of sync if one PC had it different: the options that take effect at the next start (*next start*, e.g. the Nuzlocke randomizers, Metal slimes only, Battle any monster, Instant loading) and code mods that need a rebuild. Change those before the session. Every live cheat can be switched on and off during a session: it travels in your input stream, so every PC carries out the same change on the same frame.
 - **Instant loading** only works alone; in a session the game keeps the cartridge's real timing by itself.
 - If one player's game doesn't have the cheats in it, the first cheat puts the session out of sync (the title bar says so). Without cheats such a session plays normally.

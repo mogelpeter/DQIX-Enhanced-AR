@@ -191,9 +191,7 @@ static int st_find(const char* kind, const char* id) {
 }
 static int st_has(const char* kind, const char* id) { return st_find(kind, id) >= 0; }
 
-static int g_overlay;                                         /* a guest shows the host's cheats: the user's own switches are kept aside and never written */
 static void st_save(void) {
-    if (g_overlay) return;
     FILE* f = fopen(g_statepath, "wb"); if (!f) return;
     for (int i = 0; i < g_nst; i++) fprintf(f, "%s\r\n", g_st[i]);
     fclose(f);
@@ -212,7 +210,12 @@ static void st_set(const char* kind, const char* id, int on) {
 
 static const char* skind(const Ent* e) { return !strcmp(e->kind, "live") ? "live" : !strcmp(e->kind, "code") ? "code" : "launch"; }
 
-static int ent_on(const Ent* e) { return st_has(skind(e), e->id); }
+static volatile LONG g_fol;                                   /* 1 while this PC is a guest that takes the host's cheats (the agent thread keeps it) */
+static uint8_t* g_hon;                                        /* per entry: 1 = on because the host has it on (only the agent thread writes it) */
+static int ent_on(const Ent* e) {
+    if (g_fol && g_hon && !strcmp(e->kind, "live")) return g_hon[e - g_e];       /* a guest in a session: exactly the host's cheats; his own switches are kept as they are */
+    return st_has(skind(e), e->id);
+}
 
 /* code mods that now switch live (livepatch.c): what the state file lists as "code" is "live" */
 static void migrate_state(void) {
@@ -233,8 +236,18 @@ static const char* lock_why_kind(const char* kind) {
         ? "Locked while you play with friends: it only takes effect when the game starts, and every PC has to start with the same setting or the session goes out of sync. Change it before the session."
         : "Locked while you play with friends: it changes how the game computes, so every PC has to have the same build or the session goes out of sync. Change it before the session.";
 }
-static int locked(const Ent* e) { return g_ses && (!strcmp(e->kind, "launch") || !strcmp(e->kind, "code")); }
-static const char* lock_why(const Ent* e) { return lock_why_kind(e->kind); }
+/* a guest can't change the host's cheats either: they have to stay as the host has them so that both games compute the same */
+static int locked_kind(const char* kind, const char* mode) {
+    if (g_ses && (!strcmp(kind, "launch") || !strcmp(kind, "code"))) return 1;
+    return g_fol && !strcmp(kind, "live") && strcmp(mode, "once");
+}
+static int locked(const Ent* e) { return locked_kind(e->kind, e->mode); }
+static const char* lock_why_kind2(const char* kind) {
+    return !strcmp(kind, "live")
+        ? "Synced from the host: the host's cheats are on for you while you play together and have to stay as they are, or the two games would drift apart and the session would break. Yours come back when the session ends."
+        : lock_why_kind(kind);
+}
+static const char* lock_why(const Ent* e) { return lock_why_kind2(e->kind); }
 
 /* ---- sending cheats (the mailbox's messages, see mod_cheats.c) ---- */
 static void post_words(const uint16_t* w, int n) {
@@ -271,7 +284,7 @@ static void send_clear(int idx) { send_clear_id((uint16_t)(idx + 1)); }
 
 /* every live cheat that is on, again (the game started, or forgot them) */
 static void resend_all(void) {
-    if (!g_cs_init) return;
+    if (!g_cs_init || g_fol) return;                         /* a guest: the host's cheats are sent instead (follow_sync) */
     EnterCriticalSection(&g_cs);
     for (int i = 0; i < g_ne; i++)
         if (!strcmp(g_e[i].kind, "live") && strcmp(g_e[i].mode, "once") && ent_on(&g_e[i])) send_set(i);
@@ -279,36 +292,20 @@ static void resend_all(void) {
 }
 
 /* ---- a guest takes the host's cheats (the host's console copy on this PC has them: mod_cheats.c, hc_publish). While the session runs the window
- * shows the host's cheats as the switches that are on and sends them in this player's own stream, so the guest can switch any of them off (a
- * live cheat can't put a session out of sync: it travels in the stream). The guest's own switches are kept aside in memory (g_st_saved) and are
- * never written (st_save does nothing meanwhile); when the session ends they come back and are sent again. Changes the host makes later follow.
- * A host cheat this game doesn't have in its list is sent as it is (ids from 0x8000) and can't be switched here. DQIX_AR_NO_HOST_CHEATS=1: off. */
+ * shows exactly the host's cheats as switched on (g_hon, read by ent_on) and sends them in this player's own stream; they are locked, the guest can't
+ * change them (a cheat that is on for the host and off here would make the games differ). The guest's own switches are never touched: they are not
+ * shown or sent meanwhile and are back when the session ends. Changes the host makes later follow. A host cheat this game doesn't have in its list is
+ * sent as it is (ids from 0x8000). DQIX_AR_NO_HOST_CHEATS=1: off. Everything here runs on the agent thread and only writes bytes of g_hon. */
 uint32_t mod_hostcheats_copy(uint8_t* out, uint32_t* used, uint32_t* n);
 #define HC_CAP (1u << 19)
 #define HOST_ID 0x8000u
 typedef struct { uint16_t id; uint32_t h; int idx; } Mir;
 static Mir g_mir[128]; static int g_nmir; static uint32_t g_mir_seq;
-static char** g_st_saved; static int g_nst_saved;
 static void follow_note(const wchar_t* t);
 static void refresh_ui(void);
+static void session_watch(const SessionInfo* si);
+static void restart_game(int rebuild);
 static uint32_t ops_hash(const uint32_t* ops, uint32_t nops) { uint32_t h = 2166136261u; for (uint32_t i = 0; i < nops * 2; i++) h = (h ^ ops[i]) * 16777619u; return h; }
-static void overlay_enter(void) {
-    EnterCriticalSection(&g_cs);
-    g_st_saved = g_st; g_nst_saved = g_nst;
-    g_st = (char**)malloc((size_t)(g_nst_saved + 1) * sizeof *g_st);
-    for (int i = 0; i < g_nst_saved; i++) g_st[i] = xdup(g_st_saved[i], strlen(g_st_saved[i]));
-    g_overlay = 1;                                              /* from here on nothing is written to menu-state.txt */
-    for (int i = 0; i < g_ne; i++) if (!strcmp(g_e[i].kind, "live") && ent_on(&g_e[i])) st_set("live", g_e[i].id, 0);
-    LeaveCriticalSection(&g_cs);
-}
-static void overlay_leave(void) {
-    EnterCriticalSection(&g_cs);
-    if (g_overlay) {
-        for (int i = 0; i < g_nst; i++) free(g_st[i]);
-        free(g_st); g_st = g_st_saved; g_nst = g_nst_saved; g_st_saved = NULL; g_nst_saved = 0; g_overlay = 0;
-    }
-    LeaveCriticalSection(&g_cs);
-}
 static void follow_sync(void) {
     static uint8_t* buf;
     if (!buf && !(buf = (uint8_t*)malloc(HC_CAP))) return;
@@ -328,7 +325,7 @@ static void follow_sync(void) {
         int same = 0; for (int k = 0; k < g_nmir; k++) if (g_mir[k].id == id && g_mir[k].h == h) same = 1;
         if (!same) {
             changed = 1;
-            if (idx >= 0) { if (!ent_on(&g_e[idx])) st_set("live", g_e[idx].id, 1); send_set(idx); }
+            if (idx >= 0) { g_hon[idx] = 1; send_set(idx); }
             else send_raw((uint16_t)(HOST_ID + (id & 0x7FFF)), un, ops, (int)no);
         }
         now[nn].id = id; now[nn].h = h; now[nn].idx = idx; nn++;
@@ -338,12 +335,78 @@ static void follow_sync(void) {
         int still = 0; for (int j = 0; j < nn; j++) if (now[j].id == g_mir[k].id) still = 1;
         if (still) continue;
         changed = 1;
-        if (g_mir[k].idx >= 0) { if (ent_on(&g_e[g_mir[k].idx])) st_set("live", g_e[g_mir[k].idx].id, 0); send_clear(g_mir[k].idx); }
+        if (g_mir[k].idx >= 0) { g_hon[g_mir[k].idx] = 0; send_clear(g_mir[k].idx); }
         else send_clear_id((uint16_t)(HOST_ID + (g_mir[k].id & 0x7FFF)));
     }
     memcpy(g_mir, now, sizeof(Mir) * (size_t)nn); g_nmir = nn;
     LeaveCriticalSection(&g_cs);
     if (changed) refresh_ui();
+}
+
+/* ---- a session that breaks: logged with the cheats that were on, and Reconnect.
+ * Every incident (out of sync, a player left or was lost, the connection to the host lost) goes into mods\\system\\session-incidents.txt with the time, the
+ * session's own message and the cheats that were on (for a guest: the host's), so a break that a cheat caused can be seen afterwards. Then the window offers
+ * "Reconnect": the game starts again with the same DQIX_SESSION (the host waits again, with the same relay code, a guest joins again and keeps trying for a
+ * minute), so both players only press one button instead of leaving, restarting and hosting a new lobby. */
+static void cheats_on_text(char* out, size_t n) {
+    out[0] = 0; int k = 0;
+    for (int i = 0; i < g_ne; i++) {
+        if (strcmp(g_e[i].kind, "live") || !strcmp(g_e[i].mode, "once") || !ent_on(&g_e[i])) continue;
+        size_t u = strlen(out); if (u + 4 >= n) break;
+        snprintf(out + u, n - u, "%s%s", k++ ? "; " : "", g_e[i].name);
+    }
+    int raw = 0; for (int i = 0; i < g_nmir; i++) if (g_mir[i].idx < 0) raw++;
+    if (raw) { size_t u = strlen(out); snprintf(out + u, n - u, "%s+%d host cheats that aren't in this game's list", k ? "; " : "", raw); k += raw; }
+    if (!k) snprintf(out, n, "(none)");
+}
+static void incident(const SessionInfo* si, const char* what) {
+    char on[3000]; cheats_on_text(on, sizeof on);
+    char path[MAX_PATH * 2]; snprintf(path, sizeof path, "%s", g_statepath);
+    char* sl = strrchr(path, '\\'); if (sl) strcpy(sl + 1, "session-incidents.txt"); else snprintf(path, sizeof path, "session-incidents.txt");
+    FILE* f = fopen(path, "ab"); if (!f) return;
+    SYSTEMTIME t; GetLocalTime(&t);
+    fprintf(f, "%04d-%02d-%02d %02d:%02d:%02d  %s  %s (%d players, input delay %d)\r\n    session says: %s\r\n    cheats on (%s): %s\r\n    cheats were %s\r\n",
+            t.wYear, t.wMonth, t.wDay, t.wHour, t.wMinute, t.wSecond, si->host ? "HOST" : "GUEST", what, si->n, si->delay, si->message,
+            si->host ? "the host's own" : g_fol ? "the host's, synced to this guest" : "this PC's own", on, strcmp(on, "(none)") ? "ON: a cheat may be the reason" : "off: not caused by a cheat");
+    fclose(f);
+    fprintf(stderr, "session incident: %s | cheats: %s\n", what, on);
+}
+static void session_text(char* out, size_t n, const SessionInfo* si) { snprintf(out, n, "%s", si->message[0] ? si->message : "the session ended"); }
+static wchar_t* wide(const char* s);
+static DWORD WINAPI reconnect_ask(LPVOID arg) {
+    char* why = (char*)arg;
+    wchar_t* w = wide(why), msg[1400];
+    swprintf(msg, 1400, L"The session with your friends broke:\n\n%ls\n\nReconnect now? Save first: the game restarts.\n\nBoth players press Reconnect: the host's game waits again (with the same code), the guest's game joins again by itself and keeps trying for a minute. The cheats come back as they were.", w ? w : L"");
+    free(w); free(why);
+    if (MessageBoxW(NULL, msg, L"DQIX Enhanced AR - session", MB_YESNO | MB_ICONWARNING | MB_TOPMOST | MB_SETFOREGROUND | MB_DEFBUTTON2) == IDYES) {
+        const char* ses = getenv("DQIX_SESSION");
+        if (ses && !strncmp(ses, "host", 4)) {                 /* the same relay code: the code in the lobby's address / hint, "DQ-ABCD-2345" */
+            SessionInfo si; session_info(&si);
+            const char* p = strstr(si.address, "DQ-"); if (!p) p = strstr(si.hint, "DQ-");
+            char code[16] = ""; if (p) { int k = 0; for (const char* c = p + 3; *c && k < 9; c++) if (*c != '-') code[k++] = *c; code[k] = 0; if (k != 8) code[0] = 0; }
+            if (code[0]) _putenv_s("DQIX_RELAY_CODE", code);
+        } else _putenv_s("DQIX_JOIN_RETRY", "30");
+        void backup_flush(void); backup_flush();
+        restart_game(0);
+    }
+    return 0;
+}
+static void session_watch(const SessionInfo* si) {
+    static int seen3, desync, gone[4], asked;
+    if (si->state == 3) seen3 = 1;
+    if (!seen3) return;
+    char what[200] = "";
+    if (si->state == 3) {
+        if (si->desync && !desync) { desync = 1; snprintf(what, sizeof what, "OUT OF SYNC: the PCs no longer agree"); }
+        for (int k = 0; k < si->n && k < 4; k++) if (si->gone[k] && !gone[k]) { gone[k] = 1; snprintf(what, sizeof what, "%s left or was lost (their DS switched off)", si->names[k]); }
+    } else if (si->state == 4 || si->state == 5) snprintf(what, sizeof what, si->state == 4 ? "the session ended" : "the session failed");
+    if (!what[0]) return;
+    incident(si, what);
+    if (asked) return;
+    asked = 1;
+    char* why = (char*)malloc(600); if (!why) return;
+    char t[300]; session_text(t, sizeof t, si); snprintf(why, 600, "%s\n(%s)", what, t);
+    HANDLE h = CreateThread(NULL, 0, reconnect_ask, why, 0, NULL); if (h) CloseHandle(h);
 }
 
 void mod_cheatwin_show(void);
@@ -385,12 +448,14 @@ static DWORD WINAPI agent(LPVOID unused) {
             was = fol; last = g; g_nmir = 0; g_mir_seq = 0;
             uint16_t all[1] = { (uint16_t)(4 << 12) }; post_words(all, 1);
             if (fol) {
-                overlay_enter();
-                follow_note(L"Playing with friends: the host's cheats are on for you. Yours come back when the session ends.");
-            } else { overlay_leave(); resend_all(); follow_note(L""); }
+                if (!g_hon) g_hon = (uint8_t*)calloc((size_t)(g_ne ? g_ne : 1), 1);
+                if (g_hon) { memset(g_hon, 0, (size_t)g_ne); g_fol = 1; }
+                follow_note(L"Playing with friends: the host's cheats are on for you and stay as they are. Yours come back when the session ends.");
+            } else { g_fol = 0; if (g_hon) memset(g_hon, 0, (size_t)g_ne); resend_all(); follow_note(L""); }
             refresh_ui();
         } else if (g != last) { last = g; g_nmir = 0; g_mir_seq = 0; resend_all(); }
         if (fol) follow_sync();
+        session_watch(&si);
     }
     return 0;
 }
@@ -1052,7 +1117,7 @@ static void add_entry(int p, int i, char* seen) {
             }
             r->main = mk(L"STATIC", g_g[gi].title, SS_NOPREFIX | SS_ENDELLIPSIS | SS_CENTERIMAGE, g_bold, id);
             { char st[300]; const char* wg = who_group(g);
-              if (g_ses && (!strcmp(g->kind, "launch") || !strcmp(g->kind, "code"))) snprintf(st, sizeof st, "%s", lock_why_kind(g->kind));
+              if (locked_kind(g->kind, "")) snprintf(st, sizeof st, "%s", lock_why_kind2(g->kind));
               else snprintf(st, sizeof st, "%s%sChoose one: only one of these can be on.", wg, wg[0] ? " \xC2\xB7 " : "");
               r->sub = mk(L"STATIC", st, SS_OWNERDRAW, g_small, id); SetWindowLongPtrW(r->sub, GWLP_USERDATA, 1); }
             r->combo = mk(L"COMBOBOX", "", CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP, g_font, id); dark(r->combo, L"DarkMode_CFD");
@@ -1066,7 +1131,7 @@ static void add_entry(int p, int i, char* seen) {
             }
             SendMessageW(r->combo, CB_SETCURSEL, (WPARAM)cur, 0);
             SendMessageW(r->combo, CB_SETMINVISIBLE, 12, 0);
-            if (g_ses && (!strcmp(g->kind, "launch") || !strcmp(g->kind, "code"))) EnableWindow(r->combo, FALSE);
+            if (locked_kind(g->kind, "")) EnableWindow(r->combo, FALSE);
             return;
         }
     }
@@ -1085,7 +1150,7 @@ static void add_entry(int p, int i, char* seen) {
     char tag[700]; tag_text(e, tag, sizeof tag);
     r->sub = mk(L"STATIC", tag, SS_OWNERDRAW, g_small, id); SetWindowLongPtrW(r->sub, GWLP_USERDATA, 1);
     if (both) r->btn = mk(L"BUTTON", !strcmp(e->kind, "ui") ? "Open" : tgl ? (r->on ? "Vanished \xC2\xB7 show up" : "Vanish") : "Use", BS_OWNERDRAW | WS_TABSTOP, g_font, id);
-    if (locked(e) && r->kind == R_CHECK) EnableWindow(r->main, FALSE);
+    if (locked(e)) { if (r->kind == R_CHECK) EnableWindow(r->main, FALSE); else if (r->btn && tgl) EnableWindow(r->btn, FALSE); }
 }
 
 /* a section's title in the battle window: who it is for, as it is now */
