@@ -115,8 +115,8 @@ The labels in the grey line:
                    you want", "Metal slimes only", "Instant loading"...). The window
                    offers to restart the game.
 
-"Everything off" switches all of it off. The Fun cheats (big head, size, hidden party) put
-the game back the moment they are switched off.
+The Fun cheats (big head, size, hidden party) put the game back the moment they are
+switched off.
 
 "Share" copies what you have on as one line of text to the clipboard: paste it in a chat.
 A friend copies that line and presses "Import": the same cheats are on for them (what they
@@ -132,8 +132,8 @@ The Nuzlocke menu is not finished and is switched off for now: there is no Nuzlo
 and randomizers do nothing. The text below describes what it will do once it is back.
 
 It has a menu of its own in the game's menu bar, next to Cheats, and opens in the same kind of window
-(only the Nuzlocke page; the Cheats window doesn't show it, and its Enabled page, search and
-"Everything off" leave the Nuzlocke switches alone).
+(only the Nuzlocke page; the Cheats window doesn't show it, and its Enabled page and search
+leave the Nuzlocke switches alone).
 
 A Nuzlocke is a self-imposed challenge: what falls stays fallen, and the game is shuffled so
 you can't know it by heart. DQIX has no catching, so the rules are the ones that fit it.
@@ -261,10 +261,16 @@ frame. Code mods switched in the window travel the same way.
 What to do:
 1. Give every player this download. Each extracts it and runs Install.bat once.
 2. Host and join as usual.
-3. Use the cheats as when alone. They only change your own DS (your hero, your gold,
-   your bag), on every PC at once. Your friends don't need the same cheats on, and can
-   use their own the same way. The grey line says which cheats one player is enough
-   for and which every player needs ("next start", "needs a rebuild").
+3. Only the host needs to switch cheats on. A friend who joins gets the host's cheats by
+   themselves: while the session runs, their Cheats window shows the host's cheats as
+   switched on and sends them for their own DS (the window says so). Changes the host makes
+   later follow, and a guest can switch any of them off. Their own switches are not
+   touched: when the session ends they are back as they were. Set the environment
+   variable DQIX_AR_NO_HOST_CHEATS=1 to turn the automatic part off.
+   During a session everything that would put the PCs out of sync is greyed out with the
+   reason in the grey line: the options that take effect at the next start and code mods
+   that need a rebuild. Change those before the session. All other cheats can be switched
+   on and off during a session.
 
 Sending takes a moment (a fifth of a second for a short code, a few seconds for the
 "99 of every..." ones); the stylus is lifted while it lasts.
@@ -312,7 +318,7 @@ Run "Apply.bat catalog" after you add or change a file, then restart the game.
 
 UNDO EVERYTHING
 ---------------
-Press "Everything off" in the Cheats window and close the game. Set "sync_cheats = no" in
+Switch your cheats off in the Cheats window (the Enabled page lists them) and close the game. Set "sync_cheats = no" in
 settings.txt and run "Apply.bat" once: it takes the Cheats tab and everything else
 out of the game's source and rebuilds it. Then delete the mods folder. Your save
 (game\dqix.sav) is never touched.

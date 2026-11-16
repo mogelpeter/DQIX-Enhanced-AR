@@ -1,0 +1,6 @@
+# name: Revive fallen party members
+# mode: once
+# category: Party
+# about: Brings every fallen party member (0 HP) back. In a battle they come back with full HP; outside a battle with the most HP they were seen with since the game started (1 HP if they never were seen: Zing or an inn does the rest). Members who are alive are not touched.
+# The address is not memory: mods/system/src/runtime/mod_cheats.c takes it as the command "revive" (the value 0 = everybody, 1-4 = that member).
+02F5A5B0 00000000

@@ -135,5 +135,19 @@ if hero:
     s7 = rc8 == 0 and "cheatwin test: switched on" in txt8 and ("live " + hero["id"]) in st8
     print("7  a cheat inside a folded section (Party / Hero) switched on:", s7, "| picture:", os.path.join(work, "seven", "shot.bmp"), flush=True)
     ok &= s7
+# 8: a session is running (DQIX_CHEATWIN_FAKE_SESSION): a launch option can't be switched (greyed out, the window says it is locked), a live cheat can
+launch = catalog_entry(lambda d: d.get("kind") == "launch" and not d.get("group"))
+if launch:
+    rc9, txt9, _, st9 = run("eight-a", [], lambda d: {"DQIX_CHEATWIN_TEST": launch["id"], "DQIX_CHEATWIN_FAKE_SESSION": "1"})
+    s8 = rc9 == 0 and "cheatwin test: locked" in txt9 and ("launch " + launch["id"]) not in st9
+    rc10, txt10, ram10, st10 = run("eight-b", [], lambda d: {"DQIX_CHEATWIN_TEST": "file:cheats/max-gold.txt", "DQIX_CHEATWIN_FAKE_SESSION": "1"})
+    s8 &= rc10 == 0 and "cheatwin test: switched on" in txt10 and gold(ram10) == GOLD
+    print("8  in a session: the launch option", launch["id"], "is locked, a live cheat still works:", s8, flush=True)
+    ok &= s8
+# 9: Vanish is a button: clicking it switches the cheat on (the state file has it and the switch address is sent), clicking again would switch it off
+rc11, txt11, _, st11 = run("nine", [], lambda d: {"DQIX_CHEATWIN_TEST": "file:cheats/vanish.txt"})
+s9 = rc11 == 0 and "cheatwin test: switched on" in txt11 and "live file:cheats/vanish.txt" in st11
+print("9  the Vanish button switches the cheat on:", s9, flush=True)
+ok &= s9
 print("RESULT:", "PASS" if ok else "FAIL")
 sys.exit(0 if ok else 1)

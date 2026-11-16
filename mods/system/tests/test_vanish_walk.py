@@ -24,7 +24,7 @@ def run(tag, cheat):
     shutil.rmtree(d, ignore_errors=True); os.makedirs(d)
     shutil.copy(save, os.path.join(d, "test.sav"))
     env = dict(os.environ); env.pop("NoDefaultCurrentDirectoryInExePath", None)
-    inp = "700:DOWN:6;800:A:6;1300:L+R+SELECT:6;" + ";".join("%d:A:6" % f for f in range(900, FRAMES + 100, 90) if not 1290 <= f <= 1310)
+    inp = "700:DOWN:6;800:A:6;" + ";".join("%d:A:6" % f for f in range(900, FRAMES + 100, 90) if not 1290 <= f <= 1310)
     env.update(DQIX_NOWINDOW="1", SDL_AUDIODRIVER="dummy", DQIX_CHEATWIN_OFF="1", DQIX_NO_SETTINGS="1", DQIX_NO_UPNP="1", DQIX_NO_RELAY="1",
                DQIX_MODLOG="1", DQIX_MOD_FORCE="3", DQIX_INPUT=inp, DQIX_DUMP=d + "," + SHOTS)
     log = open(os.path.join(d, "run.log"), "wb")

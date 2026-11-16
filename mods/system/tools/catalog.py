@@ -213,6 +213,7 @@ def battle_entries():
             ("live:battle:%s:keep" % who, "Never go down", who, keep, "always", "HP and MP are put back to full every frame and the game's own invincible flag is set, so even one hit that is bigger than their HP can't knock them out."),
             ("live:battle:%s:max" % who, "HP/MP 9999", who, [(W16 | b + 0x58, 9999), (W16 | b + 0x5C, 9999), (W16 | b + 0x5A, 9999), (W16 | b + 0x5E, 9999)], "once",
              "Their maximum and current HP and MP become 9999 for this battle."),
+            ("live:battle:%s:revive" % who, "Revive", who, [(0x02F5A5B0, i + 1)], "once", "Brings them back with full HP if they have fallen (does nothing for a member who is up)."),
             ("live:battle:%s:tension" % who, "High tension", who, [(W8 | b + 0x6F, 1), (W8 | b + 0x7C, 4)], "once", "Their tension goes to the top."),
             ("live:battle:%s:coup" % who, "Coup ready", who, [(W8 | b + 0x93, 0x98)], "once", "They can use Coup de Grace this turn."),
         ]
@@ -754,7 +755,7 @@ def read_cheat_file(path):
                 elif k == "about":
                     about = (about + " " + v).strip()
                 elif k == "mode":
-                    mode = "once" if v.lower() == "once" else "always"
+                    mode = v.lower() if v.lower() in ("once", "toggle") else "always"       # toggle: a button that is switched on and off (Vanish)
                 elif k == "category":
                     cat = v
             continue
@@ -1068,7 +1069,7 @@ def build(root):
             one_shot = len(r["keys"]) <= 1 and not continuous and not re.search(KEEP_SWITCH, c["name"], re.I)
             base = dict(id=db_id(folder["name"], c["name"], c["ops"]), name=prefix + shown, prefix=prefix,
                         note=note, cat=page, group="",
-                        status="untested", mode=("once" if one_shot else "always" if continuous else "both") if len(r["keys"]) <= 1 else "always", ops=[],
+                        status="untested", mode=("once" if one_shot else "always" if continuous or re.search(r"push enemy away", c["name"], re.I) else "both") if len(r["keys"]) <= 1 else "always", ops=[],
                         keys=[] if one_shot else r["keys"], reason="", file="", on=False, patch=[], env="", option=shown)
             if re.search(r"anti-?piracy", c["name"], re.I):
                 r = dict(r, kind="blocked", why="piracy")

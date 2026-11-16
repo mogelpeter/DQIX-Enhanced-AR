@@ -117,15 +117,20 @@ void mod_roster(ModRoster* r) {
         int k = 0; for (; k < 10 && g_main_ram[b + (uint32_t)k] >= 32 && g_main_ram[b + (uint32_t)k] < 127; k++) r->name[i][k] = (char)g_main_ram[b + (uint32_t)k];
         r->name[i][k] = 0;
     }
-    if (r->party[0]) r->inbattle = ram16(0x020F54B4u + 0x58u) != 0;
+    /* the battle copy of a member's record (found by writing each field in a real fight and looking at the screen): +0x58 = HP now (what the card on the
+     * DS screen shows; 0 = fallen), +0x5A = MP now, +0x5C = maximum HP, +0x5E = maximum MP. They are nonzero only during a battle (a fallen hero has +0x58 = 0, so the
+     * battle is told by the maximum). Outside a battle +0x30 / +0x32 are HP and MP; the maximum isn't stored there (only what was seen is known). */
+    for (int i = 0; i < 4; i++) if (r->party[i] && ram16(0x020F54B4u - (uint32_t)i * 0x964u + 0x5Cu)) r->inbattle = 1;
     for (int i = 0; i < 4; i++) {
         uint32_t b = 0x020F54B4u - (uint32_t)i * 0x964u;
         if (!r->party[i]) { hpseen[i] = mpseen[i] = 0; continue; }
-        r->hp[i] = r->inbattle ? ram16(b + 0x5C) : ram16(b + 0x30);
-        r->mp[i] = r->inbattle ? ram16(b + 0x5E) : ram16(b + 0x32);
-        if (!r->inbattle) { hpseen[i] = r->hp[i]; mpseen[i] = r->mp[i]; }
-        if (r->hp[i] > hpseen[i]) hpseen[i] = r->hp[i];
-        if (r->mp[i] > mpseen[i]) mpseen[i] = r->mp[i];
+        if (r->inbattle) {
+            r->hp[i] = ram16(b + 0x58); r->mp[i] = ram16(b + 0x5A); r->hpmax[i] = ram16(b + 0x5C); r->mpmax[i] = ram16(b + 0x5E);
+            hpseen[i] = (int)r->hpmax[i]; mpseen[i] = (int)r->mpmax[i];
+            continue;
+        }
+        r->hp[i] = ram16(b + 0x30); r->mp[i] = ram16(b + 0x32);
+        hpseen[i] = r->hp[i]; mpseen[i] = r->mp[i];
         r->hpmax[i] = hpseen[i]; r->mpmax[i] = mpseen[i];
     }
     if (r->inbattle)
@@ -153,8 +158,8 @@ static int mc_read(void* u, uint32_t a, void* out, size_t n) {
 uint8_t g_mod_lowexp;
 #define MC_SWITCH_LOWEXP 0x02F5A5A0u
 /* More switches of the same kind (mods/system/cheats/vanish.txt, metal-slimes-only.txt):
- *   vanish  armed by the cheat; the buttons L+R+SELECT together flip it on and off. While it is on, vanish.c
- *           makes the field's "did a monster touch you" check find nothing, so you walk through monsters. */
+ *   vanish  on for this frame while the cheat is on (the Cheats window's Vanish button switches the cheat on and off). While it is on,
+ *           vanish.c makes the field's "did a monster touch you" check find nothing, so you walk through monsters. */
 uint8_t g_mod_vanish;
 #define MC_SWITCH_VANISH 0x02F5A5A4u
 /* "Monsters can't flee" (mods/system/cheats/monsters-cant-flee.txt): on for this frame while the code is on; noflee.c reads it. */
@@ -163,6 +168,35 @@ uint8_t g_mod_noflee;
 /* "Always strike first" (mods/system/cheats/first-strike.txt): on for this frame while the code is on; firststrike.c reads it. */
 uint8_t g_mod_first;
 #define MC_SWITCH_FIRST 0x02F5A5ACu
+/* "Revive" (mods/system/cheats/revive.txt and the battle window's Revive buttons): a write to 02F5A5B0 carries it out once on this console's party. The
+ * value is 0 for every fallen member or 1..4 for that one. A fallen member has HP 0; in a battle his HP now (+0x58) becomes his maximum (+0x5C) and the
+ * HP outside (+0x30) too; outside a battle +0x30 becomes the highest HP this member was seen with (g_hpmax, kept every frame), or 1 if he never was. */
+#define MC_SWITCH_REVIVE 0x02F5A5B0u
+static uint16_t g_hpmax[4];
+static void mc_track_hp(void) {                                    /* every frame: the highest HP each member was seen with */
+    for (int i = 0; i < 4; i++) {
+        uint32_t b = (0x020F54B4u - (uint32_t)i * 0x964u) & (MAIN_RAM_SIZE - 1);
+        if (!g_main_ram[b] || !mod_in_party(i)) { g_hpmax[i] = 0; continue; }
+        uint16_t bm, f; memcpy(&bm, &g_main_ram[b + 0x5C], 2); memcpy(&f, &g_main_ram[b + 0x30], 2);
+        if (bm) g_hpmax[i] = bm; else if (f > g_hpmax[i]) g_hpmax[i] = f;
+    }
+}
+static void mc_revive(uint32_t who) {
+    for (int i = 0; i < 4; i++) {
+        if (who && who != (uint32_t)i + 1) continue;
+        uint32_t b = (0x020F54B4u - (uint32_t)i * 0x964u) & (MAIN_RAM_SIZE - 1);
+        if (!g_main_ram[b] || !mod_in_party(i)) continue;
+        uint16_t bm, cur, f; memcpy(&bm, &g_main_ram[b + 0x5C], 2); memcpy(&cur, &g_main_ram[b + 0x58], 2); memcpy(&f, &g_main_ram[b + 0x30], 2);
+        if (bm) {                                                   /* in a battle */
+            if (cur) continue;
+            memcpy(&g_main_ram[b + 0x58], &bm, 2); memcpy(&g_main_ram[b + 0x30], &bm, 2);
+        } else {
+            if (f) continue;
+            uint16_t v = g_hpmax[i] ? g_hpmax[i] : 1; memcpy(&g_main_ram[b + 0x30], &v, 2);
+        }
+        if (getenv("DQIX_MODLOG")) fprintf(stderr, "mod: revive party member %d at frame %llu\n", i + 1, (unsigned long long)g_frame);
+    }
+}
 /* The Nuzlocke rules (nuzlocke.c): a write to 02F5A5C0 + 4n switches rule n on for this frame (bit n of g_mod_nz); the write to 02F5A5FC is the
  * one-off command "start a new run". */
 uint32_t g_mod_nz;
@@ -175,8 +209,7 @@ void nz_reset(void);
 int lp_set(uint32_t addr, uint32_t word);
 void lp_clear(void);
 #define MC_LP_BASE 0x02F60000u
-#define MC_VANISH_KEYS  ((1 << 8) | (1 << 9) | (1 << 2))      /* R, L, SELECT */
-static uint8_t g_vanish_armed, g_vanish_on, g_vanish_prev;
+static uint8_t g_vanish_armed, g_vanish_prev;
 
 /* the undo journal of the cheat running now (SET_UNDO): each byte it wrote, what was there before and what it wrote last */
 typedef struct { uint32_t a; uint8_t orig, last; } McUndo;
@@ -213,6 +246,7 @@ static int mc_write(void* u, uint32_t a, const void* in, size_t n) {
     if ((a & 0x0FFFFFFFu) == MC_SWITCH_VANISH) { g_vanish_armed = 1; return 1; }
     if ((a & 0x0FFFFFFFu) == MC_SWITCH_NOFLEE) { g_mod_noflee = 1; return 1; }
     if ((a & 0x0FFFFFFFu) == MC_SWITCH_FIRST) { g_mod_first = 1; return 1; }
+    if ((a & 0x0FFFFFFFu) == MC_SWITCH_REVIVE) { uint32_t w = 0; if (n >= 4) memcpy(&w, in, 4); mc_revive(w); return 1; }
     if ((a & 0x0FFFFFFFu) == MC_SWITCH_NZ_NEW) { nz_command(1); return 1; }
     if ((a & 0x0FFFFFFFu) >= MC_SWITCH_NZ && (a & 0x0FFFFFFFu) < MC_SWITCH_NZ + 0x3C) { g_mod_nz |= 1u << (((a & 0x0FFFFFFFu) - MC_SWITCH_NZ) >> 2); return 1; }
     if (n == 4 && (a & 0x0FFFFFFFu) >= MC_LP_BASE && (a & 0x0FFFFFFFu) < MC_LP_BASE + 0x10000u) { uint32_t w; memcpy(&w, in, 4); return lp_set(a & 0x0FFFFFFFu, w); }
@@ -246,7 +280,7 @@ static void mc_forget_undo(int undo) {
     g_mod_vanish = 0;
     g_mod_nz = 0;
     lp_clear();
-    g_vanish_armed = g_vanish_on = g_vanish_prev = 0;
+    g_vanish_armed = g_vanish_prev = 0;
 }
 static void mc_forget(void) { mc_forget_undo(0); }
 
@@ -258,6 +292,58 @@ static ArOp* mc_ops(const uint16_t* w, int nops) {
         ops[i].b = (uint32_t)w[2] | (uint32_t)w[3] << 16;
     }
     return ops;
+}
+
+/* ---- the host's cheats, for a guest's window ("Take the host's cheats"): in a session every PC runs a hidden copy of the host's console, and that
+ * copy receives the host's cheats through the host's input stream like any other. After every change it writes them (id, undo, ops) into a
+ * named memory block of this process; the guest's own copy of this file reads it (mod_hostcheats_copy) and the window sends the same cheats in the
+ * guest's own stream. Only the host's console (number 0, hidden) writes. */
+#define HC_CAP (1u << 19)
+typedef struct { volatile uint32_t seq; uint32_t used, n, pad; uint8_t data[HC_CAP]; } HostCheats;
+static HostCheats* hc_open(void) {
+#ifdef _WIN32
+    static HostCheats* m; static int tried;
+    if (m || tried) return m;
+    tried = 1;
+    char name[64]; snprintf(name, sizeof name, "Local\\dqix-mod-hostcheats-%lu", (unsigned long)GetCurrentProcessId());
+    HANDLE h = CreateFileMappingA(INVALID_HANDLE_VALUE, NULL, PAGE_READWRITE, 0, (DWORD)sizeof(HostCheats), name);
+    if (!h) return NULL;
+    m = (HostCheats*)MapViewOfFile(h, FILE_MAP_ALL_ACCESS, 0, 0, sizeof(HostCheats));
+    return m;
+#else
+    return NULL;
+#endif
+}
+static void hc_publish(void) {
+    if (!session_hidden() || session_console() != 0) return;
+    HostCheats* m = hc_open(); if (!m) return;
+    m->seq++;                                                    /* odd while it is being written */
+    uint32_t o = 0, n = 0;
+    for (int i = 0; i < MC_SLOTS; i++) if (g_slot[i].used) {
+        uint32_t need = 8 + 8 * (uint32_t)g_slot[i].nops;
+        if (o + need > HC_CAP) continue;
+        uint16_t id = g_slot[i].id, un = (uint16_t)g_slot[i].undo; uint32_t no = (uint32_t)g_slot[i].nops;
+        memcpy(m->data + o, &id, 2); memcpy(m->data + o + 2, &un, 2); memcpy(m->data + o + 4, &no, 4);
+        memcpy(m->data + o + 8, g_slot[i].ops, 8 * (size_t)no);
+        o += need; n++;
+    }
+    m->used = o; m->n = n;
+#ifdef _WIN32
+    MemoryBarrier();
+#endif
+    m->seq++;
+}
+/* the window: a copy of what the host's console has on. Returns the version (even, never 0), or 0 when there is none. */
+uint32_t mod_hostcheats_copy(uint8_t* out, uint32_t* used, uint32_t* n) {
+    HostCheats* m = hc_open(); if (!m) return 0;
+    for (int tries = 0; tries < 50; tries++) {
+        uint32_t a = m->seq;
+        if (a & 1) continue;
+        uint32_t u = m->used; if (u > HC_CAP) return 0;
+        memcpy(out, m->data, u); *used = u; *n = m->n;
+        if (m->seq == a) return a ? a : 2;
+    }
+    return 0;
 }
 
 static void mc_message(void) {
@@ -286,6 +372,7 @@ static void mc_message(void) {
         break;
     case 4: mc_forget_undo(1); break;
     }
+    if (g_type >= 2) hc_publish();
     g_done++;
     g_type = g_len = g_got = 0;
 }
@@ -310,6 +397,7 @@ static void mc_sync(void) {
     int ses = session_running();
     if (ses != last_ses || g_frame < last_frame) {
         mc_forget();
+        hc_publish();
         nz_reset();
         if (g_box) { g_box->rd = g_box->wr; g_box->gen++; }
         last_ses = ses;
@@ -355,15 +443,12 @@ uint32_t mod_cheats_in(uint32_t v) {
         ar_run(&g_mem, g_slot[i].ops, g_slot[i].nops, keys);
         g_journal = NULL;
     }
-    if (g_vanish_armed) {                                /* L+R+SELECT together: flip vanish (once per press) */
-        int combo = (keys & MC_VANISH_KEYS) == MC_VANISH_KEYS;
-        if (combo && !g_vanish_prev) {
-            g_vanish_on ^= 1;
-            if (getenv("DQIX_MODLOG")) fprintf(stderr, "mod: vanish %s at frame %llu\n", g_vanish_on ? "on" : "off", (unsigned long long)g_frame);
-        }
-        g_vanish_prev = (uint8_t)combo;
-    } else g_vanish_on = g_vanish_prev = 0;              /* the cheat is off: vanish is off with it */
-    g_mod_vanish = g_vanish_armed && g_vanish_on;
+    mc_track_hp();
+    g_mod_vanish = g_vanish_armed;                       /* the cheat is on: vanished (the window's button switches it) */
+    if (g_mod_vanish != g_vanish_prev) {
+        if (getenv("DQIX_MODLOG")) fprintf(stderr, "mod: vanish %s at frame %llu\n", g_mod_vanish ? "on" : "off", (unsigned long long)g_frame);
+        g_vanish_prev = g_mod_vanish;
+    }
     nz_frame(g_mod_nz, session_running());               /* the Nuzlocke rules (nuzlocke.c) */
     if (g_box) g_box->done = g_done;
     return v;
