@@ -445,6 +445,12 @@ uint32_t mod_cheats_in(uint32_t v) {
         ar_run(&g_mem, g_slot[i].ops, g_slot[i].nops, keys);
         g_journal = NULL;
     }
+    {   /* test hook DQIX_TEST_DESYNC=frame: this PC's own console changes a byte of its RAM outside the input stream at that frame, so the PCs drift apart
+         * (tests/test_session_break.py checks that the break is noticed, logged and offered a Reconnect) */
+        static long at = -2;
+        if (at == -2) { const char* e = getenv("DQIX_TEST_DESYNC"); at = e ? atol(e) : -1; }
+        if (at >= 0 && (long)g_frame == at && !session_hidden() && session_running()) g_main_ram[0x00340000u & (MAIN_RAM_SIZE - 1)] ^= 0x55;
+    }
     mc_track_hp();
     g_mod_vanish = g_vanish_armed;                       /* the cheat is on: vanished (the window's button switches it) */
     if (g_mod_vanish != g_vanish_prev) {

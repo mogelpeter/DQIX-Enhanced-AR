@@ -2,6 +2,10 @@
 
 Newest first. One block per working session: what changed, why, how it was checked.
 
+## 2026-11-16 (68)  Tests for broken sessions: reconnect, desync, relay, many cheats
+- `tests/test_session_break.py` (two games on this PC, headless, the Cheats window's agent running): `dev test session-reconnect` (the guest's game is killed: the host writes the break and its cheats into `session-incidents.txt`, answers Reconnect, starts again, hosts again; a new guest with `DQIX_JOIN_RETRY` joins, in sync; PASS), `session-desync` (`DQIX_TEST_DESYNC=frame` in mod_cheats.c changes a byte of the guest's own console outside the stream: the host says OUT OF SYNC and logs it; the guest PC can't see it, it only compares the other consoles' fingerprints; PASS), `session-relay` (through the real relay with a chosen code, then the same code again as Reconnect does: both in sync, so the relay accepts a reused code; PASS, SKIPs without internet), `session-long` (40 cheats on the host, half switched off and on again, also ids the guest doesn't know: exit 0, in sync, no crash; PASS).
+- Test hooks: `DQIX_RECONNECT_TEST=yes|no` answers the Reconnect dialog, `DQIX_TEST_DESYNC=<frame>`.
+
 ## 2026-11-16 (67)  Movement speed x1.25
 - The speed is the integer `GetTrueDeltaTime` returns (`mov r0,#n`, x1 = 2, x1.5 = 3: units of half a step), so 1.25 = 2.5 can't be one instruction. New option `x1.25` in the Movement Speed Multiplier folder of both R4 lists (word `E3A00FFF`, a marker): `mc_write` (mod_cheats.c) turns that word into 3 on odd and 2 on even frames before `lp_set` (average 2.5; deterministic from `g_frame`, so sessions stay in sync). Catalog: the option is in the choice (checked with `catalog.py`).  Built; a headless run with x1.25 on ran without a crash (the alternation itself is not measured).
 

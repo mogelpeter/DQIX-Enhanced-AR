@@ -378,7 +378,8 @@ static DWORD WINAPI reconnect_ask(LPVOID arg) {
     wchar_t* w = wide(why), msg[1400];
     swprintf(msg, 1400, L"The session with your friends broke:\n\n%ls\n\nReconnect now? Save first: the game restarts.\n\nBoth players press Reconnect: the host's game waits again (with the same code), the guest's game joins again by itself and keeps trying for a minute. The cheats come back as they were.", w ? w : L"");
     free(w); free(why);
-    if (MessageBoxW(NULL, msg, L"DQIX Enhanced AR - session", MB_YESNO | MB_ICONWARNING | MB_TOPMOST | MB_SETFOREGROUND | MB_DEFBUTTON2) == IDYES) {
+    const char* auto_answer = getenv("DQIX_RECONNECT_TEST");        /* tests: "yes" / "no" instead of the dialog */
+    if (auto_answer ? !strcmp(auto_answer, "yes") : MessageBoxW(NULL, msg, L"DQIX Enhanced AR - session", MB_YESNO | MB_ICONWARNING | MB_TOPMOST | MB_SETFOREGROUND | MB_DEFBUTTON2) == IDYES) {
         const char* ses = getenv("DQIX_SESSION");
         if (ses && !strncmp(ses, "host", 4)) {                 /* the same relay code: the code in the lobby's address / hint, "DQ-ABCD-2345" */
             SessionInfo si; session_info(&si);

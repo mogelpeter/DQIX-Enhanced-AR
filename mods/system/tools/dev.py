@@ -298,6 +298,10 @@ def runners(root, work):
         "vanish-ghost":   (fn("test_vanish_ghost.py", []), True, 150),            # Vanish makes the party see-through (vanish.c); TEST_SAVE as above
         "battle-live":    (fn("test_battle_live.py", []), True, 130),             # the live battle cheats in a forced battle (Battle cheats window); TEST_SAVE as above
         "session-cheats": (fn("test_session_cheats.py", ["{port}"]), True, 90),          # the host's cheats reach the guest's console in a session (the window's agent runs)
+        "session-reconnect": (fn("test_session_break.py", ["{port}", "reconnect"]), False, 180),   # a broken session is logged with the cheats; Reconnect hosts again and a new guest joins
+        "session-desync": (fn("test_session_break.py", ["{port}", "desync"]), True, 90),         # a desync is noticed on both sides and logged
+        "session-relay":  (fn("test_session_break.py", ["{port}", "relay"]), False, 200),        # through the real relay, the same code twice (needs internet)
+        "session-long":   (fn("test_session_break.py", ["{port}", "long"]), True, 150),          # 40 cheats switched off and on during a session: no crash, in sync
         "revive":        (fn("test_revive.py", []), True, 130),                  # Revive fallen party members, in the field and in a forced battle; TEST_SAVE as above
         "undo-fun":       (fn("test_undo_fun.py", []), True, 90),                 # Fun cheats switched off put the game back (SET_UNDO); TEST_SAVE as above
         # cheats with buttons, the buttons really pressed (test_keys.py); TEST_SAVE as above
