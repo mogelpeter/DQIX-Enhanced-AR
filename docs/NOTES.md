@@ -2,6 +2,9 @@
 
 Newest first. One block per working session: what changed, why, how it was checked.
 
+## 2026-11-16 (69)  Reconnect test hook answers yes only once
+- `DQIX_RECONNECT_TEST=yes` made the restarted host answer yes again at the next break (a reconnect loop that left a game running after `session-reconnect`). `reconnect_ask` now sets it to `no` before restarting. Syntax-checked only: the game can't be rebuilt while that leftover test game (PID 7720) runs; next: end it, `Apply.bat apply`, `dev test fast session-reconnect session-long`.
+
 ## 2026-11-16 (68)  Tests for broken sessions: reconnect, desync, relay, many cheats
 - `tests/test_session_break.py` (two games on this PC, headless, the Cheats window's agent running): `dev test session-reconnect` (the guest's game is killed: the host writes the break and its cheats into `session-incidents.txt`, answers Reconnect, starts again, hosts again; a new guest with `DQIX_JOIN_RETRY` joins, in sync; PASS), `session-desync` (`DQIX_TEST_DESYNC=frame` in mod_cheats.c changes a byte of the guest's own console outside the stream: the host says OUT OF SYNC and logs it; the guest PC can't see it, it only compares the other consoles' fingerprints; PASS), `session-relay` (through the real relay with a chosen code, then the same code again as Reconnect does: both in sync, so the relay accepts a reused code; PASS, SKIPs without internet), `session-long` (40 cheats on the host, half switched off and on again, also ids the guest doesn't know: exit 0, in sync, no crash; PASS).
 - Test hooks: `DQIX_RECONNECT_TEST=yes|no` answers the Reconnect dialog, `DQIX_TEST_DESYNC=<frame>`.

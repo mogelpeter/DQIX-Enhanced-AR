@@ -387,6 +387,7 @@ static DWORD WINAPI reconnect_ask(LPVOID arg) {
             char code[16] = ""; if (p) { int k = 0; for (const char* c = p + 3; *c && k < 9; c++) if (*c != '-') code[k++] = *c; code[k] = 0; if (k != 8) code[0] = 0; }
             if (code[0]) _putenv_s("DQIX_RELAY_CODE", code);
         } else _putenv_s("DQIX_JOIN_RETRY", "30");
+        if (auto_answer) _putenv_s("DQIX_RECONNECT_TEST", "no");       /* tests: only the first break is answered yes, or the restarted game would reconnect forever */
         void backup_flush(void); backup_flush();
         restart_game(0);
     }
