@@ -2,6 +2,9 @@
 
 Newest first. One block per working session: what changed, why, how it was checked.
 
+## 2026-11-16 (71)  The real cause of the dead Cheats menu: vanish.c link failure, then the missing table
+- From a user's own logs: (1) `vanish.c` called `fn_main_0200fe00` / `fn_main_020372c8` by name; on their recompiler those aren't separate functions, the link failed, repatch.py switched `wrap` off. (2) With `wrap` off, `livepatch_files()` deleted `mod_livepatch_tab.c`, but `livepatch.c` (input) needs the `g_lp_*` tables: glp* errors, `input` switched off, so the whole engine. Fixes: vanish.c calls both through `dispatch_call(c, addr, 0)`; the table is kept (empty) whenever `input` is on (`livepatch_files(..., keep)`). Together with (70) a failing part can't leave a menu without its code. `test static`, `vanish-ghost` PASS (`vanish-walk` SKIP: no battle by touch).
+
 ## 2026-11-16 (70)  Cheats menu entry without its code
 - A user's build failed once, repatch.py left `act` (or `input`) out, but the `menu` place (Cheats entry, command 360) stayed in: a Cheats menu that did nothing on every later build. `menu` now needs `input` (NEEDS_INPUT) and is dropped whenever `act` is off (apply_runtime_mod.py). `test static` PASS; the original build error is unknown (overwritten). Workaround for the user: delete mods\system\bin\sites-off.txt, run Apply cheats.bat.
 

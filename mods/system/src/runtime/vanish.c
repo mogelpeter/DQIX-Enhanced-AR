@@ -35,8 +35,10 @@ extern uint64_t g_frame;
 void wrap_enccheck_orig(Cpu* c);
 void fn_main_0200f398(Cpu* c);       /* GameState::GetInstance */
 void fn_main_0200fddc(Cpu* c);       /* GameState::GetProtagonist(this): the hero's field object */
-void fn_main_0200fe00(Cpu* c);       /* GameState::GetPartyMemberByIndex(this, i): the field object of party member i */
-void fn_main_020372c8(Cpu* c);       /* Object3D::TransitionInheritedAlpha(obj, alpha 0..31, frames): the game's own fade (monsters fade out with it) */
+/* GameState::GetPartyMemberByIndex (0x0200fe00) and Object3D::TransitionInheritedAlpha(obj, alpha 0..31, frames) (0x020372c8, the game's own fade) are
+ * called by address: the recompiler doesn't always make a function of its own there, dispatch_call works either way */
+#define GET_PARTY_MEMBER   0x0200fe00u
+#define TRANSITION_ALPHA   0x020372c8u
 void interp_stub(Cpu* c, uint32_t addr);
 
 #define ENC_FUNC   0x02196430u
@@ -56,13 +58,13 @@ static void ghost(Cpu* c, int on) {
     uint32_t done[5]; int nd = 0;
     for (int i = -1; i < 4; i++) {                      /* -1: the protagonist, then the party members */
         fn_main_0200f398(c);
-        if (i < 0) fn_main_0200fddc(c); else { c->r[1] = (uint32_t)i; fn_main_0200fe00(c); }
+        if (i < 0) fn_main_0200fddc(c); else { c->r[1] = (uint32_t)i; dispatch_call(c, GET_PARTY_MEMBER, 0); }
         uint32_t obj = c->r[0]; int dup = 0;
         for (int k = 0; k < nd; k++) if (done[k] == obj) dup = 1;
         if (!obj || dup) continue;
         done[nd++] = obj;
         c->r[0] = obj; c->r[1] = on ? GHOST_ALPHA : 31; c->r[2] = 10;
-        fn_main_020372c8(c);
+        dispatch_call(c, TRANSITION_ALPHA, 0);
         if (getenv("DQIX_MODLOG")) fprintf(stderr, "mod: ghost %d object %08x (%d)\n", on, obj, i);
     }
     *c = save;

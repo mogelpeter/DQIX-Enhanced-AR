@@ -369,7 +369,7 @@ def livepatch_plan(root):
     return fns, [(n, a, num[(n, found[(n, a)][0])], sorted(words[(n, a)])) for n, a in sites]
 
 
-def livepatch_files(root, on):
+def livepatch_files(root, on, keep=False):
     """runtime/mod_livepatch_tab.c, mods/system/bin/livepatch.txt and the extra wrap.txt lines. -> (changed, wrap lines, functions, sites)"""
     plan = livepatch_plan(root) if on else None
     fns, sites = plan if plan else ([], [])
@@ -402,7 +402,7 @@ def livepatch_files(root, on):
     text = "\n".join(tab) + "\n"
     changed = False
     dst = os.path.join(root, "runtime", "mod_livepatch_tab.c")
-    if on:
+    if on or keep:                                       # keep: livepatch.c (input) still needs the (empty) tables when only the live code mods are off
         if not os.path.isfile(dst) or read(dst).replace("\r\n", "\n") != text:
             write(dst, text)
             changed = True
@@ -648,7 +648,7 @@ def main():
             os.remove(dst)
             changed = True
     wrap_on = on and states.get("input") == "on" and "wrap" not in off      # live code mods need the mods' own files (input)
-    lp_changed, lp_wrap, nfn, nsite = livepatch_files(root, wrap_on)
+    lp_changed, lp_wrap, nfn, nsite = livepatch_files(root, wrap_on, on and states.get("input") == "on")
     changed |= lp_changed
     if wrap_site(root, wrap_on, lp_wrap):
         changed = True
