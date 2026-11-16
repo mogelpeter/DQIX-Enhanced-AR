@@ -3,7 +3,7 @@
 Newest first. One block per working session: what changed, why, how it was checked.
 
 ## 2026-11-16 (70)  Cheats menu entry without its code
-- A user's build failed once, repatch.py left `act` (or `input`) out, but the `menu` place (Cheats entry, command 360) stayed in: a Cheats menu that did nothing on every later build. `menu` now needs `input` (NEEDS_INPUT) and is dropped whenever `act` is off (apply_runtime_mod.py). `test static` PASS; the original build error is unknown (overwritten). Workaround for the user: delete mods\systemin\sites-off.txt, run Apply cheats.bat.
+- A user's build failed once, repatch.py left `act` (or `input`) out, but the `menu` place (Cheats entry, command 360) stayed in: a Cheats menu that did nothing on every later build. `menu` now needs `input` (NEEDS_INPUT) and is dropped whenever `act` is off (apply_runtime_mod.py). `test static` PASS; the original build error is unknown (overwritten). Workaround for the user: delete mods\system\bin\sites-off.txt, run Apply cheats.bat.
 
 ## 2026-11-16 (69)  Reconnect test hook answers yes only once
 - `DQIX_RECONNECT_TEST=yes` made the restarted host answer yes again at the next break (a reconnect loop that left a game running after `session-reconnect`). `reconnect_ask` now sets it to `no` before restarting. Syntax-checked only: the game can't be rebuilt while that leftover test game (PID 7720) runs; next: end it, `Apply.bat apply`, `dev test fast session-reconnect session-long`.
