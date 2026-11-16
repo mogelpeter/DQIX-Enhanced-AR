@@ -263,7 +263,7 @@ SITES = [
     ("session.c", JOIN1_ORIGINAL, JOIN1_PATCHED, JOIN1_BEGIN, "Reconnect: joining again (relay)"),
     ("session.c", JOIN2_ORIGINAL, JOIN2_PATCHED, JOIN2_BEGIN, "Reconnect: joining again (direct)"),
 ]
-NEEDS_INPUT = {"data", "act"}                                       # they call the mods' own files, which come with "input"
+NEEDS_INPUT = {"data", "act", "menu"}                               # they call the mods' own files, which come with "input" (the menu entry opens the window: without them it would do nothing)
 SITE_KEYS = ["input", "card", "data", "menu", "act", "update", "fast", "relay", "join1", "join2"]   # SITES in order; "wrap" is the lines in wrap.txt (live code mods)
 VARIANTS = {"menu": [(MENU2_ORIGINAL, MENU2_PATCHED, MENU2_BEGIN)]}    # other forms of a place: tried after the first one
 FILES = ["mod_cheats.c", "ar_engine.h", "mod_data.c", "livepatch.c", "mod_cheatwin.c", "nuzlocke.c"]       # belong to the first site
@@ -612,6 +612,8 @@ def main():
         write_off_list(root, fresh)
     off = fresh
     on_keys = {k for k in SITE_KEYS if on and k not in off}
+    if "act" not in on_keys:
+        on_keys.discard("menu")                          # the Cheats entry without what it does would be an entry that does nothing
     report, states = [], {}
     for name in dict.fromkeys(n for n, *_ in SITES):     # (input.c first: the places below call into its files)
         did, st = patch_file(root, name, on_keys, report)
