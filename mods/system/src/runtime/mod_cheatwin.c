@@ -1674,7 +1674,7 @@ static const wchar_t* glyph_of(const Ent* e) {
     static const struct { const char* s; const wchar_t* g; } k[] = {
         { ":keep", L"∞" }, { ":max", L"♥" }, { ":tension", L"⚡" }, { ":coup", L"⚔" }, { ":invincible", L"✦" },
         { ":defeat", L"☠" }, { ":hp1", L"♡" }, { ":mp0", L"✖" }, { ":sleep", L"☾" }, { ":poison", L"☣" },
-        { ":stun", L"✺" }, { ":confuse", L"?" } };
+        { ":stun", L"✺" }, { ":confuse", L"?" }, { ":buffs", L"▲" }, { ":debuffs", L"▼" } };
     for (size_t i = 0; i < sizeof k / sizeof *k; i++) if (strstr(e->id, k[i].s)) return k[i].g;
     return L"•";
 }

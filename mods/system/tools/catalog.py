@@ -26,6 +26,7 @@ mods that are switched on into the build.
 import bisect
 import os
 import re
+import struct
 import sys
 import zlib
 
@@ -162,6 +163,53 @@ PARTY0, PARTY_STRIDE, ENEMY0, ENEMY_STRIDE = 0x020F54B4, 0x964, 0x022A4638, 0xA4
 W32, W16, W8 = 0x00000000, 0x10000000, 0x20000000      # Action Replay write types
 
 
+FORCE_SWITCH = 0x02F5A5B4                              # "Battle any monster you want": mod_cheats.c MC_SWITCH_FORCE
+TENSION_SWITCH = 0x02F5A5B8                            # high tension for the party members of the value's bits 0..3: mod_cheats.c MC_SWITCH_TENSION
+COUP_SWITCH = 0x02F5A5BC                               # Coup de Grace ready for them: mod_cheats.c MC_SWITCH_COUP (the game's own flag, so the menu lights it)
+COUP_SKIP_PATCH = [("ov000", 0x0217B2C4, 0xE1A00000)]  # the R4 lists' "Can Always Use Coup de Grace": skips the menu's check, the text stays grey
+LEGSTAT_SWITCH = 0x02F5A600                            # its legacy boss levels' stats: mod_cheats.c MC_SWITCH_LEGSTAT (4 words)
+LEGACY_LEVELS = (50, 99)
+
+
+def legacy_bosses(nds):
+    """The 13 legacy bosses as the game makes them at a level (forcebtl.c has the how): [(base monster, [3 monsters by level band],
+    {level: (monster, [4 switch words])})]. data/tmap/tdata.gp2's last table lists base and band monsters; data/tmap/param.pac (a NARC,
+    p_<base>.dat) has a 24-byte row per level: HP u32, MP u32, attack u16, defense u16, agility u16, band u8, EXP u32, gold u32, u8."""
+    import rom_text
+    t = rom_text.gpc2(nds.read("data/tmap/tdata.gp2"))["tdata_en.pac"]
+    p = struct.unpack_from("<I", t, 4 + 4 * 16)[0]
+    count = struct.unpack_from("<H", t, p)[0]; p += 2
+    bands = {}
+    for _ in range(count):
+        _id, base, a1, a2, a3, _u, l = struct.unpack_from("<7H", t, p); p += 14 + l
+        _u, l = struct.unpack_from("<2H", t, p); p += 4 + l
+        bands[base] = [a1, a2, a3]
+    d = nds.read("data/tmap/param.pac")
+    o = 0x10; assert d[o:o + 4] == b"BTAF"
+    size, n = struct.unpack_from("<IH", d, o + 4)
+    fat = [struct.unpack_from("<II", d, o + 12 + 8 * i) for i in range(n)]
+    o += size; assert d[o:o + 4] == b"BTNF"
+    fnt = d[o + 8:o + struct.unpack_from("<I", d, o + 4)[0]]
+    img = o + struct.unpack_from("<I", d, o + 4)[0] + 8
+    q, names = struct.unpack_from("<I", fnt, 0)[0], []
+    while fnt[q]:
+        names.append(fnt[q + 1:q + 1 + (fnt[q] & 0x7F)].decode()); q += 1 + (fnt[q] & 0x7F)
+    out = []
+    for name, (a, b) in zip(names, fat):
+        m = re.match(r"p_(\d+)\.dat$", name)
+        if not m or int(m.group(1)) not in bands:
+            continue
+        base, f, lv = int(m.group(1)), d[img + a:img + b], {}
+        for level in LEGACY_LEVELS:
+            hp, mp, atk, dfn, agi, band = struct.unpack_from("<IIHHHB", f, 24 * (level - 1))
+            exp, gold = struct.unpack_from("<II", f, 24 * (level - 1) + 0x0F)
+            if not 1 <= band <= 3 or not hp:
+                continue
+            lv[level] = (bands[base][band - 1], [min(hp, 0xFFFF) | min(mp, 0xFFFF) << 16, atk | dfn << 16, agi | min(gold, 0xFFFF) << 16, exp])
+        out.append((base, bands[base], lv))
+    return out
+
+
 def battle_addr_set():
     """the exact RAM bytes the live battle cheats write: the database's own codes for them are replaced (their names differ between the lists)"""
     out = set()
@@ -200,6 +248,17 @@ def effect_ops(st):
     return lasting, buffs, debuffs
 
 
+EFFECT_NAMES = "attack, defence, agility, charm, magical might, magical mending, magic resistance and breath resistance"
+
+
+def buff_entries(who, buffs, debuffs, extra):
+    """the "All buffs" / "All debuffs" buttons of one card (effect_ops: every effect at +2 / -2, the most there is, for 5 rounds)"""
+    return [("live:battle:%s:buffs" % who, "All buffs", who, buffs, "once",
+             "All eight effects go up two levels, the most there is: " + EFFECT_NAMES + ", for 5 rounds (like a cast). Bounce is not one of them." + extra),
+            ("live:battle:%s:debuffs" % who, "All debuffs", who, debuffs, "once",
+             "All eight effects go down two levels, the most there is: " + EFFECT_NAMES + ", for 5 rounds (like a cast)." + extra)]
+
+
 def battle_entries():
     """-> the live battle entries: (id, name, who, ops, mode, note)"""
     out = []
@@ -214,12 +273,14 @@ def battle_entries():
             ("live:battle:%s:max" % who, "HP/MP 9999", who, [(W16 | b + 0x58, 9999), (W16 | b + 0x5C, 9999), (W16 | b + 0x5A, 9999), (W16 | b + 0x5E, 9999)], "once",
              "Their maximum and current HP and MP become 9999 for this battle."),
             ("live:battle:%s:revive" % who, "Revive", who, [(0x02F5A5B0, i + 1)], "once", "Brings them back with full HP if they have fallen (does nothing for a member who is up)."),
-            ("live:battle:%s:tension" % who, "High tension", who, [(W8 | b + 0x6F, 1), (W8 | b + 0x7C, 4)], "once", "Their tension goes to the top."),
-            ("live:battle:%s:coup" % who, "Coup ready", who, [(W8 | b + 0x93, 0x98)], "once", "They can use Coup de Grace this turn."),
+            # tension and Coup de Grace: the game's own way (mod_cheats.c mc_battle_locks), not the R4 codes' bytes (+0x6F / +0x7C, +0x93 = 0x98)
+            ("live:battle:%s:tension" % who, "High tension", who, [(TENSION_SWITCH, 1 << i)], "once", "Their tension goes to the top (100), as Psyche Up does it."),
+            ("live:battle:%s:coup" % who, "Coup ready", who, [(COUP_SWITCH, 1 << i)], "once", "Their Coup de Grace is ready, lit up in the menu, for 9 rounds."),
         ]
-        la = effect_ops(b + 0x58)[0]
+        la, bu, de = effect_ops(b + 0x58)
         out += [("live:battle:%s:lasting" % who, "Effects last all battle", who, la, "always",
                  "Buffs and debuffs on them don't run out until Disruptive Wave (or the battle) ends them. Bounce is not touched.")]
+        out += buff_entries(who, bu, de, "")
         if i:
             out.append(("live:battle:%s:invincible" % who, "Invincible", who, [(W8 | b + 0x70, 0x40)], "once", "The game's own \"invincible\" flag, as the R4 code sets it."))
     status = [("sleep", "Sleep", [(0x14, 0x10)]), ("poison", "Poison", [(0x14, 0x02), (0x22, 0x02)]),
@@ -235,8 +296,9 @@ def battle_entries():
             ("live:battle:%s:refill" % who, "Refill HP", who, [(0xDA000000, b + 4), (0xD7000000, b), (0xD2000000, 0)], "once", "Its HP goes back to full, just for fun."),
             ("live:battle:%s:refillmp" % who, "Refill MP", who, [(0xDA000000, b + 6), (0xD7000000, b + 2), (0xD2000000, 0)], "once", "Its MP goes back to full."),
         ]
-        la = effect_ops(b)[0]
+        la, bu, de = effect_ops(b)
         out += [("live:battle:%s:lasting" % who, "Effects last all battle", who, la, "always", "Buffs and debuffs on it don't run out until Disruptive Wave (or the battle) ends them. Untested on enemies.")]
+        out += buff_entries(who, bu, de, " Untested on enemies.")
         for sid, sname, writes in status:
             out.append(("live:battle:%s:%s" % (who, sid), sname, who, [(W8 | b + off, v) for off, v in writes], "once", ""))
     return out
@@ -1234,14 +1296,31 @@ def build(root):
         mons_boss = rom_text.monsters(nds, bosses=True)
     except Exception:
         mons, mons_boss = [], []
+    try:
+        legacy = legacy_bosses(nds) if mons else []
+    except Exception as ex:
+        print("catalog: no legacy boss levels (%s)" % ex)
+        legacy = []
     if mons:
         entries = [e for e in entries if not (e["id"].startswith("db:") and e["name"].lower().startswith("battle any monsters you want"))]
         gid = "group:battle-any-monster"
-        groups.append(dict(id=gid, cat="Battle", title="Battle any monster you want", note="Every monster that roams the field, and the bosses (marked boss).", kind="launch"))
+        groups.append(dict(id=gid, cat="Battle", title="Battle any monster you want", note="Every monster that roams the field, and the bosses (marked boss); the legacy bosses also at Lv 50 and Lv 99, with that level's form, HP and stats (moves they learn by level are all open, as at Lv 99). Works at once, no restart: the monsters of the place still roam, and every battle they start is against the one you chose (as many as the group had; a boss alone).", kind="live"))
         for num, mname in mons + [(n, "%s (boss)" % m) for n, m in mons_boss]:
             # tested: tests/test_force_data.c (all 288 hand out exactly that monster) and the 288-run crash check (NOTES 2026-11-13)
-            entries.append(dict(id=f"launch:monster:{num}", name=mname, note="", cat="Battle", group=gid, kind="launch", status="untested" if mname.endswith("(boss)") else "tested",
-                                mode="", ops=[], keys=[], reason="", file="", on=False, patch=[], env=f"DQIX_MOD_FORCE={num}", option=mname, also=""))
+            # live: a write to the switch 02F5A5B4 (mod_cheats.c) every frame says which monster; forcebtl.c makes the battles it (+ 0x10000: a boss, alone)
+            entries.append(dict(id=f"live:monster:{num}", name=mname, note="", cat="Battle", group=gid, kind="live", status="untested",
+                                mode="always", ops=[(FORCE_SWITCH, num | (0x10000 if mname.endswith("(boss)") else 0))], keys=[], reason="", file="", on=False, patch=[],
+                                env="", option=mname, also=""))
+        boss_names = dict(mons_boss)
+        for base, _bands, lv in sorted(legacy, key=lambda x: boss_names.get(x[0], "")):
+            for level, (mon, words) in sorted(lv.items()):
+                if base not in boss_names:
+                    continue
+                mname = "%s, legacy Lv %d (boss)" % (boss_names[base], level)
+                # live: the choice word carries the level (bits 17..23) and 02F5A600.. the level's stats; forcebtl.c puts them on the boss
+                entries.append(dict(id=f"live:monster:{base}:lv{level}", name=mname, note="", cat="Battle", group=gid, kind="live", status="untested",
+                                    mode="always", ops=[(FORCE_SWITCH, mon | 0x10000 | level << 17)] + [(LEGSTAT_SWITCH + 4 * i, w) for i, w in enumerate(words)],
+                                    keys=[], reason="", file="", on=False, patch=[], env="", option=mname, also=""))
 
     # ---- the Nuzlocke randomizers: one launch option each, and the seed as one choice
     if acm.NUZLOCKE_ENABLED:
@@ -1315,6 +1394,23 @@ def build(root):
     for e in entries:
         if e["status"] == "untested" and (e["id"] in ok or (e.get("sig") and e["sig"] in ok)):
             e["status"] = "tested"
+
+    # ---- "Can always use Coup de Grace" (both R4 lists): our own version, with the same id (the window remembers it). Theirs skipped the battle
+    # menu's check (ov000 0217b2c4), so the game didn't know and drew the text grey; this one sets the game's own "ready" flag every frame
+    # (mod_cheats.c mc_battle_locks): offered, lit up, and ready again right after it's used.
+    for e in entries:
+        if e["id"].startswith("db:") and [tuple(p) for p in e.get("patch") or []] == COUP_SKIP_PATCH:
+            e.update(kind="live", mode="always", patch=[], ops=[(COUP_SWITCH, 0xF)], keys=[], status="untested", reason="",
+                     name="Coup de Grace always ready", option="Coup de Grace always ready",
+                     note="The whole party, in every battle: the Coup de Grace command is lit up like a real one and can be used every turn.",
+                     about="Everyone in the party has their Coup de Grace (their vocation's finishing move) ready all the time, the way the game itself sets it, so the battle menu shows it lit up, not grey. After it's used it is ready again at once.")
+
+    # ---- "Always high tension", next to it on the Battle page (Party buffs): the whole party, the game's own way (mod_cheats.c mc_battle_locks)
+    entries.append(dict(id="live:party:tension", name="Always high tension", option="Always high tension", cat="Battle", group="", kind="live",
+                        status="untested", mode="always", ops=[(TENSION_SWITCH, 0xF)], keys=[], reason="", file="", on=False, patch=[], env="", also="",
+                        note="The whole party, in every battle: tension stays at the top (100), and it is back at once after it's used.",
+                        about="Every party member's tension is kept at 100, the way Psyche Up raises it (with its aura), so every attack and spell is at full tension. "
+                              "After an action uses it, it is back at once. As in the game, a member who is down or under a status that stops tension doesn't get it."))
 
     # ---- other pages, sections, undo (see MOVES, SECTIONS, UNDO)
     gby = {g["id"]: g for g in groups}

@@ -12,7 +12,8 @@
  *   DQIX_MOD_METAL=1   in every zone that has a metal monster among its roamers, every other roamer and companion becomes
  *                      that metal monster (the table keeps its size and layout; only the monster numbers change, the weights
  *                      stay). Zones without a metal monster are untouched.
- *   DQIX_MOD_FORCE=n   every roamer and companion of every zone becomes monster number n (bosses are not in these tables).
+ *   DQIX_MOD_FORCE=n   every roamer and companion of every zone becomes monster number n (bosses are not in these tables:
+ *                      a boss is "<n>b" and left to forcebtl.c, which makes every battle a roamer starts the boss's).
  * The ROM in memory is never changed: card.c calls mod_card_overlay after it filled its buffer and the changed copy of the
  * two tables is laid over it. In a session every player must start with the same choice, or the PCs read different tables.
  *
@@ -212,7 +213,7 @@ void mod_card_overlay(uint32_t addr, uint32_t len, uint8_t* buf) {
     if (!init) {
         init = 1;
         const char* f = getenv("DQIX_MOD_FORCE");
-        int n = f ? atoi(f) : 0;
+        int n = f && !strchr(f, 'b') ? atoi(f) : 0;    /* a boss ("<n>b"): forcebtl.c makes the field battles the boss's, the tables stay */
         key = n > 0 && n < 4096 ? 0x10000u | (uint32_t)n : getenv("DQIX_MOD_METAL") ? 1u : 0u;
         if (getenv("DQIX_MOD_NZ_ENC") && *getenv("DQIX_MOD_NZ_ENC") == '1') key |= 0x40000u;
     }

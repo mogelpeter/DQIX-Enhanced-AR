@@ -172,6 +172,15 @@ uint8_t g_mod_first;
  * value is 0 for every fallen member or 1..4 for that one. A fallen member has HP 0; in a battle his HP now (+0x58) becomes his maximum (+0x5C) and the
  * HP outside (+0x30) too; outside a battle +0x30 becomes the highest HP this member was seen with (g_hpmax, kept every frame), or 1 if he never was. */
 #define MC_SWITCH_REVIVE 0x02F5A5B0u
+/* "Battle any monster you want" (catalog.py, one choice per monster): a write of n to 02F5A5B4 says "the battles a roaming monster starts are
+ * monster n" for this frame (n | 0x10000: a boss, one of it); forcebtl.c reads it. Live like the switches above: no restart, the same on every PC. */
+uint32_t g_mod_force;
+#define MC_SWITCH_FORCE 0x02F5A5B4u
+/* Its legacy boss entries ("Dragonlord, legacy Lv 99 (boss)") also say the level in bits 17..23 of that value, and write the level's stats
+ * (data/tmap/param.pac, the row the game itself uses in a legacy boss grotto) to 02F5A600..02F5A60F: HP | MP << 16, attack | defense << 16,
+ * agility | gold << 16, EXP. forcebtl.c puts them on the boss. */
+uint32_t g_mod_legstat[4];
+#define MC_SWITCH_LEGSTAT 0x02F5A600u
 static uint16_t g_hpmax[4];
 static void mc_track_hp(void) {                                    /* every frame: the highest HP each member was seen with */
     for (int i = 0; i < 4; i++) {
@@ -195,6 +204,40 @@ static void mc_revive(uint32_t who) {
             uint16_t v = g_hpmax[i] ? g_hpmax[i] : 1; memcpy(&g_main_ram[b + 0x30], &v, 2);
         }
         if (getenv("DQIX_MODLOG")) fprintf(stderr, "mod: revive party member %d at frame %llu\n", i + 1, (unsigned long long)g_frame);
+    }
+}
+/* "Always high tension" and "Coup de Grace always ready" (catalog.py: the battle window's cards and the Battle page): a write to 02F5A5B8 (tension) or
+ * 02F5A5BC (Coup de Grace) this frame, bit i = party member i + 1. mc_battle_locks does it after the cheats ran, the way the game itself does it, for a
+ * member who is in a battle and up. Their battle copy is at record + 0x58 (HP now +0, maximum HP +4):
+ *  - tension: the level is at +0x24 (0..4, 4 = 100) and its aura in the word at +0x14 (0x00800000 levels 1..3, 0x01000000 the top). main 0208810c
+ *    says whether a member may go to the top (not with 0x1, 0x8, 0x10 or 0x80000 in that word: down, or a status that stops it), main 02088150 puts
+ *    them there: 0x00800000 and 0x2 off, bits 0..1 of the halfword at +0x22 off, 0x01000000 on, level 4. The R4 code wrote 1 over the word's top
+ *    byte (the other flags in it went too) and left 0x00800000 on;
+ *  - Coup de Grace: the byte at +0x3B. 0x08 = ready: the battle menu offers it (ov000 0217ae90) and draws its text lit, not grey, only with it
+ *    (ov000 0217653c: grey is main 02041e70); its high four bits are the rounds it stays ready (one off each round, at 0 the game clears 0x08:
+ *    ov000 021581fc). Kept at "ready, 9 rounds" (what the R4 codes write, 0x98), with the low three bits (the game's own flags) left as they are.
+ *    The old "Can always use Coup de Grace" skipped the menu's check instead (ov000 0217b2c4), so the game never knew: the text stayed grey. */
+static uint32_t g_mod_tension, g_mod_coup;
+#define MC_SWITCH_TENSION 0x02F5A5B8u
+#define MC_SWITCH_COUP 0x02F5A5BCu
+static void mc_battle_locks(void) {
+    for (int i = 0; i < 4; i++) {
+        uint32_t bit = 1u << i;
+        if (!((g_mod_tension | g_mod_coup) & bit)) continue;
+        uint32_t b = (0x020F54B4u - (uint32_t)i * 0x964u) & (MAIN_RAM_SIZE - 1);
+        if (!g_main_ram[b] || !mod_in_party(i)) continue;
+        uint8_t* s = &g_main_ram[b + 0x58];
+        uint16_t hp, hpmax; memcpy(&hp, s, 2); memcpy(&hpmax, s + 4, 2);
+        if (!hpmax || !hp) continue;                                  /* not in a battle, or down */
+        if (g_mod_tension & bit) {
+            uint32_t w; memcpy(&w, s + 0x14, 4);
+            if (!(w & 0x00080019u) && (s[0x24] != 4 || !(w & 0x01000000u))) {
+                w = (w & ~0x00800002u) | 0x01000000u; memcpy(s + 0x14, &w, 4);
+                uint16_t h; memcpy(&h, s + 0x22, 2); h &= (uint16_t)~3u; memcpy(s + 0x22, &h, 2);
+                s[0x24] = 4;
+            }
+        }
+        if (g_mod_coup & bit) s[0x3B] = (uint8_t)((s[0x3B] & 0x07) | 0x98);
     }
 }
 /* The Nuzlocke rules (nuzlocke.c): a write to 02F5A5C0 + 4n switches rule n on for this frame (bit n of g_mod_nz); the write to 02F5A5FC is the
@@ -246,6 +289,15 @@ static int mc_write(void* u, uint32_t a, const void* in, size_t n) {
     if ((a & 0x0FFFFFFFu) == MC_SWITCH_VANISH) { g_vanish_armed = 1; return 1; }
     if ((a & 0x0FFFFFFFu) == MC_SWITCH_NOFLEE) { g_mod_noflee = 1; return 1; }
     if ((a & 0x0FFFFFFFu) == MC_SWITCH_FIRST) { g_mod_first = 1; return 1; }
+    if ((a & 0x0FFFFFFFu) >= MC_SWITCH_LEGSTAT && (a & 0x0FFFFFFFu) < MC_SWITCH_LEGSTAT + 16) {
+        uint32_t w = 0; if (n >= 4) memcpy(&w, in, 4); g_mod_legstat[((a & 0x0FFFFFFFu) - MC_SWITCH_LEGSTAT) >> 2] = w; return 1;
+    }
+    if ((a & 0x0FFFFFFFu) == MC_SWITCH_FORCE) { uint32_t w = 0; if (n >= 4) memcpy(&w, in, 4); else if (n == 2) { uint16_t h; memcpy(&h, in, 2); w = h; } g_mod_force = w; return 1; }
+    if ((a & 0x0FFFFFFFu) == MC_SWITCH_TENSION || (a & 0x0FFFFFFFu) == MC_SWITCH_COUP) {
+        uint32_t w = 0; if (n >= 4) memcpy(&w, in, 4); else if (n == 2) { uint16_t h; memcpy(&h, in, 2); w = h; } else if (n == 1) w = *(const uint8_t*)in;
+        if ((a & 0x0FFFFFFFu) == MC_SWITCH_TENSION) g_mod_tension |= w & 0xF; else g_mod_coup |= w & 0xF;
+        return 1;
+    }
     if ((a & 0x0FFFFFFFu) == MC_SWITCH_REVIVE) { uint32_t w = 0; if (n >= 4) memcpy(&w, in, 4); mc_revive(w); return 1; }
     if ((a & 0x0FFFFFFFu) == MC_SWITCH_NZ_NEW) { nz_command(1); return 1; }
     if ((a & 0x0FFFFFFFu) >= MC_SWITCH_NZ && (a & 0x0FFFFFFFu) < MC_SWITCH_NZ + 0x3C) { g_mod_nz |= 1u << (((a & 0x0FFFFFFFu) - MC_SWITCH_NZ) >> 2); return 1; }
@@ -279,7 +331,10 @@ static void mc_forget_undo(int undo) {
     g_mod_lowexp = 0;
     g_mod_noflee = 0;
     g_mod_first = 0;
+    g_mod_force = 0;
+    memset(g_mod_legstat, 0, sizeof g_mod_legstat);
     g_mod_vanish = 0;
+    g_mod_tension = g_mod_coup = 0;
     g_mod_nz = 0;
     lp_clear();
     g_vanish_armed = g_vanish_prev = 0;
@@ -436,6 +491,9 @@ uint32_t mod_cheats_in(uint32_t v) {
     g_mod_lowexp = 0;                                    /* the codes below set it again while they are on */
     g_mod_noflee = 0;
     g_mod_first = 0;
+    g_mod_force = 0;                                     /* "Battle any monster you want" sets it again below while a monster is chosen */
+    memset(g_mod_legstat, 0, sizeof g_mod_legstat);      /* and its legacy boss levels these */
+    g_mod_tension = g_mod_coup = 0;                      /* "Always high tension" / "Coup de Grace always ready" set their members again below */
     g_mod_nz = 0;                                        /* the Nuzlocke rules that are on set their bits again below */
     lp_clear();                                          /* the live code mods below set their sites again while they are on */
     g_vanish_armed = 0;
@@ -452,6 +510,7 @@ uint32_t mod_cheats_in(uint32_t v) {
         if (at >= 0 && (long)g_frame == at && !session_hidden() && session_running()) g_main_ram[0x00340000u & (MAIN_RAM_SIZE - 1)] ^= 0x55;
     }
     mc_track_hp();
+    mc_battle_locks();
     g_mod_vanish = g_vanish_armed;                       /* the cheat is on: vanished (the window's button switches it) */
     if (g_mod_vanish != g_vanish_prev) {
         if (getenv("DQIX_MODLOG")) fprintf(stderr, "mod: vanish %s at frame %llu\n", g_mod_vanish ? "on" : "off", (unsigned long long)g_frame);

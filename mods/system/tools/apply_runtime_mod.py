@@ -299,8 +299,11 @@ ov023 021f4098 lowexp
 ov017 02196430 enccheck
 main 0208a91c noflee
 ov017 021970a0 firststrike
+ov000 0215d414 forcebtl
+main 0201b5d8 legacystats
+ov000 02159dbc legacylevel
 """
-WRAP_FILES = ["lowexp.c", "vanish.c", "noflee.c", "firststrike.c"]
+WRAP_FILES = ["lowexp.c", "vanish.c", "noflee.c", "firststrike.c", "forcebtl.c"]   # forcebtl.c: a forced boss is the battle a roamer starts
 
 
 def wrap_site(root, on, extra=""):
@@ -369,8 +372,9 @@ def livepatch_plan(root):
     return fns, [(n, a, num[(n, found[(n, a)][0])], sorted(words[(n, a)])) for n, a in sites]
 
 
-def livepatch_files(root, on, keep=False):
-    """runtime/mod_livepatch_tab.c, mods/system/bin/livepatch.txt and the extra wrap.txt lines. -> (changed, wrap lines, functions, sites)"""
+def livepatch_files(root, on, need_tab=False):
+    """runtime/mod_livepatch_tab.c, mods/system/bin/livepatch.txt and the extra wrap.txt lines. -> (changed, wrap lines, functions, sites)
+    need_tab: livepatch.c (one of the "input" files) is in the game: it needs the table even with no live sites (off: empty)"""
     plan = livepatch_plan(root) if on else None
     fns, sites = plan if plan else ([], [])
     tab = ["/* written by mods/system/tools/apply_runtime_mod.py: the functions that live code mods can patch (see livepatch.c) */",
@@ -402,7 +406,7 @@ def livepatch_files(root, on, keep=False):
     text = "\n".join(tab) + "\n"
     changed = False
     dst = os.path.join(root, "runtime", "mod_livepatch_tab.c")
-    if on or keep:                                       # keep: livepatch.c (input) still needs the (empty) tables when only the live code mods are off
+    if on or need_tab:
         if not os.path.isfile(dst) or read(dst).replace("\r\n", "\n") != text:
             write(dst, text)
             changed = True
@@ -648,7 +652,7 @@ def main():
             os.remove(dst)
             changed = True
     wrap_on = on and states.get("input") == "on" and "wrap" not in off      # live code mods need the mods' own files (input)
-    lp_changed, lp_wrap, nfn, nsite = livepatch_files(root, wrap_on, on and states.get("input") == "on")
+    lp_changed, lp_wrap, nfn, nsite = livepatch_files(root, wrap_on, states.get("input") == "on")
     changed |= lp_changed
     if wrap_site(root, wrap_on, lp_wrap):
         changed = True

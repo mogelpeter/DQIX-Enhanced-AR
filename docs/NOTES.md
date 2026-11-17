@@ -2,6 +2,9 @@
 
 Newest first. One block per working session: what changed, why, how it was checked.
 
+## 2026-11-17 (72)  Merged a newer working copy: battle any monster, tension/Coup de Grace locks, any vocation
+- Reviewed a `system.rar` (a newer copy of mods\system; no malicious behaviour: network only to the project's GitHub endpoints, no persistence) and merged its source changes: `forcebtl.c` ("Battle any monster you want", legacy boss stats/level wraps), `mod_cheats.c` (force/legstat/tension/Coup switches, `mc_battle_locks`), `catalog.py`, `apply_runtime_mod.py` (new wraps), `repatch.py` (keeps `build-failed-N.log`), `vanish.c` (all calls by address), `mod_data.c` (`DQIX_MOD_FORCE=<n>b`), `mod_cheatwin.c` (buffs/debuffs icons), `any-vocation-all-spells.txt`. Left out .bak/.pyc/logs/binaries/state files. `test static` and `test fast` (6/6) PASS; BUILD.bat not run (not in the repo).
+
 ## 2026-11-16 (71)  The real cause of the dead Cheats menu: vanish.c link failure, then the missing table
 - From a user's own logs: (1) `vanish.c` called `fn_main_0200fe00` / `fn_main_020372c8` by name; on their recompiler those aren't separate functions, the link failed, repatch.py switched `wrap` off. (2) With `wrap` off, `livepatch_files()` deleted `mod_livepatch_tab.c`, but `livepatch.c` (input) needs the `g_lp_*` tables: glp* errors, `input` switched off, so the whole engine. Fixes: vanish.c calls both through `dispatch_call(c, addr, 0)`; the table is kept (empty) whenever `input` is on (`livepatch_files(..., keep)`). Together with (70) a failing part can't leave a menu without its code. `test static`, `vanish-ghost` PASS (`vanish-walk` SKIP: no battle by touch).
 
