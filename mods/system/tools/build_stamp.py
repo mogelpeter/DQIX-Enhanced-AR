@@ -5,7 +5,7 @@
   build_stamp.py [project folder] write    after a build that worked: remember what went in
 
 What goes into a build from the mods: the code mods' lines in patches.txt and
-the mods' own part of the game (runtime/mod_cheats.c, ar_engine.h, mod_menu.c and the
+the mods' own part of the game (runtime/mod_cheats.c, ar_engine.h, mod_menu.c, every file of mods/system/src/runtime, and the
 marked places in input.c, card.c, menu_win32.c, frontend_sdl.c, update.c). mods/system/bin/built.txt keeps a checksum of those, and which code mods
 they were (the Cheats window shows "needs a rebuild" from it). Without this, a
 build that failed half-way would be taken for done the next time.
@@ -29,7 +29,14 @@ def now(root):
     except OSError:
         pass
     h.update(block.encode("utf-8"))
-    for name in ("mod_cheats.c", "ar_engine.h", "mod_menu.c", "mod_data.c", "nuzlocke.c", "lowexp.c", "vanish.c", "noflee.c", "firststrike.c", "livepatch.c", "mod_cheatwin.c", "mod_livepatch_tab.c"):
+    names = ["mod_cheats.c", "ar_engine.h", "mod_menu.c", "mod_data.c", "nuzlocke.c", "lowexp.c", "vanish.c", "noflee.c", "firststrike.c", "livepatch.c", "mod_cheatwin.c", "mod_livepatch_tab.c"]
+    # and every other file the mods put into runtime/ (forcebtl.c, challenges.c, ...): a change to one of them alone has to rebuild too
+    try:
+        names += sorted(n for n in os.listdir(os.path.join(root, "mods", "system", "src", "runtime"))
+                        if n.endswith((".c", ".h")) and n not in names)
+    except OSError:
+        pass
+    for name in names:
         try:
             h.update(open(os.path.join(root, "runtime", name), "rb").read().replace(b"\r\n", b"\n"))
         except OSError:

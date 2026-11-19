@@ -2,6 +2,9 @@
 
 Newest first. One block per working session: what changed, why, how it was checked.
 
+## 2026-11-19 (73)  Challenges page merged (tougher monsters, no spells, fully random encounters/bosses, 4-hit combo)
+- Reviewed a `mods.rar` (v1.0.15 tree plus newer files; no malicious behaviour, no prompt injection; its prebuilt `dqix-editor.exe` not audited, left out) and merged only the Challenges work: new `challenges.c` (toughdmg/actrecalc wraps), `forcebtl.c` (random encounters/bosses, boss parties, boss songs), `mod_cheats.c` (`mc_challenges`, switches 02F5A610..624), `catalog.py` (Challenges page, boss songs, buffs/debuffs recalc + second round counter), `apply_runtime_mod.py` (3 new wraps), `build_stamp.py` (hashes every runtime file). `test static` and `test fast` (6/6) PASS.
+
 ## 2026-11-17 (72)  Merged a newer working copy: battle any monster, tension/Coup de Grace locks, any vocation
 - Reviewed a `system.rar` (a newer copy of mods\system; no malicious behaviour: network only to the project's GitHub endpoints, no persistence) and merged its source changes: `forcebtl.c` ("Battle any monster you want", legacy boss stats/level wraps), `mod_cheats.c` (force/legstat/tension/Coup switches, `mc_battle_locks`), `catalog.py`, `apply_runtime_mod.py` (new wraps), `repatch.py` (keeps `build-failed-N.log`), `vanish.c` (all calls by address), `mod_data.c` (`DQIX_MOD_FORCE=<n>b`), `mod_cheatwin.c` (buffs/debuffs icons), `any-vocation-all-spells.txt`. Left out .bak/.pyc/logs/binaries/state files. `test static` and `test fast` (6/6) PASS; BUILD.bat not run (not in the repo).
 

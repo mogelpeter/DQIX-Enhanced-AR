@@ -302,8 +302,11 @@ ov017 021970a0 firststrike
 ov000 0215d414 forcebtl
 main 0201b5d8 legacystats
 ov000 02159dbc legacylevel
+main 0209c480 forcebgm
+ov024 021e6a90 toughdmg
+ov024 021eb5d0 actrecalc
 """
-WRAP_FILES = ["lowexp.c", "vanish.c", "noflee.c", "firststrike.c", "forcebtl.c"]   # forcebtl.c: a forced boss is the battle a roamer starts
+WRAP_FILES = ["lowexp.c", "vanish.c", "noflee.c", "firststrike.c", "forcebtl.c", "challenges.c"]   # forcebtl.c: a forced boss is the battle a roamer starts
 
 
 def wrap_site(root, on, extra=""):

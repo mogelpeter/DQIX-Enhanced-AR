@@ -34,6 +34,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <math.h>
 #include "nds.h"
 #include "session.h"
 #include "ar_engine.h"
@@ -218,6 +219,10 @@ static void mc_revive(uint32_t who) {
  *    ov000 021581fc). Kept at "ready, 9 rounds" (what the R4 codes write, 0x98), with the low three bits (the game's own flags) left as they are.
  *    The old "Can always use Coup de Grace" skipped the menu's check instead (ov000 0217b2c4), so the game never knew: the text stayed grey. */
 static uint32_t g_mod_tension, g_mod_coup;
+/* "Always 4-hit combo" (catalog.py, Battle page): 02F5A624, the party members (bits 0..3) whose every hit counts as the fourth of a combo
+ * (challenges.c wrap_toughdmg). Set again each frame by its code, like the two above. */
+uint32_t g_mod_combo;
+#define MC_SWITCH_COMBO 0x02F5A624u
 #define MC_SWITCH_TENSION 0x02F5A5B8u
 #define MC_SWITCH_COUP 0x02F5A5BCu
 static void mc_battle_locks(void) {
@@ -240,6 +245,69 @@ static void mc_battle_locks(void) {
         if (g_mod_coup & bit) s[0x3B] = (uint8_t)((s[0x3B] & 0x07) | 0x98);
     }
 }
+/* The Challenges page (catalog.py CHALLENGE_*): switches written every frame while an entry is on, done after the cheats ran.
+ *  02F5A610 tougher monsters: the value is the multiplier in halves (3 = x1.5, 4 = x2, 6 = x3). Here: every monster's HP and maximum HP, once,
+ *           when it shows up (the game's fighter list: game object 020F33D8 + 8 + index * 4, a fighter has 0x80 in its first halfword, a
+ *           monster also 0x400, +0x138 its battle stats: HP +0, maximum +4; checked in a battle snapshot). HP isn't worked out again from the
+ *           monster's data during a battle, so that holds; a monster that changes form (a new maximum) is done again. challenges.c does the
+ *           damage they deal.
+ *  02F5A614 no spells: every party member in a battle is kept under Fizzle, the way the game casts it (main 020888a4: +0x60 = 6, +0x83 = 0,
+ *           0x100 in the word at +0x14 of their battle copy, record + 0x58): the game refuses their spells itself ("...can't cast spells at the
+ *           moment"). Abilities, items and attacks still work.
+ *  02F5A618 fully random encounters: forcebtl.c gives every battle a roaming monster starts other monsters, picked at random each time.
+ *  02F5A61C fully random boss encounters: the same, but a boss, alone, with its own music. */
+uint32_t g_mod_tough, g_mod_randenc, g_mod_randboss;
+static uint32_t g_mod_nospell;
+#define MC_SWITCH_TOUGH 0x02F5A610u
+#define MC_SWITCH_NOSPELL 0x02F5A614u
+#define MC_SWITCH_RANDENC 0x02F5A618u
+#define MC_SWITCH_RANDBOSS 0x02F5A61Cu
+static uint32_t g_tough_st[24]; static uint16_t g_tough_max[24], g_tough_mon[24];   /* the monsters done: battle stats, the maximum HP they got, which monster */
+static uint32_t mc_r32(uint32_t a) { uint32_t v; memcpy(&v, &g_main_ram[a & (MAIN_RAM_SIZE - 1)], 4); return v; }
+static uint16_t mc_r16(uint32_t a) { uint16_t v; memcpy(&v, &g_main_ram[a & (MAIN_RAM_SIZE - 1)], 2); return v; }
+static void mc_w16(uint32_t a, uint16_t v) { memcpy(&g_main_ram[a & (MAIN_RAM_SIZE - 1)], &v, 2); }
+static int mc_in_ram(uint32_t a) { return a >= 0x02000000u && a < 0x02000000u + MAIN_RAM_SIZE - 0x200u; }
+static void mc_challenges(void) {
+    if (g_mod_tough >= 3) {
+        uint32_t seen[24]; uint16_t seenmax[24], seenmon[24]; int ns = 0;
+        for (uint32_t i = 0; i < 0xE9 && ns < 24; i++) {
+            uint32_t e = mc_r32(0x020F33D8u + 8 + 4 * i);
+            if (!mc_in_ram(e)) continue;
+            uint16_t fl = mc_r16(e);
+            if ((fl & 0x480) != 0x480) continue;                 /* a fighter and a monster */
+            uint32_t st = mc_r32(e + 0x138);
+            if (!mc_in_ram(st)) continue;
+            uint16_t mx = mc_r16(st + 4), mon = mc_r16(e + 2);
+            if (!mx) continue;
+            int k = 0; while (k < 24 && g_tough_st[k] != st) k++;
+            if (k < 24 && g_tough_max[k] == mx && g_tough_mon[k] == mon) { seen[ns] = st; seenmon[ns] = mon; seenmax[ns++] = mx; continue; }   /* done */
+            uint32_t nmx = (uint32_t)mx * g_mod_tough / 2, hp = (uint32_t)mc_r16(st) * g_mod_tough / 2;
+            if (nmx > 65535) nmx = 65535;
+            if (hp > nmx) hp = nmx;
+            mc_w16(st + 4, (uint16_t)nmx); mc_w16(st, (uint16_t)hp);
+            seen[ns] = st; seenmon[ns] = mon; seenmax[ns++] = (uint16_t)nmx;
+        }
+        memset(g_tough_st, 0, sizeof g_tough_st); memcpy(g_tough_st, seen, ns * sizeof seen[0]);
+        memcpy(g_tough_max, seenmax, ns * sizeof seenmax[0]); memcpy(g_tough_mon, seenmon, ns * sizeof seenmon[0]);
+    } else memset(g_tough_st, 0, sizeof g_tough_st);
+    if (g_mod_nospell)
+        for (int i = 0; i < 4; i++) {
+            uint32_t b = (0x020F54B4u - (uint32_t)i * 0x964u) & (MAIN_RAM_SIZE - 1);
+            if (!g_main_ram[b] || !mod_in_party(i)) continue;
+            uint8_t* s = &g_main_ram[b + 0x58];
+            uint16_t mx; memcpy(&mx, s + 4, 2);
+            if (!mx) continue;                                    /* not in a battle */
+            uint32_t w; memcpy(&w, s + 0x14, 4);
+            w |= 0x100u; memcpy(s + 0x14, &w, 4);
+            s[0x60] = 6; s[0x83] = 0;                             /* it never wears off */
+        }
+}
+/* "All buffs" / "All debuffs" (catalog.py buff_entries): their code also writes the fighter's battle stats address to 02F5A620. The game keeps
+ * attack, defence, agility and the rest as numbers worked out from the base and the effect levels, and works them out again only when something
+ * is cast on a fighter or at the end of its own action, so levels written by a cheat did nothing until then. Kept here (not cleared each frame)
+ * until challenges.c has the game work them out again, at the start of the next action. */
+uint32_t g_mod_recalc[16]; int g_mod_nrecalc;
+#define MC_SWITCH_RECALC 0x02F5A620u
 /* The Nuzlocke rules (nuzlocke.c): a write to 02F5A5C0 + 4n switches rule n on for this frame (bit n of g_mod_nz); the write to 02F5A5FC is the
  * one-off command "start a new run". */
 uint32_t g_mod_nz;
@@ -293,6 +361,24 @@ static int mc_write(void* u, uint32_t a, const void* in, size_t n) {
         uint32_t w = 0; if (n >= 4) memcpy(&w, in, 4); g_mod_legstat[((a & 0x0FFFFFFFu) - MC_SWITCH_LEGSTAT) >> 2] = w; return 1;
     }
     if ((a & 0x0FFFFFFFu) == MC_SWITCH_FORCE) { uint32_t w = 0; if (n >= 4) memcpy(&w, in, 4); else if (n == 2) { uint16_t h; memcpy(&h, in, 2); w = h; } g_mod_force = w; return 1; }
+    if ((a & 0x0FFFFFFFu) == MC_SWITCH_RECALC) {
+        uint32_t w = 0; if (n >= 4) memcpy(&w, in, 4);
+        int k = 0; while (k < g_mod_nrecalc && g_mod_recalc[k] != w) k++;
+        if (w && k == g_mod_nrecalc && g_mod_nrecalc < 16) g_mod_recalc[g_mod_nrecalc++] = w;
+        return 1;
+    }
+    if ((a & 0x0FFFFFFFu) == MC_SWITCH_TOUGH || (a & 0x0FFFFFFFu) == MC_SWITCH_NOSPELL || (a & 0x0FFFFFFFu) == MC_SWITCH_RANDENC
+        || (a & 0x0FFFFFFFu) == MC_SWITCH_RANDBOSS) {
+        uint32_t w = 0; if (n >= 4) memcpy(&w, in, 4); else if (n == 2) { uint16_t h; memcpy(&h, in, 2); w = h; } else if (n == 1) w = *(const uint8_t*)in;
+        if ((a & 0x0FFFFFFFu) == MC_SWITCH_TOUGH) g_mod_tough = w; else if ((a & 0x0FFFFFFFu) == MC_SWITCH_NOSPELL) g_mod_nospell = w;
+        else if ((a & 0x0FFFFFFFu) == MC_SWITCH_RANDENC) g_mod_randenc = w; else g_mod_randboss = w;
+        return 1;
+    }
+    if ((a & 0x0FFFFFFFu) == MC_SWITCH_COMBO) {
+        uint32_t w = 0; if (n >= 4) memcpy(&w, in, 4); else if (n == 2) { uint16_t h; memcpy(&h, in, 2); w = h; } else if (n == 1) w = *(const uint8_t*)in;
+        g_mod_combo |= w & 0xF;
+        return 1;
+    }
     if ((a & 0x0FFFFFFFu) == MC_SWITCH_TENSION || (a & 0x0FFFFFFFu) == MC_SWITCH_COUP) {
         uint32_t w = 0; if (n >= 4) memcpy(&w, in, 4); else if (n == 2) { uint16_t h; memcpy(&h, in, 2); w = h; } else if (n == 1) w = *(const uint8_t*)in;
         if ((a & 0x0FFFFFFFu) == MC_SWITCH_TENSION) g_mod_tension |= w & 0xF; else g_mod_coup |= w & 0xF;
@@ -334,7 +420,8 @@ static void mc_forget_undo(int undo) {
     g_mod_force = 0;
     memset(g_mod_legstat, 0, sizeof g_mod_legstat);
     g_mod_vanish = 0;
-    g_mod_tension = g_mod_coup = 0;
+    g_mod_tension = g_mod_coup = g_mod_combo = 0;
+    g_mod_tough = g_mod_nospell = g_mod_randenc = g_mod_randboss = 0;
     g_mod_nz = 0;
     lp_clear();
     g_vanish_armed = g_vanish_prev = 0;
@@ -465,14 +552,28 @@ static void mc_sync(void) {
 
 /* input.c, every frame: `local` is what the player presses now. If the cheat
  * window has something to send, this frame carries 16 bits of it. */
+/* "Walk in any direction" (input.c stick_walk): with the left stick, the hero walks by a stylus the game sees touching and dragging (the mouse is
+ * g_fe_touch). A frame that carries a cheat word has no stylus, and while cheats were being sent (all of them again after the game starts or a save
+ * is loaded, a cheat switched on, a button in the battle window) that was every frame: the walk was put down again and again (input.c lifts and
+ * retouches when the game loses the touch) and the hero barely moved, a step every few frames. Such a frame now has the stick's own direction on the
+ * D-pad instead (the nearest of its eight directions), so the hero keeps walking, in the D-pad's eight directions, until the cheats are
+ * through; then the stick walks as before. A real stroke (the mouse, the touch screen) still gets a short wait first, as before. */
+extern int g_fe_touch, g_fe_stick_x, g_fe_stick_y;
+static uint32_t mc_stick_dpad(void) {                    /* the stick's direction as one of the D-pad's eight (as far as it walks: input.c WALK_DEAD) */
+    double x = g_fe_stick_x, y = g_fe_stick_y, m = sqrt(x * x + y * y), k = m * 0.3827;   /* sin 22.5 degrees */
+    if (m < 9000) return 0;
+    return (x > k ? 1u << 4 : 0) | (x < -k ? 1u << 5 : 0) | (y < -k ? 1u << 6 : 0) | (y > k ? 1u << 7 : 0);   /* right, left, up, down */
+}
 uint32_t mod_cheats_out(uint32_t local) {
     static int sending, waited;
     mc_sync();
     if (!g_box || session_hidden() || rt_hosted()) return local;
     uint32_t rd = g_box->rd;
     if (rd == g_box->wr) { sending = 0; waited = 0; return local; }
+    int stick = (local & (1u << 13)) && !g_fe_touch;     /* the stylus is the stick walking, not the mouse */
+    if (stick) local |= mc_stick_dpad();                 /* its direction on the D-pad for this frame */
     /* don't lift the stylus in the middle of a stroke if a short wait avoids it */
-    if (!sending && (local & (1u << 13)) && waited < 30) { waited++; return local; }
+    if (!sending && !stick && (local & (1u << 13)) && waited < 30) { waited++; return local; }
     sending = 1; waited = 0;
     uint16_t w = g_box->ring[rd % MC_RING];
     g_box->rd = rd + 1;
@@ -493,7 +594,8 @@ uint32_t mod_cheats_in(uint32_t v) {
     g_mod_first = 0;
     g_mod_force = 0;                                     /* "Battle any monster you want" sets it again below while a monster is chosen */
     memset(g_mod_legstat, 0, sizeof g_mod_legstat);      /* and its legacy boss levels these */
-    g_mod_tension = g_mod_coup = 0;                      /* "Always high tension" / "Coup de Grace always ready" set their members again below */
+    g_mod_tension = g_mod_coup = g_mod_combo = 0;        /* "Always high tension", "Always 4-hit combo" / "Coup de Grace always ready" set their members again below */
+    g_mod_tough = g_mod_nospell = g_mod_randenc = g_mod_randboss = 0;     /* the Challenges page's switches too */
     g_mod_nz = 0;                                        /* the Nuzlocke rules that are on set their bits again below */
     lp_clear();                                          /* the live code mods below set their sites again while they are on */
     g_vanish_armed = 0;
@@ -511,6 +613,7 @@ uint32_t mod_cheats_in(uint32_t v) {
     }
     mc_track_hp();
     mc_battle_locks();
+    mc_challenges();
     g_mod_vanish = g_vanish_armed;                       /* the cheat is on: vanished (the window's button switches it) */
     if (g_mod_vanish != g_vanish_prev) {
         if (getenv("DQIX_MODLOG")) fprintf(stderr, "mod: vanish %s at frame %llu\n", g_mod_vanish ? "on" : "off", (unsigned long long)g_frame);

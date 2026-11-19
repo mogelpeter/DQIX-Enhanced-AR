@@ -64,7 +64,7 @@ PAGES = [
     (r"miscellaneous", "Miscellaneous", ""),
     (r"backlight|wfc|wi-?fi", "System", ""),
 ]
-PAGE_ORDER = ["Speed & comfort", "Camera", "Experience & gold", "Party", "Battle", "Items", "Treasure maps", "Nuzlocke", "Live battle", "Alchemy", "World",
+PAGE_ORDER = ["Speed & comfort", "Camera", "Experience & gold", "Party", "Battle", "Challenges", "Items", "Treasure maps", "Nuzlocke", "Live battle", "Alchemy", "World",
               "Unlocks", "Records & quests", "Fun", "Miscellaneous"]
 
 # cheats that belong on another page than their folder's (matched against name, shown name and the choice's title)
@@ -165,10 +165,32 @@ W32, W16, W8 = 0x00000000, 0x10000000, 0x20000000      # Action Replay write typ
 
 FORCE_SWITCH = 0x02F5A5B4                              # "Battle any monster you want": mod_cheats.c MC_SWITCH_FORCE
 TENSION_SWITCH = 0x02F5A5B8                            # high tension for the party members of the value's bits 0..3: mod_cheats.c MC_SWITCH_TENSION
+RECALC_SWITCH = 0x02F5A620                             # "All buffs" / "All debuffs": the fighter whose stats to work out again (challenges.c)
+TOUGH_SWITCH = 0x02F5A610                              # the Challenges page (mod_cheats.c mc_challenges, challenges.c, forcebtl.c): tougher monsters,
+NOSPELL_SWITCH = 0x02F5A614                            # the multiplier in halves; no spells; fully random encounters
+RANDENC_SWITCH = 0x02F5A618
+RANDBOSS_SWITCH = 0x02F5A61C                           # fully random boss encounters (forcebtl.c)
+COMBO_SWITCH = 0x02F5A624                              # "Always 4-hit combo": the party members of the value's bits 0..3 (mod_cheats.c MC_SWITCH_COMBO, challenges.c)
 COUP_SWITCH = 0x02F5A5BC                               # Coup de Grace ready for them: mod_cheats.c MC_SWITCH_COUP (the game's own flag, so the menu lights it)
 COUP_SKIP_PATCH = [("ov000", 0x0217B2C4, 0xE1A00000)]  # the R4 lists' "Can Always Use Coup de Grace": skips the menu's check, the text stays grey
 LEGSTAT_SWITCH = 0x02F5A600                            # its legacy boss levels' stats: mod_cheats.c MC_SWITCH_LEGSTAT (4 words)
 LEGACY_LEVELS = (50, 99)
+
+
+def boss_songs(nds):
+    """{monster: song} from data/event/eventbattle.bin, the story's battles (and the grottos' bosses): records of 9 values after an 8-byte header,
+    from 0x10: battle, then monster and count three times (-1 = none), then the song (the sound archive's sequence number, BG_<n>), then a check.
+    The field plays that song for such a battle instead of 23, the usual battle song (ov017 021b6290 -> main 0209c480). Bosses get 24, the legacy
+    bosses each their own (Dragonlord 27 .. Rhapthorne 38, the same for their three forms), Corvus' last battle 26. A monster in more than one
+    battle keeps its first one's song."""
+    d = nds.read("data/event/eventbattle.bin")
+    songs = {}
+    for i in range(struct.unpack_from("<I", d, 0)[0]):
+        v = struct.unpack_from("<9i", d, 0x10 + 44 * i + 8)
+        for mon in (v[1], v[3], v[5]):
+            if mon > 0:
+                songs.setdefault(mon, v[7])
+    return songs
 
 
 def legacy_bosses(nds):
@@ -228,23 +250,33 @@ def effect_ops(st):
     """The effects of a fighter: st is its record of current stats (a party member: record + 0x58; an enemy: its record). Found in a real fight (Buff and
     Insulate cast on the hero), with the layout of a trainer for the same game as a guide: eight effects in this order: attack, defence, agility, charm,
     magical might, magical mending, magic resistance, breath resistance. Effect j has its flag in the status word at st+0x14 (0x400 << j, the last two 0x10000
-    and 0x20000), its level (3 bits, +2 = 2, -2 = 6) at st+0x58 (24 bits) and its turn counter at st+0x6E+j, which goes down by one every round (5 when cast).
-    Bounce (flag 0x200, counter st+0x61) is not one of them.  -> (lasting, all buffs, all debuffs)"""
+    and 0x20000), its level (3 bits, +2 = 2, -2 = 6) at st+0x58 (24 bits) and two round counters (the game's code, checked):
+      - st+0x6E+j: set to 5 when cast (main 020877c0 and the like). The round tick (ov000 021599f4, table 02182EFC) takes one off each round; while it is
+        above 0 the effect can't end. When it gets to 0 the tick puts 4 into
+      - st+0x91+j: from then on the end of each round (ov000 0215858c) takes one off it and ends the effect with a chance from table 02182AD4 (62.5% at 3,
+        75% at 2, 87.5% at 1, certain at 0). At 0 that check is skipped altogether.
+    So a cast lasts 5 rounds, then up to 4 more. Bounce (flag 0x200, counter st+0x61) is not one of them.  -> (lasting, all buffs, all debuffs)"""
     lasting = []
     for j in range(8):
         pos = st + 0x6E + j
-        # counter 1..5: back to 6 (the game takes one off at the end of a round and ends the effect with a chance that is 0 from 5 down); 0 stays 0, 6 and up are left alone
-        lasting += [(0xA0000000 | pos, 0xFF000000), (0x70000000 | pos, 0xFF000006), (W8 | pos, 6), (0xD0000000, 0), (0xD0000000, 0)]
+        # the first counter 1..5: back to 6 (it never gets to 0, so the second stage never starts); 0 stays 0 (no effect, or one already in the second
+        # stage), 6 and up are left alone (our buttons' 255). The second counter is held at 0: an effect already in the second stage stops rolling to end.
+        lasting += [(0xA0000000 | pos, 0xFF000000), (0x70000000 | pos, 0xFF000006), (W8 | pos, 6), (0xD0000000, 0), (0xD0000000, 0), (W8 | st + 0x91 + j, 0)]
     def flags():
         out = []
         for byte, bit in [(st + 0x15, 1 << k) for k in range(2, 8)] + [(st + 0x16, 1), (st + 0x16, 2)]:
             # the bit is clear -> add it (there is no OR: read the byte, add the bit, write it back)
             out += [(0x90000000 | byte, (~bit & 0xFFFF) << 16), (0xD3000000, byte), (0xDB000000, 0), (0xD4000000, bit), (0xD8000000, 0), (0xD3000000, 0), (0xD0000000, 0)]   # (D3 0: the offset is back to 0 for the plain writes after it)
         return out
+    def recalc():
+        # and the switch that has the game work the fighter's stats out again from the new levels at once (mod_cheats.c MC_SWITCH_RECALC, challenges.c)
+        return [(RECALC_SWITCH, st)]
+
     def counters():
-        return [(W8 | st + 0x6E + j, 5) for j in range(8)]
-    buffs = flags() + [(W16 | st + 0x58, 0x2492), (W8 | st + 0x5A, 0x49)] + counters() + [(0xD2000000, 0)]
-    debuffs = flags() + [(W16 | st + 0x58, 0x6DB6), (W8 | st + 0x5A, 0xDB)] + counters() + [(0xD2000000, 0)]
+        # the whole battle: the first counter at 255 (a round each, so it never gets to 0), the second at 0 (no ending roll); a dispel still ends them
+        return [(W8 | st + 0x6E + j, 0xFF) for j in range(8)] + [(W8 | st + 0x91 + j, 0) for j in range(8)]
+    buffs = flags() + [(W16 | st + 0x58, 0x2492), (W8 | st + 0x5A, 0x49)] + counters() + recalc() + [(0xD2000000, 0)]
+    debuffs = flags() + [(W16 | st + 0x58, 0x6DB6), (W8 | st + 0x5A, 0xDB)] + counters() + recalc() + [(0xD2000000, 0)]
     return lasting, buffs, debuffs
 
 
@@ -252,11 +284,11 @@ EFFECT_NAMES = "attack, defence, agility, charm, magical might, magical mending,
 
 
 def buff_entries(who, buffs, debuffs, extra):
-    """the "All buffs" / "All debuffs" buttons of one card (effect_ops: every effect at +2 / -2, the most there is, for 5 rounds)"""
+    """the "All buffs" / "All debuffs" buttons of one card (effect_ops: every effect at +2 / -2, the most there is, for the rest of the battle)"""
     return [("live:battle:%s:buffs" % who, "All buffs", who, buffs, "once",
-             "All eight effects go up two levels, the most there is: " + EFFECT_NAMES + ", for 5 rounds (like a cast). Bounce is not one of them." + extra),
+             "All eight effects go up two levels, the most there is: " + EFFECT_NAMES + ". They last the whole battle (only a dispel like Disruptive Wave ends them). Bounce is not one of them." + extra),
             ("live:battle:%s:debuffs" % who, "All debuffs", who, debuffs, "once",
-             "All eight effects go down two levels, the most there is: " + EFFECT_NAMES + ", for 5 rounds (like a cast)." + extra)]
+             "All eight effects go down two levels, the most there is: " + EFFECT_NAMES + ". They last the whole battle (only a dispel ends them)." + extra)]
 
 
 def battle_entries():
@@ -279,7 +311,7 @@ def battle_entries():
         ]
         la, bu, de = effect_ops(b + 0x58)
         out += [("live:battle:%s:lasting" % who, "Effects last all battle", who, la, "always",
-                 "Buffs and debuffs on them don't run out until Disruptive Wave (or the battle) ends them. Bounce is not touched.")]
+                 "Every buff and debuff on them, cast or from the buttons, lasts the whole battle: none runs out, even one that was about to. Only a dispel like Disruptive Wave ends them. Bounce is not touched.")]
         out += buff_entries(who, bu, de, "")
         if i:
             out.append(("live:battle:%s:invincible" % who, "Invincible", who, [(W8 | b + 0x70, 0x40)], "once", "The game's own \"invincible\" flag, as the R4 code sets it."))
@@ -297,7 +329,7 @@ def battle_entries():
             ("live:battle:%s:refillmp" % who, "Refill MP", who, [(0xDA000000, b + 6), (0xD7000000, b + 2), (0xD2000000, 0)], "once", "Its MP goes back to full."),
         ]
         la, bu, de = effect_ops(b)
-        out += [("live:battle:%s:lasting" % who, "Effects last all battle", who, la, "always", "Buffs and debuffs on it don't run out until Disruptive Wave (or the battle) ends them. Untested on enemies.")]
+        out += [("live:battle:%s:lasting" % who, "Effects last all battle", who, la, "always", "Every buff and debuff on it, cast or from the buttons, lasts the whole battle: none runs out, even one that was about to. Only a dispel ends them. Untested on enemies.")]
         out += buff_entries(who, bu, de, " Untested on enemies.")
         for sid, sname, writes in status:
             out.append(("live:battle:%s:%s" % (who, sid), sname, who, [(W8 | b + off, v) for off, v in writes], "once", ""))
@@ -1301,15 +1333,22 @@ def build(root):
     except Exception as ex:
         print("catalog: no legacy boss levels (%s)" % ex)
         legacy = []
+    try:
+        songs = boss_songs(nds) if mons else {}
+    except Exception as ex:
+        print("catalog: no boss songs (%s)" % ex)
+        songs = {}
     if mons:
         entries = [e for e in entries if not (e["id"].startswith("db:") and e["name"].lower().startswith("battle any monsters you want"))]
         gid = "group:battle-any-monster"
-        groups.append(dict(id=gid, cat="Battle", title="Battle any monster you want", note="Every monster that roams the field, and the bosses (marked boss); the legacy bosses also at Lv 50 and Lv 99, with that level's form, HP and stats (moves they learn by level are all open, as at Lv 99). Works at once, no restart: the monsters of the place still roam, and every battle they start is against the one you chose (as many as the group had; a boss alone).", kind="live"))
+        groups.append(dict(id=gid, cat="Battle", title="Battle any monster you want", note="Every monster that roams the field, and the bosses (marked boss); the legacy bosses also at Lv 50 and Lv 99, with that level's form, HP and stats (moves they learn by level are all open, as at Lv 99). Works at once, no restart: the monsters of the place still roam, and every battle they start is against the one you chose (as many as the group had; a boss alone). A boss plays its own battle music: the boss theme, a legacy boss its own.", kind="live"))
         for num, mname in mons + [(n, "%s (boss)" % m) for n, m in mons_boss]:
             # tested: tests/test_force_data.c (all 288 hand out exactly that monster) and the 288-run crash check (NOTES 2026-11-13)
-            # live: a write to the switch 02F5A5B4 (mod_cheats.c) every frame says which monster; forcebtl.c makes the battles it (+ 0x10000: a boss, alone)
+            # live: a write to the switch 02F5A5B4 (mod_cheats.c) every frame says which monster; forcebtl.c makes the battles it (+ 0x10000: a boss, alone;
+            # bits 24..31: a boss's song, its story battle's or 24, the boss song: forcebtl.c plays it instead of the usual battle song)
+            boss = mname.endswith("(boss)")
             entries.append(dict(id=f"live:monster:{num}", name=mname, note="", cat="Battle", group=gid, kind="live", status="untested",
-                                mode="always", ops=[(FORCE_SWITCH, num | (0x10000 if mname.endswith("(boss)") else 0))], keys=[], reason="", file="", on=False, patch=[],
+                                mode="always", ops=[(FORCE_SWITCH, num | (0x10000 | songs.get(num, 24) << 24 if boss else 0))], keys=[], reason="", file="", on=False, patch=[],
                                 env="", option=mname, also=""))
         boss_names = dict(mons_boss)
         for base, _bands, lv in sorted(legacy, key=lambda x: boss_names.get(x[0], "")):
@@ -1317,9 +1356,11 @@ def build(root):
                 if base not in boss_names:
                     continue
                 mname = "%s, legacy Lv %d (boss)" % (boss_names[base], level)
-                # live: the choice word carries the level (bits 17..23) and 02F5A600.. the level's stats; forcebtl.c puts them on the boss
+                # live: the choice word carries the level (bits 17..23), the song (24..31: the legacy boss's own, as in its grotto) and 02F5A600.. the
+                # level's stats; forcebtl.c puts them on the boss
                 entries.append(dict(id=f"live:monster:{base}:lv{level}", name=mname, note="", cat="Battle", group=gid, kind="live", status="untested",
-                                    mode="always", ops=[(FORCE_SWITCH, mon | 0x10000 | level << 17)] + [(LEGSTAT_SWITCH + 4 * i, w) for i, w in enumerate(words)],
+                                    mode="always", ops=[(FORCE_SWITCH, mon | 0x10000 | level << 17 | songs.get(mon, songs.get(base, 24)) << 24)]
+                                    + [(LEGSTAT_SWITCH + 4 * i, w) for i, w in enumerate(words)],
                                     keys=[], reason="", file="", on=False, patch=[], env="", option=mname, also=""))
 
     # ---- the Nuzlocke randomizers: one launch option each, and the seed as one choice
@@ -1411,6 +1452,33 @@ def build(root):
                         note="The whole party, in every battle: tension stays at the top (100), and it is back at once after it's used.",
                         about="Every party member's tension is kept at 100, the way Psyche Up raises it (with its aura), so every attack and spell is at full tension. "
                               "After an action uses it, it is back at once. As in the game, a member who is down or under a status that stops tension doesn't get it."))
+
+    # ---- "Always 4-hit combo", with it: every hit of a party member counts as the fourth of a combo (challenges.c force_combo)
+    entries.append(dict(id="live:party:combo", name="Always 4-hit combo", option="Always 4-hit combo", cat="Battle", group="", kind="live",
+                        status="untested", mode="always", ops=[(COMBO_SWITCH, 0xF)], keys=[], reason="", file="", on=False, patch=[], env="", also="",
+                        note="The whole party, in every battle: every attack or spell that can combo counts as a 4-hit combo, for double damage.",
+                        about="Each hit by a party member is treated as the fourth in a row on its target, the game's biggest combo (x2 damage instead of x1.2 / x1.5), "
+                              "and the game shows it as a 4-hit combo. Only actions that can combo in the game get it (attacks, most abilities and spells that deal damage); healing and support don't change."))
+
+    # ---- the Challenges page: our own (mod_cheats.c mc_challenges, challenges.c, forcebtl.c), live, every PC of a session the same
+    def challenge(eid, name, ops, note, about, group=""):
+        entries.append(dict(id=eid, name=name, option=name, cat="Challenges", group=group, kind="live", status="untested", mode="always", ops=ops,
+                            keys=[], reason="", file="", on=False, patch=[], env="", also="", note=note, about=about))
+    gid = "group:challenge-tough"
+    groups.append(dict(id=gid, cat="Challenges", title="Tougher monsters", kind="live",
+                       note="Every monster has more HP and hits harder, by the amount you pick: its HP and maximum HP when it shows up, and the damage it deals to your party (attacks, spells and breath). Experience and gold stay the same."))
+    for k, label in ((3, "x1.5"), (4, "x2"), (6, "x3")):
+        challenge("live:challenge:tough%d" % k, label, [(TOUGH_SWITCH, k)], "Monsters have %s HP and deal %s damage." % (label, label),
+                  "Every monster in a battle gets %s its HP (up to 65535) as it shows up, and the damage it deals your party is %s (up to 9999), after your defence, buffs and resistances. Bosses and legacy bosses too." % (label, label), gid)
+    challenge("live:challenge:nospells", "No spells", [(NOSPELL_SWITCH, 1)],
+              "Nobody in the party can cast spells in battle: they're kept under Fizzle. Abilities, items and attacks still work.",
+              "Every party member is under Fizzle for the whole battle, the way the spell does it, so the game itself refuses their spells (\"...can't cast spells at the moment\"). Outside battles nothing changes.")
+    challenge("live:challenge:randenc", "Fully random encounters", [(RANDENC_SWITCH, 1)],
+              "Every battle a roaming monster starts is against other monsters, picked at random each time, from all the ordinary monsters, whatever their level. With \"Fully random boss encounters\" on too, about one battle in four is a boss instead.",
+              "Each group of the battle (up to three kinds) becomes a random ordinary monster, keeping its count: a different mix every time. The monsters you see roaming stay those of the place. \"Battle any monster you want\" takes priority while one is chosen. Monsters of any level can come up, so expect some very hard fights early on.")
+    challenge("live:challenge:randboss", "Fully random boss encounters", [(RANDBOSS_SWITCH, 1)],
+              "Every battle a roaming monster starts is against a boss, alone, picked at random each time from all the bosses: the story's, the grottos' and the legacy bosses. Each plays its own battle music. Works together with \"Fully random encounters\".",
+              "A different boss every battle (never the same one twice in a row), from the 55 bosses of \"Battle any monster you want\", the legacy bosses at their own level. Turn \"Fully random encounters\" on as well to mix them: about one battle in four is a random boss, the rest random ordinary monsters. A monster chosen in \"Battle any monster you want\" goes before both. The monsters you see roaming stay those of the place.")
 
     # ---- other pages, sections, undo (see MOVES, SECTIONS, UNDO)
     gby = {g["id"]: g for g in groups}
