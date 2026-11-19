@@ -40,6 +40,9 @@ void wrap_enccheck_orig(Cpu* c);
 #define GAME_PROTAGONIST    0x0200FDDCu  /* GameState::GetProtagonist(this): the hero's field object */
 #define GAME_PARTY_MEMBER   0x0200FE00u  /* GameState::GetPartyMemberByIndex(this, i): the field object of party member i */
 #define GAME_FADE           0x020372C8u  /* Object3D::TransitionInheritedAlpha(obj, alpha 0..31, frames): the game's own fade (monsters fade out with it) */
+/* A main-module address in USA numbers -> this ROM's: the European ROM has 16 bytes more near the start of the main code (tools/region.py's EUR_SHIFTS).
+ * Overlay and data addresses are the same in both. */
+static uint32_t usa_main(uint32_t a) { return rom_is_eur() ? (a >= 0x0200FB20u && a < 0x020EEBD0u ? a + 0x10u : a >= 0x0200F3B8u && a < 0x0200FB20u ? a + 8u : a) : a; }
 void interp_stub(Cpu* c, uint32_t addr);
 
 #define ENC_FUNC   0x02196430u
@@ -58,14 +61,14 @@ static void ghost(Cpu* c, int on) {
     Cpu save = *c;
     uint32_t done[5]; int nd = 0;
     for (int i = -1; i < 4; i++) {                      /* -1: the protagonist, then the party members */
-        dispatch_call(c, GAME_GET_INSTANCE, ENC_FUNC);
-        if (i < 0) dispatch_call(c, GAME_PROTAGONIST, ENC_FUNC); else { c->r[1] = (uint32_t)i; dispatch_call(c, GAME_PARTY_MEMBER, ENC_FUNC); }
+        dispatch_call(c, usa_main(GAME_GET_INSTANCE), ENC_FUNC);
+        if (i < 0) dispatch_call(c, usa_main(GAME_PROTAGONIST), ENC_FUNC); else { c->r[1] = (uint32_t)i; dispatch_call(c, usa_main(GAME_PARTY_MEMBER), ENC_FUNC); }
         uint32_t obj = c->r[0]; int dup = 0;
         for (int k = 0; k < nd; k++) if (done[k] == obj) dup = 1;
         if (!obj || dup) continue;
         done[nd++] = obj;
         c->r[0] = obj; c->r[1] = on ? GHOST_ALPHA : 31; c->r[2] = 10;
-        dispatch_call(c, GAME_FADE, ENC_FUNC);
+        dispatch_call(c, usa_main(GAME_FADE), ENC_FUNC);
         if (getenv("DQIX_MODLOG")) fprintf(stderr, "mod: ghost %d object %08x (%d)\n", on, obj, i);
     }
     *c = save;

@@ -213,15 +213,18 @@ void wrap_legacystats(Cpu* c) {
 /* func_ov000_02159dbc "the level of enemy r1", wrapped (wrap.txt "ov000 02159dbc legacylevel") */
 #define GAME_GET_INSTANCE 0x0200F398u                      /* GameState::GetInstance */
 #define GAME_ENEMY_ENTRY  0x0200FEA4u                      /* (instance, r1) -> the entry whose +2 is the monster number, as 02159dbc does */
+/* A main-module address in USA numbers -> this ROM's: the European ROM has 16 bytes more near the start of the main code (tools/region.py's EUR_SHIFTS).
+ * Overlay and data addresses are the same in both. */
+static uint32_t usa_main(uint32_t a) { return rom_is_eur() ? (a >= 0x0200FB20u && a < 0x020EEBD0u ? a + 0x10u : a >= 0x0200F3B8u && a < 0x0200FB20u ? a + 8u : a) : a; }
 void wrap_legacylevel_orig(Cpu* c);
 void wrap_legacylevel(Cpu* c) {
     uint32_t who = c->r[1], from = c->r[14];
     wrap_legacylevel_orig(c);
     if (!leg_active()) return;
     Cpu save = *c;
-    dispatch_call(c, GAME_GET_INSTANCE, from);
+    dispatch_call(c, usa_main(GAME_GET_INSTANCE), from);
     c->r[1] = who;
-    dispatch_call(c, GAME_ENEMY_ENTRY, from);
+    dispatch_call(c, usa_main(GAME_ENEMY_ENTRY), from);
     uint32_t e = c->r[0];
     *c = save;
     if (e && mem_read16(e + 2) == g_leg_mon) c->r[0] = g_leg_level;

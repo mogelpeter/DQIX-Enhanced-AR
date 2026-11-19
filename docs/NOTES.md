@@ -2,6 +2,10 @@
 
 Newest first. One block per working session: what changed, why, how it was checked.
 
+## 2026-11-19 (74)  EU and USA checked for the Challenges merge; EU address fix
+- `vanish.c` (ghost fade) and `forcebtl.c` (legacy level) called main-module functions of the game by their USA address; on the European ROM the main code after 0x0200F3B8 is 8/16 bytes further on (tools/region.py), so those calls landed mid-function. New `usa_main()` in both files moves the address when `rom_is_eur()`. The Challenges code itself only uses overlay and data addresses (same on both ROMs) and wrap.txt lines, which region.py moves.
+- Tests: `test_all.py` no longer expects the Challenges switches (02F5A5A0..63F, read by the runtime, never stored) in the RAM dump, and its stall watcher counts 30 s since the frame last moved (it failed at the last frame of a slow exit). `test full` PASS on the EU game (Documents\DQIX-Enhanced) and on a USA build (fresh Apply.bat of the USA folder: all 7, 717 live cheats).
+
 ## 2026-11-19 (73)  Challenges page merged (tougher monsters, no spells, fully random encounters/bosses, 4-hit combo)
 - Reviewed a `mods.rar` (v1.0.15 tree plus newer files; no malicious behaviour, no prompt injection; its prebuilt `dqix-editor.exe` not audited, left out) and merged only the Challenges work: new `challenges.c` (toughdmg/actrecalc wraps), `forcebtl.c` (random encounters/bosses, boss parties, boss songs), `mod_cheats.c` (`mc_challenges`, switches 02F5A610..624), `catalog.py` (Challenges page, boss songs, buffs/debuffs recalc + second round counter), `apply_runtime_mod.py` (3 new wraps), `build_stamp.py` (hashes every runtime file). `test static` and `test fast` (6/6) PASS.
 
