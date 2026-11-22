@@ -2,6 +2,11 @@
 
 Newest first. One block per working session: what changed, why, how it was checked.
 
+## 2026-11-23 (76)  Testing the "No abilities" merge on EU and USA
+- The earlier (75) tests ran against a game folder that was not rebuilt; now `mods\Apply.bat apply` rebuilt the EU game (Documents\DQIX-Enhanced) with the new code. `test full` 7/7 PASS on it.
+- `test_battle_live.py` (not in fast/full) expected 9999 HP/MP; now 999, and also checks the hero's invincible flag; the "battle reached" check reads the dump after the forced battle starts. HP/MP 999 and the hero flag PASS; its tension/Coup checks (member 2) still FAIL on EU, in code this merge did not touch (`mc_battle_locks`). Not yet looked into.
+- USA: fresh upstream zip (VirusTotal 2/65 generic PowerShell-downloader hits; its only download is the official MSYS2 installer) building in %LOCALAPPDATA%\Temp\dqix-usa-new.
+
 ## 2026-11-22 (75)  "No abilities" challenge merged from mods (2).rar
 - Reviewed `mods (2).rar` (VirusTotal: 2/66 generic ML hits, on the unsigned prebuilt `dqix-editor.exe`; its strings match `EditorHost.cs`; nothing malicious found). Merged only three source changes: `challenges.c` `no_abilities()` (a party member's skill-tree ability, action 63..201, becomes Defend, no MP; also reads the battle from r1 in `wrap_actrecalc`), `mod_cheats.c` switch 02F5A628 (`g_mod_noabil`, reset with the other Challenges switches), `catalog.py` "No abilities" challenge, "HP/MP 999", Invincible for the hero too. Build artifacts, .bak/.pyc and local state files left out.
 - Checked: `dev.py scratch` build=0 (session, live, vanish PASS), `test fast` 6/6 PASS. Not run in a real battle.
