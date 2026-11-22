@@ -2,6 +2,10 @@
 
 Newest first. One block per working session: what changed, why, how it was checked.
 
+## 2026-11-22 (75)  "No abilities" challenge merged from mods (2).rar
+- Reviewed `mods (2).rar` (VirusTotal: 2/66 generic ML hits, on the unsigned prebuilt `dqix-editor.exe`; its strings match `EditorHost.cs`; nothing malicious found). Merged only three source changes: `challenges.c` `no_abilities()` (a party member's skill-tree ability, action 63..201, becomes Defend, no MP; also reads the battle from r1 in `wrap_actrecalc`), `mod_cheats.c` switch 02F5A628 (`g_mod_noabil`, reset with the other Challenges switches), `catalog.py` "No abilities" challenge, "HP/MP 999", Invincible for the hero too. Build artifacts, .bak/.pyc and local state files left out.
+- Checked: `dev.py scratch` build=0 (session, live, vanish PASS), `test fast` 6/6 PASS. Not run in a real battle.
+
 ## 2026-11-19 (74)  EU and USA checked for the Challenges merge; EU address fix
 - `vanish.c` (ghost fade) and `forcebtl.c` (legacy level) called main-module functions of the game by their USA address; on the European ROM the main code after 0x0200F3B8 is 8/16 bytes further on (tools/region.py), so those calls landed mid-function. New `usa_main()` in both files moves the address when `rom_is_eur()`. The Challenges code itself only uses overlay and data addresses (same on both ROMs) and wrap.txt lines, which region.py moves.
 - Tests: `test_all.py` no longer expects the Challenges switches (02F5A5A0..63F, read by the runtime, never stored) in the RAM dump, and its stall watcher counts 30 s since the frame last moved (it failed at the last frame of a slow exit). `test full` PASS on the EU game (Documents\DQIX-Enhanced) and on a USA build (fresh Apply.bat of the USA folder: all 7, 717 live cheats).

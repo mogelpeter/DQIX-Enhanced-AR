@@ -169,6 +169,7 @@ RECALC_SWITCH = 0x02F5A620                             # "All buffs" / "All debu
 TOUGH_SWITCH = 0x02F5A610                              # the Challenges page (mod_cheats.c mc_challenges, challenges.c, forcebtl.c): tougher monsters,
 NOSPELL_SWITCH = 0x02F5A614                            # the multiplier in halves; no spells; fully random encounters
 RANDENC_SWITCH = 0x02F5A618
+NOABIL_SWITCH = 0x02F5A628                             # no abilities (challenges.c no_abilities)
 RANDBOSS_SWITCH = 0x02F5A61C                           # fully random boss encounters (forcebtl.c)
 COMBO_SWITCH = 0x02F5A624                              # "Always 4-hit combo": the party members of the value's bits 0..3 (mod_cheats.c MC_SWITCH_COMBO, challenges.c)
 COUP_SWITCH = 0x02F5A5BC                               # Coup de Grace ready for them: mod_cheats.c MC_SWITCH_COUP (the game's own flag, so the menu lights it)
@@ -302,8 +303,8 @@ def battle_entries():
         keep = copy(*hp) + copy(*mp) + [(W8 | b + 0x70, 0x40)]     # + the game's invincible flag: a hit bigger than their HP kills before the copy can undo it (checked in a real fight, Dragonlord Lv. 99)
         out += [
             ("live:battle:%s:keep" % who, "Never go down", who, keep, "always", "HP and MP are put back to full every frame and the game's own invincible flag is set, so even one hit that is bigger than their HP can't knock them out."),
-            ("live:battle:%s:max" % who, "HP/MP 9999", who, [(W16 | b + 0x58, 9999), (W16 | b + 0x5C, 9999), (W16 | b + 0x5A, 9999), (W16 | b + 0x5E, 9999)], "once",
-             "Their maximum and current HP and MP become 9999 for this battle."),
+            ("live:battle:%s:max" % who, "HP/MP 999", who, [(W16 | b + 0x58, 999), (W16 | b + 0x5C, 999), (W16 | b + 0x5A, 999), (W16 | b + 0x5E, 999)], "once",
+             "Their maximum and current HP and MP become 999 for this battle."),
             ("live:battle:%s:revive" % who, "Revive", who, [(0x02F5A5B0, i + 1)], "once", "Brings them back with full HP if they have fallen (does nothing for a member who is up)."),
             # tension and Coup de Grace: the game's own way (mod_cheats.c mc_battle_locks), not the R4 codes' bytes (+0x6F / +0x7C, +0x93 = 0x98)
             ("live:battle:%s:tension" % who, "High tension", who, [(TENSION_SWITCH, 1 << i)], "once", "Their tension goes to the top (100), as Psyche Up does it."),
@@ -313,8 +314,7 @@ def battle_entries():
         out += [("live:battle:%s:lasting" % who, "Effects last all battle", who, la, "always",
                  "Every buff and debuff on them, cast or from the buttons, lasts the whole battle: none runs out, even one that was about to. Only a dispel like Disruptive Wave ends them. Bounce is not touched.")]
         out += buff_entries(who, bu, de, "")
-        if i:
-            out.append(("live:battle:%s:invincible" % who, "Invincible", who, [(W8 | b + 0x70, 0x40)], "once", "The game's own \"invincible\" flag, as the R4 code sets it."))
+        out.append(("live:battle:%s:invincible" % who, "Invincible", who, [(W8 | b + 0x70, 0x40)], "once", "The game's own \"invincible\" flag, as the R4 code sets it (the hero's too: the same flag \"Never go down\" sets)."))
     status = [("sleep", "Sleep", [(0x14, 0x10)]), ("poison", "Poison", [(0x14, 0x02), (0x22, 0x02)]),
               ("stun", "Stun", [(0x14, 0x08)]), ("confuse", "Confuse", [(0x14, 0x20)])]
     for n in range(6):
@@ -1473,6 +1473,9 @@ def build(root):
     challenge("live:challenge:nospells", "No spells", [(NOSPELL_SWITCH, 1)],
               "Nobody in the party can cast spells in battle: they're kept under Fizzle. Abilities, items and attacks still work.",
               "Every party member is under Fizzle for the whole battle, the way the spell does it, so the game itself refuses their spells (\"...can't cast spells at the moment\"). Outside battles nothing changes.")
+    challenge("live:challenge:noabilities", "No abilities", [(NOABIL_SWITCH, 1)],
+              "Nobody in the party can use abilities in battle: one picked turns into Defend when their turn comes. Spells, items and attacks still work.",
+              "The abilities of the skill trees (Multithrust, Psyche Up, Whistle, Dragon Slash...) can still be picked in the menu, but when that party member's turn comes they defend instead, and no MP is spent. Coups de grace and the abilities an item or a piece of equipment gives are not affected. Outside battles nothing changes. Together with \"No spells\" only attacks, items and defending are left.")
     challenge("live:challenge:randenc", "Fully random encounters", [(RANDENC_SWITCH, 1)],
               "Every battle a roaming monster starts is against other monsters, picked at random each time, from all the ordinary monsters, whatever their level. With \"Fully random boss encounters\" on too, about one battle in four is a boss instead.",
               "Each group of the battle (up to three kinds) becomes a random ordinary monster, keeping its count: a different mix every time. The monsters you see roaming stay those of the place. \"Battle any monster you want\" takes priority while one is chosen. Monsters of any level can come up, so expect some very hard fights early on.")

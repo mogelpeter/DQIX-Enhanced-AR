@@ -255,13 +255,17 @@ static void mc_battle_locks(void) {
  *           0x100 in the word at +0x14 of their battle copy, record + 0x58): the game refuses their spells itself ("...can't cast spells at the
  *           moment"). Abilities, items and attacks still work.
  *  02F5A618 fully random encounters: forcebtl.c gives every battle a roaming monster starts other monsters, picked at random each time.
- *  02F5A61C fully random boss encounters: the same, but a boss, alone, with its own music. */
+ *  02F5A61C fully random boss encounters: the same, but a boss, alone, with its own music.
+ *  02F5A628 no abilities: a party member's ability (the actions 63..201: the skill trees' abilities) becomes Defend as it is carried out
+ *           (challenges.c wrap_actrecalc). */
 uint32_t g_mod_tough, g_mod_randenc, g_mod_randboss;
 static uint32_t g_mod_nospell;
 #define MC_SWITCH_TOUGH 0x02F5A610u
 #define MC_SWITCH_NOSPELL 0x02F5A614u
 #define MC_SWITCH_RANDENC 0x02F5A618u
 #define MC_SWITCH_RANDBOSS 0x02F5A61Cu
+#define MC_SWITCH_NOABIL 0x02F5A628u
+uint32_t g_mod_noabil;
 static uint32_t g_tough_st[24]; static uint16_t g_tough_max[24], g_tough_mon[24];   /* the monsters done: battle stats, the maximum HP they got, which monster */
 static uint32_t mc_r32(uint32_t a) { uint32_t v; memcpy(&v, &g_main_ram[a & (MAIN_RAM_SIZE - 1)], 4); return v; }
 static uint16_t mc_r16(uint32_t a) { uint16_t v; memcpy(&v, &g_main_ram[a & (MAIN_RAM_SIZE - 1)], 2); return v; }
@@ -368,10 +372,11 @@ static int mc_write(void* u, uint32_t a, const void* in, size_t n) {
         return 1;
     }
     if ((a & 0x0FFFFFFFu) == MC_SWITCH_TOUGH || (a & 0x0FFFFFFFu) == MC_SWITCH_NOSPELL || (a & 0x0FFFFFFFu) == MC_SWITCH_RANDENC
-        || (a & 0x0FFFFFFFu) == MC_SWITCH_RANDBOSS) {
+        || (a & 0x0FFFFFFFu) == MC_SWITCH_RANDBOSS || (a & 0x0FFFFFFFu) == MC_SWITCH_NOABIL) {
         uint32_t w = 0; if (n >= 4) memcpy(&w, in, 4); else if (n == 2) { uint16_t h; memcpy(&h, in, 2); w = h; } else if (n == 1) w = *(const uint8_t*)in;
         if ((a & 0x0FFFFFFFu) == MC_SWITCH_TOUGH) g_mod_tough = w; else if ((a & 0x0FFFFFFFu) == MC_SWITCH_NOSPELL) g_mod_nospell = w;
-        else if ((a & 0x0FFFFFFFu) == MC_SWITCH_RANDENC) g_mod_randenc = w; else g_mod_randboss = w;
+        else if ((a & 0x0FFFFFFFu) == MC_SWITCH_RANDENC) g_mod_randenc = w; else if ((a & 0x0FFFFFFFu) == MC_SWITCH_NOABIL) g_mod_noabil = w;
+        else g_mod_randboss = w;
         return 1;
     }
     if ((a & 0x0FFFFFFFu) == MC_SWITCH_COMBO) {
@@ -421,7 +426,7 @@ static void mc_forget_undo(int undo) {
     memset(g_mod_legstat, 0, sizeof g_mod_legstat);
     g_mod_vanish = 0;
     g_mod_tension = g_mod_coup = g_mod_combo = 0;
-    g_mod_tough = g_mod_nospell = g_mod_randenc = g_mod_randboss = 0;
+    g_mod_tough = g_mod_nospell = g_mod_randenc = g_mod_randboss = g_mod_noabil = 0;
     g_mod_nz = 0;
     lp_clear();
     g_vanish_armed = g_vanish_prev = 0;
@@ -595,7 +600,7 @@ uint32_t mod_cheats_in(uint32_t v) {
     g_mod_force = 0;                                     /* "Battle any monster you want" sets it again below while a monster is chosen */
     memset(g_mod_legstat, 0, sizeof g_mod_legstat);      /* and its legacy boss levels these */
     g_mod_tension = g_mod_coup = g_mod_combo = 0;        /* "Always high tension", "Always 4-hit combo" / "Coup de Grace always ready" set their members again below */
-    g_mod_tough = g_mod_nospell = g_mod_randenc = g_mod_randboss = 0;     /* the Challenges page's switches too */
+    g_mod_tough = g_mod_nospell = g_mod_randenc = g_mod_randboss = g_mod_noabil = 0;     /* the Challenges page's switches too */
     g_mod_nz = 0;                                        /* the Nuzlocke rules that are on set their bits again below */
     lp_clear();                                          /* the live code mods below set their sites again while they are on */
     g_vanish_armed = 0;

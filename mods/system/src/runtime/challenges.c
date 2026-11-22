@@ -45,7 +45,7 @@ void wrap_toughdmg(Cpu* c) {
  * as numbers made from its base stats and its effect levels (ov000 02155a50 .. 02155d90; 02155e44(battle, fighter) does all six). The game does
  * that when something is cast on the fighter, and for the one who acted at the end of each action (ov024 021ed880). The buttons write the levels,
  * so the stats followed only after that fighter's own next action: the boost seemed to do nothing. Now, at the start of every action (the action
- * routine ov024 021eb5d0, arguments: r0 the action's context, whose +0x10 is the battle), each fighter whose button was used (mod_cheats.c
+ * routine ov024 021eb5d0, arguments: r0 the action's context, r1 the battle, r2 the action), each fighter whose button was used (mod_cheats.c
  * g_mod_recalc: battle stats addresses) is worked out again by the game's own 02155e44 first. The fighters: the game object 020F33D8 + 8 +
  * index * 4, 0x80 in the first halfword, battle stats at +0x138. Registers are kept. */
 extern uint32_t g_mod_recalc[16]; extern int g_mod_nrecalc;
@@ -54,10 +54,31 @@ static uint32_t r32(uint32_t a) { uint32_t v; memcpy(&v, &g_main_ram[a & (MAIN_R
 static uint16_t r16(uint32_t a) { uint16_t v; memcpy(&v, &g_main_ram[a & (MAIN_RAM_SIZE - 1)], 2); return v; }
 static int in_ram(uint32_t a) { return a >= 0x02000000u && a < 0x02000000u + MAIN_RAM_SIZE - 0x200u; }
 
+/* "No abilities" (the Challenges page: mod_cheats.c g_mod_noabil, switch 02F5A628). The action about to be carried out (this routine's r2): its
+ * number at +0 (int16: the game looks it up at 021eb660 in the table of data/prm/actdt_b.gp2), who does it at +0x10 (an object whose int16 at
+ * +0x20 is the fighter's index, 0..3 the party). The numbers 63..201 are the abilities of the skill trees (Dragon Slash .. Wolf Whistle: 9..62
+ * are the spells, 1..3 attack and defend, the rest the monsters', the items' and the equipment's). A party member's ability becomes Defend (3)
+ * before the game looks it up, so they guard instead and no MP is spent. */
+extern uint32_t g_mod_noabil;
+static void w16(uint32_t a, uint16_t v) { memcpy(&g_main_ram[a & (MAIN_RAM_SIZE - 1)], &v, 2); }
+#define ACT_DEFEND 3
+static void no_abilities(Cpu* c) {
+    uint32_t act = c->r[2];
+    if (!g_mod_noabil || !in_ram(act)) return;
+    int id = (int16_t)r16(act), who;
+    uint32_t actor = r32(act + 0x10);
+    if (id < 63 || id > 201 || !in_ram(actor)) return;
+    who = (int16_t)r16(actor + 0x20);
+    if (who < 0 || who > 3) return;
+    w16(act, ACT_DEFEND);
+    if (getenv("DQIX_MODLOG")) fprintf(stderr, "mod: no abilities: party member %d's ability %d became Defend\n", who, id);
+}
+
 void wrap_actrecalc(Cpu* c) {
+    no_abilities(c);
     if (g_mod_nrecalc) {
         Cpu save = *c;
-        uint32_t battle = r32(save.r[0] + 0x10);
+        uint32_t battle = save.r[1];                        /* (the routine stores it at +0x10 of its r0 only after this) */
         for (uint32_t i = 0; i < 0xE9; i++) {
             uint32_t e = r32(0x020F33D8u + 8 + 4 * i);
             if (!in_ram(e) || !(r16(e) & 0x80)) continue;
