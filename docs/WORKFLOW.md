@@ -22,6 +22,7 @@ One rule: **do the cheapest check that can catch the mistake, and never repeat a
 | `firststrike.c`, `noflee.c`, `vanish.c` (switches that wrap a game function) | `dev test firststrike` / `test_noflee.py` / `test_vanish.py` / `dev test vanish-walk` (`TEST_SAVE` = a save in a dungeon) | the wrapped function is reached in a real battle start |
 | Fun cheats, undo (`mod_cheats.c` SET_UNDO, `catalog.py` UNDO) | `dev test live-fast undo-fun` (`TEST_SAVE` as above) | the cheat's bytes are back after switching off, in RAM and in the pictures |
 | `nuzlocke.c`, the Nuzlocke page (OFF: `NUZLOCKE_ENABLED` in `apply_code_mods.py`, `NZ_ENABLED` in nuzlocke.c; both on to test) (`mod_data.c` encounters too) | `dev test nuzlocke` (`TEST_SAVE` = a party in a dungeon; `nz-data` alone needs no save) | `nz-data` = every randomizer on the ROM's tables on the host; the rest = every rule in a real game, headless (permadeath, persist, link, hero, gold, new run, a whole battle, a KO in battle). Run it on the EU and the USA game folder |
+| `challenges.c`, the Challenges page (`mod_cheats.c` switches 02F5A610..628) | `dev test noabil battle-live` (`tests/dqix_dungeon.sav`, picked automatically: the party in a dungeon, a church save has no battle) | "No abilities": the hero's Dragon Slash becomes Defend with the switch on, not with it off; the battle cheats in a real forced battle |
 | `ar_engine.h`, a cheat with buttons | `dev test keys keys-bag zoom-grotto` (`TEST_SAVE`) | the buttons really pressed in the field / bag / during Zoom, RAM against `tests/ar_port.py` |
 | `livepatch.c`, a live code mod | `dev test livepatch` (needs `TEST_SAVE` = a save in a dungeon) | runs patched functions in the interpreter, compares with the compiled code |
 | a code mod (patch) | `dev scratch` (add `--rounds` for the x4/x8/Always Fail alternatives) | builds in a scratch copy in about a minute, your `game\` is not touched |
@@ -80,6 +81,8 @@ Method: (1) hypothesis from the R4 name/`ar` output, (2) two RAM dumps around th
 (3) `DQIX_WATCH` on one of them names the writer, (4) `func` names it, (5) write the result (address, meaning, how found) in `docs/NOTES.md`
 and, if it is a lesson, in the memory `dqix-lessons.md`. Headless runs are deterministic for the same exe + `DQIX_INPUT`, so every
 experiment can be repeated and compared.
+
+Tests run without the 60 fps pacing (`DQIX_FAST=1`, set by `dev.py` for every test except `cheatwin`): `test full` takes about 3 minutes instead of 8 (`all-single` 420 s -> 65 s, `all-session` 455 s -> 75 s). `tests/dqix_dungeon.sav` (gitignored, from `save-backups/dqix-20261113-170934.sav`) is the default `TEST_SAVE`; `dqix_test.sav` stands in a church.
 
 ## Releasing
 

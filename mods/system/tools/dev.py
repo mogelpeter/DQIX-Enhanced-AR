@@ -221,6 +221,11 @@ def py_test(root, script, args, env=None):
     live = os.path.join(root, "mods", "system")
     e = dict(os.environ); e.pop("NoDefaultCurrentDirectoryInExePath", None)
     e["PYTHONIOENCODING"] = "utf-8"; e.update(env or {})
+    dungeon = os.path.join(live, "tests", "dqix_dungeon.sav")      # the tests that need a battle: the hero stands in a dungeon (dqix_test.sav is in a church, no roamer to touch)
+    if "cheatwin" not in script:                                        # no 60 fps pacing (the frame-driven tests, sessions too, check frames, not seconds); the Cheats window test waits for its own windows
+        e.setdefault("DQIX_FAST", "1")
+    if "TEST_SAVE" not in e and os.path.isfile(dungeon):
+        e["TEST_SAVE"] = dungeon
     return subprocess.run([sys.executable, "-u", os.path.join(live, "tests", script), root] + args, cwd=root, env=e, capture_output=True, text=True, errors="replace")
 
 
@@ -297,6 +302,7 @@ def runners(root, work):
         "vanish-walk":    (fn("test_vanish_walk.py", []), True, 200),             # Vanish in the field: no battle, no frozen monster (vanish.c); TEST_SAVE as above
         "vanish-ghost":   (fn("test_vanish_ghost.py", []), True, 150),            # Vanish makes the party see-through (vanish.c); TEST_SAVE as above
         "battle-live":    (fn("test_battle_live.py", []), True, 130),             # the live battle cheats in a forced battle (Battle cheats window); TEST_SAVE as above
+        "noabil":         (fn("test_noabil.py", []), True, 40),                   # "No abilities" (challenges.c): the hero's Dragon Slash becomes Defend with the switch on, not with it off; TEST_SAVE as above
         "session-cheats": (fn("test_session_cheats.py", ["{port}"]), True, 90),          # the host's cheats reach the guest's console in a session (the window's agent runs)
         "session-reconnect": (fn("test_session_break.py", ["{port}", "reconnect"]), False, 180),   # a broken session is logged with the cheats; Reconnect hosts again and a new guest joins
         "session-desync": (fn("test_session_break.py", ["{port}", "desync"]), True, 90),         # a desync is noticed on both sides and logged
@@ -321,7 +327,7 @@ def runners(root, work):
 TIERS = {
     "fast": ["static", "live-fast", "session-fast", "all-quick", "editor", "update-notice"],
     "nuzlocke": ["nz-data"] + ["nz-" + n for n in ("control", "perma", "persist", "link", "hero", "goldhalf", "goldall", "newrun", "battle", "battleko")],
-    "full": ["static", "live", "session", "all-single", "all-session", "cheatwin", "editor"],
+    "full": ["static", "live", "session", "all-single", "all-session", "cheatwin", "battle-live", "noabil", "editor"],
 }
 
 

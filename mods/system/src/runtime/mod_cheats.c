@@ -225,16 +225,16 @@ uint32_t g_mod_combo;
 #define MC_SWITCH_COMBO 0x02F5A624u
 #define MC_SWITCH_TENSION 0x02F5A5B8u
 #define MC_SWITCH_COUP 0x02F5A5BCu
-static void mc_battle_locks(void) {
+static void mc_lock_members(uint32_t tension, uint32_t coup) {     /* for the members in these bit masks (bits 0..3) */
     for (int i = 0; i < 4; i++) {
         uint32_t bit = 1u << i;
-        if (!((g_mod_tension | g_mod_coup) & bit)) continue;
+        if (!((tension | coup) & bit)) continue;
         uint32_t b = (0x020F54B4u - (uint32_t)i * 0x964u) & (MAIN_RAM_SIZE - 1);
         if (!g_main_ram[b] || !mod_in_party(i)) continue;
         uint8_t* s = &g_main_ram[b + 0x58];
         uint16_t hp, hpmax; memcpy(&hp, s, 2); memcpy(&hpmax, s + 4, 2);
         if (!hpmax || !hp) continue;                                  /* not in a battle, or down */
-        if (g_mod_tension & bit) {
+        if (tension & bit) {
             uint32_t w; memcpy(&w, s + 0x14, 4);
             if (!(w & 0x00080019u) && (s[0x24] != 4 || !(w & 0x01000000u))) {
                 w = (w & ~0x00800002u) | 0x01000000u; memcpy(s + 0x14, &w, 4);
@@ -242,9 +242,10 @@ static void mc_battle_locks(void) {
                 s[0x24] = 4;
             }
         }
-        if (g_mod_coup & bit) s[0x3B] = (uint8_t)((s[0x3B] & 0x07) | 0x98);
+        if (coup & bit) s[0x3B] = (uint8_t)((s[0x3B] & 0x07) | 0x98);
     }
 }
+static void mc_battle_locks(void) { mc_lock_members(g_mod_tension, g_mod_coup); }
 /* The Challenges page (catalog.py CHALLENGE_*): switches written every frame while an entry is on, done after the cheats ran.
  *  02F5A610 tougher monsters: the value is the multiplier in halves (3 = x1.5, 4 = x2, 6 = x3). Here: every monster's HP and maximum HP, once,
  *           when it shows up (the game's fighter list: game object 020F33D8 + 8 + index * 4, a fighter has 0x80 in its first halfword, a
@@ -387,6 +388,9 @@ static int mc_write(void* u, uint32_t a, const void* in, size_t n) {
     if ((a & 0x0FFFFFFFu) == MC_SWITCH_TENSION || (a & 0x0FFFFFFFu) == MC_SWITCH_COUP) {
         uint32_t w = 0; if (n >= 4) memcpy(&w, in, 4); else if (n == 2) { uint16_t h; memcpy(&h, in, 2); w = h; } else if (n == 1) w = *(const uint8_t*)in;
         if ((a & 0x0FFFFFFFu) == MC_SWITCH_TENSION) g_mod_tension |= w & 0xF; else g_mod_coup |= w & 0xF;
+        /* a one-time button ("High tension" in the battle window) is only this one word: the switches are cleared again at the start of the next frame's
+         * cheats, before mc_battle_locks runs, so it has to take effect now (the "always" cheats send theirs every frame and don't mind) */
+        if ((a & 0x0FFFFFFFu) == MC_SWITCH_TENSION) mc_lock_members(w & 0xF, 0); else mc_lock_members(0, w & 0xF);
         return 1;
     }
     if ((a & 0x0FFFFFFFu) == MC_SWITCH_REVIVE) { uint32_t w = 0; if (n >= 4) memcpy(&w, in, 4); mc_revive(w); return 1; }

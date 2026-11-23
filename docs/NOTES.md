@@ -2,6 +2,13 @@
 
 Newest first. One block per working session: what changed, why, how it was checked.
 
+## 2026-11-23 (77)  Battle test for No abilities; tests faster and no longer vacuous; one-time tension / Coup fix
+- New `tests/test_noabil.py` (`dev test noabil`, in `full`): two forced battles side by side from `tests/dqix_dungeon.sav`, the hero picks Fight > Abilities > Dragon Slash. Switch on: the log shows the ability (63) became Defend; switch off: nothing. EU and USA PASS.
+- The tests that need a battle (`battle-live`, firststrike, vanish, revive...) were run from a church save (`dqix_test.sav`): no monster to touch, so `battle-live` passed vacuously on its HP checks and failed on tension/Coup. `dev.py` now sets `TEST_SAVE` to `tests/dqix_dungeon.sav` when it exists; `battle-live` (now in `full`) checks the battle exists, expects 999 and the hero's invincible flag.
+- Bug found by it: the one-time "High tension" / "Coup de Grace" buttons of the Battle window set a switch that `mod_cheats_in` clears at the start of every frame before `mc_battle_locks` ran, so they did nothing (only the "always" cheats worked). `mc_lock_members()` now applies them at once when the word arrives.
+- Faster: `dev.py` sets `DQIX_FAST=1` for every test but `cheatwin` (frame counts, not seconds, drive them). `live` 101 s -> 14 s, `all-single` 421 s -> 65 s, `all-session` 455 s -> 75 s; `test full` 8 min -> about 3 (cheatwin, 190 s, is the rest). 22 more tests re-run on EU: all PASS except `vanish-walk` / `vanish-ghost`.
+- NOT fixed, older than this: `vanish-walk` / `vanish-ghost` crash with the cheat on (`FATAL ARM9 BIOS call 7f not implemented` in the contact-check interpreter path) on EU and USA, also with the v1.0.17 mods. They aren't in `full`. `session-relay` SKIPs when the relay isn't reachable.
+
 ## 2026-11-23 (76)  Testing the "No abilities" merge on EU and USA
 - The earlier (75) tests ran against a game folder that was not rebuilt; now `mods\Apply.bat apply` rebuilt the EU game (Documents\DQIX-Enhanced) with the new code. `test full` 7/7 PASS on it.
 - `test_battle_live.py` (not in fast/full) expected 9999 HP/MP; now 999, and also checks the hero's invincible flag; the "battle reached" check reads the dump after the forced battle starts. HP/MP 999 and the hero flag PASS; its tension/Coup checks (member 2) still FAIL on EU, in code this merge did not touch (`mc_battle_locks`). Not yet looked into.
