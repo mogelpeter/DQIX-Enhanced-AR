@@ -2,6 +2,10 @@
 
 Newest first. One block per working session: what changed, why, how it was checked.
 
+## 2026-11-25 (78)  New code mod: any item can be traded to guests
+- Request: remove the limit that only rarity-0 items can be traded. Found by the message "... can't be given to a guest from another world." (str_tm 9078): the literal sits in ov002 at 02164 2e0; the Give handler (ov002 021641c0..021641f8) looks the item up (fn 020dede0, 32-byte records) and continues only if the 2-bit field at record word +8, bits 16-17, is 1. `cheats/trade-any-item.txt` makes the `bne` at 021641f8 unconditional (1A00000C -> EA00000C). Overlay code, same address on EU and USA.
+- Checked: `dev test static`, `dev scratch` (build + session/live/vanish PASS). NOT tested in a real session with a second player; the meaning of the field value (rarity) is inferred from the check, not decoded from the item table.
+
 ## 2026-11-23 (77)  Battle test for No abilities; tests faster and no longer vacuous; one-time tension / Coup fix
 - New `tests/test_noabil.py` (`dev test noabil`, in `full`): two forced battles side by side from `tests/dqix_dungeon.sav`, the hero picks Fight > Abilities > Dragon Slash. Switch on: the log shows the ability (63) became Defend; switch off: nothing. EU and USA PASS.
 - The tests that need a battle (`battle-live`, firststrike, vanish, revive...) were run from a church save (`dqix_test.sav`): no monster to touch, so `battle-live` passed vacuously on its HP checks and failed on tension/Coup. `dev.py` now sets `TEST_SAVE` to `tests/dqix_dungeon.sav` when it exists; `battle-live` (now in `full`) checks the battle exists, expects 999 and the hero's invincible flag.

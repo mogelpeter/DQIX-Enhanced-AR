@@ -1,0 +1,7 @@
+# name: Any item can be traded to guests
+# enabled: no
+# category: Items
+# about: In a multiplayer session you can give every item to a guest, not only the ordinary ones. Without this the game refuses with "... can't be given to a guest from another world." for the items of a higher rarity class.
+# How: the "Give" handler of the party menu (ov002 021641c0..021641f8) looks the item up in the item table (fn 020dede0) and only goes on when a 2-bit field of the record (word at +8, bits 16-17) is 1; otherwise it shows message 9078 (str_tm) and stops. The branch that continues when the item was accepted (bne at 021641f8) becomes unconditional. Same address on the EU and USA game (overlay code). Not tested in a real session with another player.
+check 021641F4 E3550000 @ov002
+patch 021641F8 1A00000C EA00000C @ov002
