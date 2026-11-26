@@ -679,7 +679,7 @@ static void upd_start(void) {
     HANDLE h = CreateThread(NULL, 0, upd_thread, NULL, 0, NULL);
     if (h) CloseHandle(h);
 }
-/* the menu item Cheats > Check for update (frontend_sdl.c, command 368) */
+/* the menu item Cheats > Check for update (frontend_sdl.c, command 9368) */
 void mod_update_check(void) {
     if (!g_root[0]) return;
     HANDLE h = CreateThread(NULL, 0, upd_thread, (LPVOID)1, 0, NULL);

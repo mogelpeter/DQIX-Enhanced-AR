@@ -2,6 +2,11 @@
 
 Newest first. One block per working session: what changed, why, how it was checked.
 
+## 2026-11-26 (80)  Game update v34 no longer breaks the build: the mods' menu numbers moved to 9360-9368
+- Report: updating the game to v34 stopped in `frontend_sdl.c` with `duplicate case value`. v34 gave its new Transmog items `MI_TRANSMOG..MI_TMITEMS = 360-363` (`runtime/menu.h`), the numbers of the mods' Cheats menu. All of the mods' numbers (menu items, `case`s, the save editor's Export message 364) are now 9360-9368, far above the game's (its `MI_MAX` is 512).
+- Why the updater didn't recover by itself: `build_stamp.py` only noted whether the game's files had mods markers, so after an update `Apply.bat` took the old build for current, skipped `repatch.py`, and the updater's plain `BUILD.bat` failed. The stamp now hashes those files, `session.c`, `version.h` and `menu.h`. First `Apply.bat` after this change rebuilds once.
+- `test_runtime_patch.py` (static) now fails if a mods menu number is one of the game's in `menu.h`, or if a changed game file doesn't ask for a rebuild (both seen failing before the fix).
+
 ## 2026-11-26 (79)  Apply.bat: clear message when the build tools' Python is damaged
 - Report: a user got `ImportError: DLL load failed while importing zlib` from `catalog.py`: `zlib1.dll` missing in their MSYS2 (reproduced with a Python copy without it). The game's setup check (`msys2-setup.ps1` Test-Tools) only looks for the .exe files, and the build goes on without zlib (only the icon step uses it).
 - `Apply.bat` now imports `binascii, zlib` once after `:built` (so BUILD.bat had its chance to install the tools) and on failure prints the pacman repair commands instead of a traceback.

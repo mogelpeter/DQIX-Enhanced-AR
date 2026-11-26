@@ -5,8 +5,9 @@
   build_stamp.py [project folder] write    after a build that worked: remember what went in
 
 What goes into a build from the mods: the code mods' lines in patches.txt and
-the mods' own part of the game (runtime/mod_cheats.c, ar_engine.h, mod_menu.c, every file of mods/system/src/runtime, and the
-marked places in input.c, card.c, menu_win32.c, frontend_sdl.c, update.c). mods/system/bin/built.txt keeps a checksum of those, and which code mods
+the mods' own part of the game (runtime/mod_cheats.c, ar_engine.h, mod_menu.c, every file of mods/system/src/runtime), and
+the game's files with the marked places (input.c, card.c, menu_win32.c, frontend_sdl.c, update.c, session.c) plus its
+version.h and menu.h. mods/system/bin/built.txt keeps a checksum of those, and which code mods
 they were (the Cheats window shows "needs a rebuild" from it). Without this, a
 build that failed half-way would be taken for done the next time.
 """
@@ -47,9 +48,11 @@ def now(root):
         h.update((m.group(0) if m else "").encode("utf-8"))
     except OSError:
         pass
-    for name in ("input.c", "card.c", "menu_win32.c", "frontend_sdl.c", "update.c"):   # is each place in the game patched?
+    # the game's own files the mods patch (with their places in them), its version and its menu numbers: an update of the game
+    # changes them, and then Apply.bat has to build (repatch.py leaves out a place the new game doesn't build with)
+    for name in ("input.c", "card.c", "menu_win32.c", "frontend_sdl.c", "update.c", "session.c", "version.h", "menu.h"):
         try:
-            h.update(b"1" if b">>> mods" in open(os.path.join(root, "runtime", name), "rb").read() else b"0")
+            h.update(open(os.path.join(root, "runtime", name), "rb").read().replace(b"\r\n", b"\n"))
         except OSError:
             h.update(b"?")
     ids = [m.group(1) for m in re.finditer(r"^# (\S+) \| ", block, flags=re.M)]
