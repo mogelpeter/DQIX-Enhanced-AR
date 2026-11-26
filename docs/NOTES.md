@@ -2,6 +2,12 @@
 
 Newest first. One block per working session: what changed, why, how it was checked.
 
+## 2026-11-26 (82)  The installer works on a PC without a D: drive
+- Report: the installer stopped at step 1/5 ("a drive with the name D was not found"). `Find-Candidates` also looks in `D:\`, and `Join-Path` throws `DriveNotFoundException` for a drive the PC does not have. It now uses `[IO.Path]::Combine`.
+- The same crash in `Get-MsysRoot` when `msys2-root.txt` names a missing drive: fixed the same way.
+- `make_release.py`: the release notes only say "scanned with Windows Defender" when a scan really ran.
+- Checked on Windows PowerShell 5.1 with a missing drive letter in place of D: both functions fail with the 1.0.21 installer and pass now.
+
 ## 2026-11-26 (81)  The save editor helper is remade after an update of the mods
 - Found while preparing the release of (80): the release zip dates its files 2026-01-01, and `Apply.bat` only compiled `dqix-editor.exe` again when `EditorHost.cs` was newer than it. An update would have kept the old helper, which sends the old menu command 364: Export in the save editor would do nothing in the game.
 - `build_stamp.py editor-check / editor-write` now compare the source's content (`mods/system/bin/editor-built.txt`). The first `Apply.bat` after this update remakes the helper once.

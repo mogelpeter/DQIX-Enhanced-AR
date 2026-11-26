@@ -431,7 +431,8 @@ function Get-MsysRoot([string]$Target) {
     $c = @()
     if (Test-Path -LiteralPath $f) { $c += ([string](Get-Content -LiteralPath $f -TotalCount 1)).Trim() }
     $c += 'C:\msys64'
-    foreach ($r in $c) { if ($r -and (Test-Path -LiteralPath (Join-Path $r 'usr\bin\bash.exe'))) { return $r } }
+    # [IO.Path]::Combine, not Join-Path: the recorded MSYS2 may be on a drive this PC does not have
+    foreach ($r in $c) { if ($r -and (Test-Path -LiteralPath ([IO.Path]::Combine($r, 'usr\bin\bash.exe')))) { return $r } }
     return $null
 }
 
