@@ -225,8 +225,12 @@ def sha256(path):
     return h.hexdigest()
 
 
+SCANNED = False      # set when Windows Defender really scanned the zip: only then do the notes say so
+
+
 def defender_scan(zip_path):
     """Windows Defender scans the zip and what is in it before anything is published (a false positive is found here, not by a player)."""
+    global SCANNED
     mp = os.path.join(os.environ.get("ProgramFiles", r"C:\Program Files"), "Windows Defender", "MpCmdRun.exe")
     if not os.path.isfile(mp):
         print("note: Windows Defender not found, the release was not scanned")
@@ -240,6 +244,7 @@ def defender_scan(zip_path):
         out = r.stdout + r.stderr
         if "found no threats" not in out:
             sys.exit("Windows Defender did not give the release a clean bill:\n" + out)
+        SCANNED = True
         print("Windows Defender: no threats in the zip and its files")
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
@@ -305,7 +310,7 @@ def make_notes(version, extra, prev=..., ref="HEAD", digest=None):
     if digest:
         lines += ["## Check the download", "",
                   "SHA-256 of `release-%s.zip`: `%s`" % (version, digest),
-                  "In PowerShell: `(Get-FileHash .\\release-%s.zip).Hash`. The release was scanned with Windows Defender before it was published." % version, ""]
+                  "In PowerShell: `(Get-FileHash .\\release-%s.zip).Hash`." % version + (" The release was scanned with Windows Defender before it was published." if SCANNED else ""), ""]
     if prev:
         lines.append("All changes since %s: https://github.com/%s/compare/%s...v%s" % (prev, REPO, prev, version))
     return "\n".join(lines).strip() + "\n"
