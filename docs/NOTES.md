@@ -2,6 +2,11 @@
 
 Newest first. One block per working session: what changed, why, how it was checked.
 
+## 2026-11-26 (79)  Apply.bat: clear message when the build tools' Python is damaged
+- Report: a user got `ImportError: DLL load failed while importing zlib` from `catalog.py`: `zlib1.dll` missing in their MSYS2 (reproduced with a Python copy without it). The game's setup check (`msys2-setup.ps1` Test-Tools) only looks for the .exe files, and the build goes on without zlib (only the icon step uses it).
+- `Apply.bat` now imports `binascii, zlib` once after `:built` (so BUILD.bat had its chance to install the tools) and on failure prints the pacman repair commands instead of a traceback.
+- Checked: a copy of Apply.bat in a dummy game folder, broken zlib (shadowing `zlib.py` via PYTHONPATH: message, exit 1) and healthy (catalog runs, exit 0); `dev test static`; `Apply.bat catalog` on the EU game.
+
 ## 2026-11-25 (78)  New code mod: any item can be traded to guests
 - Request: remove the limit that only rarity-0 items can be traded. Found by the message "... can't be given to a guest from another world." (str_tm 9078): the literal sits in ov002 at 02164 2e0; the Give handler (ov002 021641c0..021641f8) looks the item up (fn 020dede0, 32-byte records) and continues only if the 2-bit field at record word +8, bits 16-17, is 1. `cheats/trade-any-item.txt` makes the `bne` at 021641f8 unconditional (1A00000C -> EA00000C). Overlay code, same address on EU and USA.
 - Checked: `dev test static`, `dev scratch` (build + session/live/vanish PASS). NOT tested in a real session with a second player; the meaning of the field value (rarity) is inferred from the check, not decoded from the item table.
