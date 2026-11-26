@@ -79,6 +79,23 @@ try:
         if check("check") != 10:
             errors.append(f"build_stamp: a changed runtime/{n} (game update) doesn't ask for a rebuild")
         open(p, "wb").write(before)
+    # the save editor's helper is remade when its source differs, whatever the dates say (the release zip dates its files
+    # 2026-01-01, older than a helper made before the update, which then kept sending the old menu command)
+    os.makedirs(os.path.join(tmp, "mods", "system", "bin"), exist_ok=True)
+    open(os.path.join(tmp, "mods", "system", "bin", "dqix-editor.exe"), "wb").close()
+    cs = os.path.join(tmp, "mods", "system", "src", "editor", "EditorHost.cs")
+    if check("editor-check") != 10:
+        errors.append("build_stamp: a save editor helper of unknown source counts as current")
+    check("editor-write")
+    if check("editor-check") != 0:
+        errors.append("build_stamp: a save editor helper just made counts as outdated")
+    open(cs, "ab").write(b"// a newer helper\n")
+    os.utime(cs, (1767225600, 1767225600))
+    if check("editor-check") != 10:
+        errors.append("build_stamp: a changed EditorHost.cs with an old date doesn't remake the helper")
+    bat = open(os.path.join(os.path.dirname(tool), "..", "..", "Apply.bat"), "rb").read()
+    if b"editor-check" not in bat or b"editor-write" not in bat:
+        errors.append("Apply.bat doesn't ask build_stamp.py whether the save editor helper is current")
     if b"Apply.bat" not in on1["update.c"]:
         errors.append("the updater does not put the mods back")
     if on1["noflee.c"] is None:

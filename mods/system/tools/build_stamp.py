@@ -3,6 +3,7 @@
 
   build_stamp.py [project folder] check    exit 0 = yes, 10 = no: rebuild
   build_stamp.py [project folder] write    after a build that worked: remember what went in
+  build_stamp.py [project folder] editor-check | editor-write    the same for the save editor's helper
 
 What goes into a build from the mods: the code mods' lines in patches.txt and
 the mods' own part of the game (runtime/mod_cheats.c, ar_engine.h, mod_menu.c, every file of mods/system/src/runtime), and
@@ -59,10 +60,31 @@ def now(root):
     return h.hexdigest(), ids
 
 
+def editor(root, what):
+    """editor-check: exit 0 = mods/system/bin/dqix-editor.exe was made from this EditorHost.cs, 10 = make it;
+    editor-write: remember what it was made from. By content: the release zip's file dates say nothing."""
+    bindir = os.path.join(root, "mods", "system", "bin")
+    with open(os.path.join(root, "mods", "system", "src", "editor", "EditorHost.cs"), "rb") as f:
+        src = hashlib.sha1(f.read().replace(b"\r\n", b"\n")).hexdigest()
+    path = os.path.join(bindir, "editor-built.txt")
+    if what == "editor-write":
+        os.makedirs(bindir, exist_ok=True)
+        with open(path, "w", encoding="ascii", newline="\n") as f:
+            f.write(src + "\n")
+        return 0
+    try:
+        built = open(path, encoding="ascii").read().strip()
+    except OSError:
+        built = ""
+    return 0 if built == src and os.path.isfile(os.path.join(bindir, "dqix-editor.exe")) else 10
+
+
 def main():
     args = sys.argv[1:]
     what = args[-1] if args else "check"
     root = os.path.abspath(args[0] if len(args) > 1 else os.path.join(os.path.dirname(__file__), "..", "..", ".."))
+    if what.startswith("editor-"):
+        return editor(root, what)
     path = os.path.join(root, "mods", "system", "bin", "built.txt")
     stamp, ids = now(root)
     if what == "write":

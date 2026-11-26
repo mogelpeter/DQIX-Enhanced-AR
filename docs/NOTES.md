@@ -2,6 +2,11 @@
 
 Newest first. One block per working session: what changed, why, how it was checked.
 
+## 2026-11-26 (81)  The save editor helper is remade after an update of the mods
+- Found while preparing the release of (80): the release zip dates its files 2026-01-01, and `Apply.bat` only compiled `dqix-editor.exe` again when `EditorHost.cs` was newer than it. An update would have kept the old helper, which sends the old menu command 364: Export in the save editor would do nothing in the game.
+- `build_stamp.py editor-check / editor-write` now compare the source's content (`mods/system/bin/editor-built.txt`). The first `Apply.bat` after this update remakes the helper once.
+- Checked: `test_runtime_patch.py` (static, seen failing first); on the EU game a 1.0.20 helper plus the new zip's files copied with their dates: `Apply.bat apply` remade it, a second run left it alone.
+
 ## 2026-11-26 (80)  Game update v34 no longer breaks the build: the mods' menu numbers moved to 9360-9368
 - Report: updating the game to v34 stopped in `frontend_sdl.c` with `duplicate case value`. v34 gave its new Transmog items `MI_TRANSMOG..MI_TMITEMS = 360-363` (`runtime/menu.h`), the numbers of the mods' Cheats menu. All of the mods' numbers (menu items, `case`s, the save editor's Export message 364) are now 9360-9368, far above the game's (its `MI_MAX` is 512).
 - Why the updater didn't recover by itself: `build_stamp.py` only noted whether the game's files had mods markers, so after an update `Apply.bat` took the old build for current, skipped `repatch.py`, and the updater's plain `BUILD.bat` failed. The stamp now hashes those files, `session.c`, `version.h` and `menu.h`. First `Apply.bat` after this change rebuilds once.
