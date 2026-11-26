@@ -217,7 +217,8 @@ function Find-Candidates {
     foreach ($base in @($docs, $desk, (Join-Path $env:USERPROFILE 'Downloads'), (Join-Path $env:USERPROFILE 'Documents'), (Join-Path $env:USERPROFILE 'Desktop'), 'C:\', 'D:\')) {
         if ([string]::IsNullOrWhiteSpace($base)) { continue }
         foreach ($name in @('DQIX-Enhanced', 'DQIX Enhanced', 'dqix-enhanced', 'dqix-enhanced-main', 'DQIX', 'Games\DQIX-Enhanced')) {
-            [void]$try.Add((Join-Path $base $name))
+            # [IO.Path]::Combine is pure string work: Join-Path throws DriveNotFoundException for a drive the PC doesn't have (no D:)
+            try { [void]$try.Add([IO.Path]::Combine($base, $name)) } catch { }
         }
     }
     foreach ($t in $try) {
