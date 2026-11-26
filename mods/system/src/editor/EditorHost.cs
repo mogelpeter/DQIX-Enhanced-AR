@@ -241,7 +241,7 @@ loadSave();})();</script>";
                 File.WriteAllBytes(ed + ".tmp", body);
                 if (File.Exists(ed)) File.Delete(ed);
                 File.Move(ed + ".tmp", ed);
-                PostMessageW(win, 0x0111 /* WM_COMMAND */, (IntPtr)364, IntPtr.Zero);
+                PostMessageW(win, 0x0111 /* WM_COMMAND */, (IntPtr)9364, IntPtr.Zero);
                 DateTime t0 = DateTime.UtcNow;
                 while (File.Exists(ed) && (DateTime.UtcNow - t0).TotalSeconds < 10) Thread.Sleep(100);
                 if (File.Exists(ed))

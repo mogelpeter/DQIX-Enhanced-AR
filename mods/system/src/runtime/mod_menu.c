@@ -26,7 +26,7 @@ int mod_editor_launch(const char* tab) {
 }
 
 /* Export in the editor while the game runs: the helper puts the edited save in mods\system\bin\editor-export.sav (and the
- * save it handed the editor in editor-loaded.sav), then sends the game's window the menu command 364 (frontend_sdl.c). The
+ * save it handed the editor in editor-loaded.sav), then sends the game's window the menu command 9364 (frontend_sdl.c). The
  * game takes the files here (they are gone afterwards) and answers in editor-export.txt: ok, cancel, session, bad, nobackup. */
 static int editor_file(const wchar_t* name, wchar_t* out) {
     const char* root = update_project_dir();

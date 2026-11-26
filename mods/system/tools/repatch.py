@@ -130,10 +130,18 @@ def main():
         for o in other[:10]:
             print("the game's own:", o)
         return 0
+    bindir = os.path.join(root, "mods", "system", "bin")
+    for f in os.listdir(bindir) if os.path.isdir(bindir) else []:      # the failed builds of an earlier run
+        if re.fullmatch(r"build-failed-\d+\.log", f):
+            os.remove(os.path.join(bindir, f))
     for attempt in range(5):
         rc, out = build(root)
         if rc == 0:
             return 0
+        kept = os.path.join(bindir, f"build-failed-{attempt + 1}.log")   # build.log is overwritten by the next try: keep this one
+        with open(kept, "w", encoding="utf-8") as f:
+            f.write(out)
+        print(f"\n   (this failed build's output is kept in mods\\system\\bin\\build-failed-{attempt + 1}.log)", flush=True)
         keys, other = why(root, out)
         keys = [k for k in keys if k not in arm.off_list(root)]
         if not keys or attempt == 4:

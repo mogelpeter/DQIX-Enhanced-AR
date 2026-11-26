@@ -23,11 +23,12 @@
 #include <ctype.h>
 #include <math.h>
 #include <winhttp.h>
+#include "session.h"
 
 int mod_cheats_post(const uint16_t* w, int n);       /* mod_cheats.c: words into the mailbox's ring; 0 = full or no mailbox */
 uint32_t mod_cheats_gen(void);                       /* goes up whenever the game forgot every cheat */
 
-typedef struct { char *id, *cat, *group, *kind, *status, *name, *option, *note, *mode, *keys, *env, *also, *file, *section, *who; int on, nops, undo; uint32_t* ops;
+typedef struct { char *id, *cat, *group, *kind, *status, *name, *option, *note, *mode, *keys, *env, *also, *file, *section, *who, *scope; int on, nops, undo; uint32_t* ops;
                  int gi; char* hay; char* about; } Ent;                        /* gi: index into g_g or -1; hay: the search text, lower case */
 typedef struct { char *id, *cat, *title, *kind, *about; char* lt; int* mem; int nmem; } Grp;   /* lt: title lower case; mem: its entries */
 typedef struct { char *cat, *title; } Sec;                                      /* a section of a page (folds open and shut), in the order shown */
@@ -41,7 +42,7 @@ static char g_root[MAX_PATH * 2], g_statepath[MAX_PATH * 2];
 static CRITICAL_SECTION g_cs;
 static int g_cs_init, g_loaded;
 /* The window has two faces: the Cheats window (every page but Nuzlocke) and the Nuzlocke window (menu bar: Nuzlocke > Settings...), which shows only the
- * Nuzlocke page. They are the same window and the same state file; each leaves the other's cheats alone (Enabled, search, Everything off). */
+ * Nuzlocke page. They are the same window and the same state file; each leaves the other's cheats alone (Enabled, search). */
 static int g_mode;                                  /* 0 Cheats, 1 Nuzlocke */
 /* who is really there (mod_cheats.c mod_roster), polled while the window is open: a cheat for party member 2..4 or for an enemy is shown only
  * while that member / enemy exists; the live battle cheats only in a battle */
@@ -52,7 +53,11 @@ static int who_ok(const Ent* e) {
     if (!strcmp(e->cat, "Live battle") && !g_ro.inbattle) return 0;
     if (!e->who[0]) return 1;
     int n = e->who[1] - '1';
-    if (e->who[0] == 'p') return n >= 0 && n < 4 && g_ro.party[n];
+    if (e->who[0] == 'p') {
+        if (!(n >= 0 && n < 4 && g_ro.party[n])) return 0;
+        if (strstr(e->id, ":revive")) return g_ro.inbattle && g_ro.hpmax[n] > 0 && g_ro.hp[n] == 0;      /* only for a fallen member */
+        return 1;
+    }
     if (e->who[0] == 'e') return g_ro.inbattle && n >= 0 && n < 6 && g_ro.enemy[n];
     return 1;
 }
@@ -123,7 +128,7 @@ static void load_catalog(void) {
             e->id = kv(t, n, "id"); e->cat = kv(t, n, "cat"); e->group = kv(t, n, "group"); e->kind = kv(t, n, "kind"); e->status = kv(t, n, "status");
             e->name = kv(t, n, "name"); e->option = kv(t, n, "option"); e->note = kv(t, n, "note"); e->mode = kv(t, n, "mode"); e->keys = kv(t, n, "keys");
             e->env = kv(t, n, "env"); e->also = kv(t, n, "also"); e->file = kv(t, n, "file"); e->about = kv(t, n, "about");
-            e->section = kv(t, n, "section"); e->who = kv(t, n, "who");
+            e->section = kv(t, n, "section"); e->who = kv(t, n, "who"); e->scope = kv(t, n, "scope");
             char* on = kv(t, n, "on"); e->on = on[0] == '1'; free(on);
             char* un = kv(t, n, "undo"); e->undo = un[0] == '1'; free(un);
             char* ops = kv(t, n, "ops");
@@ -205,7 +210,12 @@ static void st_set(const char* kind, const char* id, int on) {
 
 static const char* skind(const Ent* e) { return !strcmp(e->kind, "live") ? "live" : !strcmp(e->kind, "code") ? "code" : "launch"; }
 
-static int ent_on(const Ent* e) { return st_has(skind(e), e->id); }
+static volatile LONG g_fol;                                   /* 1 while this PC is a guest that takes the host's cheats (the agent thread keeps it) */
+static uint8_t* g_hon;                                        /* per entry: 1 = on because the host has it on (only the agent thread writes it) */
+static int ent_on(const Ent* e) {
+    if (g_fol && g_hon && !strcmp(e->kind, "live")) return g_hon[e - g_e];       /* a guest in a session: exactly the host's cheats; his own switches are kept as they are */
+    return st_has(skind(e), e->id);
+}
 
 /* code mods that now switch live (livepatch.c): what the state file lists as "code" is "live" */
 static void migrate_state(void) {
@@ -217,21 +227,48 @@ static void migrate_state(void) {
     if (changed) st_save();
 }
 
+/* ---- a session is running: what would put the PCs out of sync can't be changed. A live cheat travels in the player's input stream, so every PC
+ * carries out the same change on the same frame; a launch option or a code mod that needs a rebuild changes how the game starts or computes, and
+ * a PC that had it different from the others would drift apart (desync). Those rows are greyed out and say why. */
+static volatile LONG g_ses;                                   /* 1 while a session runs (the agent thread keeps it) */
+static const char* lock_why_kind(const char* kind) {
+    return !strcmp(kind, "launch")
+        ? "Locked while you play with friends: it only takes effect when the game starts, and every PC has to start with the same setting or the session goes out of sync. Change it before the session."
+        : "Locked while you play with friends: it changes how the game computes, so every PC has to have the same build or the session goes out of sync. Change it before the session.";
+}
+/* a guest can't change the host's cheats either: they have to stay as the host has them so that both games compute the same */
+static int locked_kind(const char* kind, const char* mode) {
+    if (g_ses && (!strcmp(kind, "launch") || !strcmp(kind, "code"))) return 1;
+    return g_fol && !strcmp(kind, "live") && strcmp(mode, "once");
+}
+static int locked(const Ent* e) { return locked_kind(e->kind, e->mode); }
+static const char* lock_why_kind2(const char* kind) {
+    return !strcmp(kind, "live")
+        ? "Synced from the host: the host's cheats are on for you while you play together and have to stay as they are, or the two games would drift apart and the session would break. Yours come back when the session ends."
+        : lock_why_kind(kind);
+}
+static const char* lock_why(const Ent* e) { return lock_why_kind2(e->kind); }
+
 /* ---- sending cheats (the mailbox's messages, see mod_cheats.c) ---- */
 static void post_words(const uint16_t* w, int n) {
     for (int tries = 0; tries < 400; tries++) { if (mod_cheats_post(w, n)) return; Sleep(10); }
 }
-static void send_set(int idx) {
-    Ent* e = &g_e[idx]; int n = 1 + 4 * e->nops;
-    if (n > 0xFFF || !e->nops) return;
+static void send_raw(uint16_t id, int undo, const uint32_t* ops, int nops) {
+    int n = 1 + 4 * nops;
+    if (n > 0xFFF || !nops) return;
     uint16_t* w = (uint16_t*)malloc((size_t)(n + 1) * 2); if (!w) return;
-    w[0] = (uint16_t)((e->undo ? 5 : 2) << 12 | n); w[1] = (uint16_t)(idx + 1);      /* 5: SET_UNDO, switching off puts its changes back */
-    for (int i = 0; i < e->nops; i++) {
-        uint32_t a = e->ops[i * 2], b = e->ops[i * 2 + 1];
+    w[0] = (uint16_t)((undo ? 5 : 2) << 12 | n); w[1] = id;      /* 5: SET_UNDO, switching off puts its changes back */
+    for (int i = 0; i < nops; i++) {
+        uint32_t a = ops[i * 2], b = ops[i * 2 + 1];
         w[2 + i * 4] = (uint16_t)a; w[3 + i * 4] = (uint16_t)(a >> 16); w[4 + i * 4] = (uint16_t)b; w[5 + i * 4] = (uint16_t)(b >> 16);
     }
     post_words(w, n + 1); free(w);
 }
+static void send_clear_id(uint16_t id) {
+    uint16_t w[2] = { (uint16_t)(3 << 12 | 1), id };
+    post_words(w, 2);
+}
+static void send_set(int idx) { Ent* e = &g_e[idx]; send_raw((uint16_t)(idx + 1), e->undo, e->ops, e->nops); }
 static void send_run(int idx) {
     Ent* e = &g_e[idx]; int n = 4 * e->nops;
     if (n > 0xFFF || !e->nops) return;
@@ -243,18 +280,135 @@ static void send_run(int idx) {
     }
     post_words(w, n + 1); free(w);
 }
-static void send_clear(int idx) {
-    uint16_t w[2] = { (uint16_t)(3 << 12 | 1), (uint16_t)(idx + 1) };
-    post_words(w, 2);
-}
+static void send_clear(int idx) { send_clear_id((uint16_t)(idx + 1)); }
 
 /* every live cheat that is on, again (the game started, or forgot them) */
 static void resend_all(void) {
-    if (!g_cs_init) return;
+    if (!g_cs_init || g_fol) return;                         /* a guest: the host's cheats are sent instead (follow_sync) */
     EnterCriticalSection(&g_cs);
     for (int i = 0; i < g_ne; i++)
         if (!strcmp(g_e[i].kind, "live") && strcmp(g_e[i].mode, "once") && ent_on(&g_e[i])) send_set(i);
     LeaveCriticalSection(&g_cs);
+}
+
+/* ---- a guest takes the host's cheats (the host's console copy on this PC has them: mod_cheats.c, hc_publish). While the session runs the window
+ * shows exactly the host's cheats as switched on (g_hon, read by ent_on) and sends them in this player's own stream; they are locked, the guest can't
+ * change them (a cheat that is on for the host and off here would make the games differ). The guest's own switches are never touched: they are not
+ * shown or sent meanwhile and are back when the session ends. Changes the host makes later follow. A host cheat this game doesn't have in its list is
+ * sent as it is (ids from 0x8000). DQIX_AR_NO_HOST_CHEATS=1: off. Everything here runs on the agent thread and only writes bytes of g_hon. */
+uint32_t mod_hostcheats_copy(uint8_t* out, uint32_t* used, uint32_t* n);
+#define HC_CAP (1u << 19)
+#define HOST_ID 0x8000u
+typedef struct { uint16_t id; uint32_t h; int idx; } Mir;
+static Mir g_mir[128]; static int g_nmir; static uint32_t g_mir_seq;
+static void follow_note(const wchar_t* t);
+static void refresh_ui(void);
+static void session_watch(const SessionInfo* si);
+static void restart_game(int rebuild);
+static uint32_t ops_hash(const uint32_t* ops, uint32_t nops) { uint32_t h = 2166136261u; for (uint32_t i = 0; i < nops * 2; i++) h = (h ^ ops[i]) * 16777619u; return h; }
+static void follow_sync(void) {
+    static uint8_t* buf;
+    if (!buf && !(buf = (uint8_t*)malloc(HC_CAP))) return;
+    uint32_t used = 0, cnt = 0, seq = mod_hostcheats_copy(buf, &used, &cnt);
+    if (!seq || seq == g_mir_seq) return;
+    g_mir_seq = seq;
+    Mir now[128]; int nn = 0, changed = 0;
+    EnterCriticalSection(&g_cs);
+    for (uint32_t o = 0; o + 8 <= used && nn < 128;) {
+        uint16_t id, un; uint32_t no;
+        memcpy(&id, buf + o, 2); memcpy(&un, buf + o + 2, 2); memcpy(&no, buf + o + 4, 4);
+        if (no > 1023 || o + 8 + 8 * (size_t)no > used) break;
+        uint32_t* ops = (uint32_t*)malloc(8 * (size_t)(no ? no : 1)); if (!ops) break;
+        memcpy(ops, buf + o + 8, 8 * (size_t)no);
+        uint32_t oh = ops_hash(ops, no), h = oh ^ un;
+        int idx = id >= 1 && (int)id - 1 < g_ne && !strcmp(g_e[id - 1].kind, "live") && (uint32_t)g_e[id - 1].nops == no && ops_hash(g_e[id - 1].ops, no) == oh ? (int)id - 1 : -1;
+        int same = 0; for (int k = 0; k < g_nmir; k++) if (g_mir[k].id == id && g_mir[k].h == h) same = 1;
+        if (!same) {
+            changed = 1;
+            if (idx >= 0) { g_hon[idx] = 1; send_set(idx); }
+            else send_raw((uint16_t)(HOST_ID + (id & 0x7FFF)), un, ops, (int)no);
+        }
+        now[nn].id = id; now[nn].h = h; now[nn].idx = idx; nn++;
+        free(ops); o += 8 + 8 * no;
+    }
+    for (int k = 0; k < g_nmir; k++) {
+        int still = 0; for (int j = 0; j < nn; j++) if (now[j].id == g_mir[k].id) still = 1;
+        if (still) continue;
+        changed = 1;
+        if (g_mir[k].idx >= 0) { g_hon[g_mir[k].idx] = 0; send_clear(g_mir[k].idx); }
+        else send_clear_id((uint16_t)(HOST_ID + (g_mir[k].id & 0x7FFF)));
+    }
+    memcpy(g_mir, now, sizeof(Mir) * (size_t)nn); g_nmir = nn;
+    LeaveCriticalSection(&g_cs);
+    if (changed) refresh_ui();
+}
+
+/* ---- a session that breaks: logged with the cheats that were on, and Reconnect.
+ * Every incident (out of sync, a player left or was lost, the connection to the host lost) goes into mods\\system\\session-incidents.txt with the time, the
+ * session's own message and the cheats that were on (for a guest: the host's), so a break that a cheat caused can be seen afterwards. Then the window offers
+ * "Reconnect": the game starts again with the same DQIX_SESSION (the host waits again, with the same relay code, a guest joins again and keeps trying for a
+ * minute), so both players only press one button instead of leaving, restarting and hosting a new lobby. */
+static void cheats_on_text(char* out, size_t n) {
+    out[0] = 0; int k = 0;
+    for (int i = 0; i < g_ne; i++) {
+        if (strcmp(g_e[i].kind, "live") || !strcmp(g_e[i].mode, "once") || !ent_on(&g_e[i])) continue;
+        size_t u = strlen(out); if (u + 4 >= n) break;
+        snprintf(out + u, n - u, "%s%s", k++ ? "; " : "", g_e[i].name);
+    }
+    int raw = 0; for (int i = 0; i < g_nmir; i++) if (g_mir[i].idx < 0) raw++;
+    if (raw) { size_t u = strlen(out); snprintf(out + u, n - u, "%s+%d host cheats that aren't in this game's list", k ? "; " : "", raw); k += raw; }
+    if (!k) snprintf(out, n, "(none)");
+}
+static void incident(const SessionInfo* si, const char* what) {
+    char on[3000]; cheats_on_text(on, sizeof on);
+    char path[MAX_PATH * 2]; snprintf(path, sizeof path, "%s", g_statepath);
+    char* sl = strrchr(path, '\\'); if (sl) strcpy(sl + 1, "session-incidents.txt"); else snprintf(path, sizeof path, "session-incidents.txt");
+    FILE* f = fopen(path, "ab"); if (!f) return;
+    SYSTEMTIME t; GetLocalTime(&t);
+    fprintf(f, "%04d-%02d-%02d %02d:%02d:%02d  %s  %s (%d players, input delay %d)\r\n    session says: %s\r\n    cheats on (%s): %s\r\n    cheats were %s\r\n",
+            t.wYear, t.wMonth, t.wDay, t.wHour, t.wMinute, t.wSecond, si->host ? "HOST" : "GUEST", what, si->n, si->delay, si->message,
+            si->host ? "the host's own" : g_fol ? "the host's, synced to this guest" : "this PC's own", on, strcmp(on, "(none)") ? "ON: a cheat may be the reason" : "off: not caused by a cheat");
+    fclose(f);
+    fprintf(stderr, "session incident: %s | cheats: %s\n", what, on);
+}
+static void session_text(char* out, size_t n, const SessionInfo* si) { snprintf(out, n, "%s", si->message[0] ? si->message : "the session ended"); }
+static wchar_t* wide(const char* s);
+static DWORD WINAPI reconnect_ask(LPVOID arg) {
+    char* why = (char*)arg;
+    wchar_t* w = wide(why), msg[1400];
+    swprintf(msg, 1400, L"The session with your friends broke:\n\n%ls\n\nReconnect now? Save first: the game restarts.\n\nBoth players press Reconnect: the host's game waits again (with the same code), the guest's game joins again by itself and keeps trying for a minute. The cheats come back as they were.", w ? w : L"");
+    free(w); free(why);
+    const char* auto_answer = getenv("DQIX_RECONNECT_TEST");        /* tests: "yes" / "no" instead of the dialog */
+    if (auto_answer ? !strcmp(auto_answer, "yes") : MessageBoxW(NULL, msg, L"DQIX Enhanced AR - session", MB_YESNO | MB_ICONWARNING | MB_TOPMOST | MB_SETFOREGROUND | MB_DEFBUTTON2) == IDYES) {
+        const char* ses = getenv("DQIX_SESSION");
+        if (ses && !strncmp(ses, "host", 4)) {                 /* the same relay code: the code in the lobby's address / hint, "DQ-ABCD-2345" */
+            SessionInfo si; session_info(&si);
+            const char* p = strstr(si.address, "DQ-"); if (!p) p = strstr(si.hint, "DQ-");
+            char code[16] = ""; if (p) { int k = 0; for (const char* c = p + 3; *c && k < 9; c++) if (*c != '-') code[k++] = *c; code[k] = 0; if (k != 8) code[0] = 0; }
+            if (code[0]) _putenv_s("DQIX_RELAY_CODE", code);
+        } else _putenv_s("DQIX_JOIN_RETRY", "30");
+        if (auto_answer) _putenv_s("DQIX_RECONNECT_TEST", "no");       /* tests: only the first break is answered yes, or the restarted game would reconnect forever */
+        void backup_flush(void); backup_flush();
+        restart_game(0);
+    }
+    return 0;
+}
+static void session_watch(const SessionInfo* si) {
+    static int seen3, desync, gone[4], asked;
+    if (si->state == 3) seen3 = 1;
+    if (!seen3) return;
+    char what[200] = "";
+    if (si->state == 3) {
+        if (si->desync && !desync) { desync = 1; snprintf(what, sizeof what, "OUT OF SYNC: the PCs no longer agree"); }
+        for (int k = 0; k < si->n && k < 4; k++) if (si->gone[k] && !gone[k]) { gone[k] = 1; snprintf(what, sizeof what, "%s left or was lost (their DS switched off)", si->names[k]); }
+    } else if (si->state == 4 || si->state == 5) snprintf(what, sizeof what, si->state == 4 ? "the session ended" : "the session failed");
+    if (!what[0]) return;
+    incident(si, what);
+    if (asked) return;
+    asked = 1;
+    char* why = (char*)malloc(600); if (!why) return;
+    char t[300]; session_text(t, sizeof t, si); snprintf(why, 600, "%s\n(%s)", what, t);
+    HANDLE h = CreateThread(NULL, 0, reconnect_ask, why, 0, NULL); if (h) CloseHandle(h);
 }
 
 void mod_cheatwin_show(void);
@@ -284,10 +438,26 @@ static DWORD WINAPI agent(LPVOID unused) {
         snprintf(g_test_import, sizeof g_test_import, "%s", t);
         Sleep(test_delay()); mod_cheatwin_show();
     }
+    int was = 0, no_host = getenv("DQIX_AR_NO_HOST_CHEATS") != NULL, fake = getenv("DQIX_CHEATWIN_FAKE_SESSION") != NULL;
     for (;;) {
         Sleep(200);
         uint32_t g = mod_cheats_gen();
-        if (g != last) { last = g; resend_all(); }
+        SessionInfo si; session_info(&si);
+        int ses = si.state == 3, fol = ses && !si.host && si.me > 0 && !no_host;
+        if (fake) ses = 1;                                  /* test hook: DQIX_CHEATWIN_FAKE_SESSION=1 locks the rows as in a session */
+        if (ses != (int)g_ses) { g_ses = ses; refresh_ui(); }
+        if (fol != was) {                                   /* joined (the host's cheats instead of mine) or the session ended (mine again) */
+            was = fol; last = g; g_nmir = 0; g_mir_seq = 0;
+            uint16_t all[1] = { (uint16_t)(4 << 12) }; post_words(all, 1);
+            if (fol) {
+                if (!g_hon) g_hon = (uint8_t*)calloc((size_t)(g_ne ? g_ne : 1), 1);
+                if (g_hon) { memset(g_hon, 0, (size_t)g_ne); g_fol = 1; }
+                follow_note(L"Playing with friends: the host's cheats are on for you and stay as they are. Yours come back when the session ends.");
+            } else { g_fol = 0; if (g_hon) memset(g_hon, 0, (size_t)g_ne); resend_all(); follow_note(L""); }
+            refresh_ui();
+        } else if (g != last) { last = g; g_nmir = 0; g_mir_seq = 0; resend_all(); }
+        if (fol) follow_sync();
+        session_watch(&si);
     }
     return 0;
 }
@@ -295,6 +465,7 @@ static DWORD WINAPI agent(LPVOID unused) {
 /* a switch changed: state, game */
 static void apply(int idx, int on) {
     Ent* e = &g_e[idx];
+    if (locked(e)) return;
     EnterCriticalSection(&g_cs);
     if (on && e->group[0])                                   /* a choice: one at a time */
         for (int i = 0; i < g_ne; i++)
@@ -305,13 +476,6 @@ static void apply(int idx, int on) {
     st_set(skind(e), e->id, on);
     st_save();
     if (!strcmp(e->kind, "live")) { if (on) send_set(idx); else send_clear(idx); }
-    LeaveCriticalSection(&g_cs);
-}
-
-static void all_off(void) {
-    EnterCriticalSection(&g_cs);
-    for (int i = 0; i < g_ne; i++) if (ent_on(&g_e[i]) && in_face(&g_e[i])) { st_set(skind(&g_e[i]), g_e[i].id, 0); if (!strcmp(g_e[i].kind, "live")) send_clear(i); }
-    st_save();
     LeaveCriticalSection(&g_cs);
 }
 
@@ -333,7 +497,7 @@ void mod_cheatwin_boot(void) {
 /* ---------------------------------------------------------------- the window
  * Left: the pages (owner-drawn list), the first one, "Enabled", lists everything that is on. Right: the page's rows in a scrolling panel. A row is a check box
  * (a cheat), a drop-down (a choice of which only one can be on: "Off" + the options). */
-enum { IDC_SIDE = 100, IDC_SEARCH, IDC_OFF, IDC_CLOSE, IDC_TITLE, IDC_COUNT, IDC_NOTE, IDC_SHARE, IDC_IMPORT, IDC_ROW0 = 1000, WM_SHOW_CHEATS = WM_APP + 1 };
+enum { IDC_SIDE = 100, IDC_SEARCH, IDC_CLOSE, IDC_TITLE, IDC_COUNT, IDC_NOTE, IDC_SHARE, IDC_IMPORT, IDC_ROW0 = 1000, WM_SHOW_CHEATS = WM_APP + 1 };
 enum { R_CHECK, R_ONCE, R_GROUP, R_KEY, R_HEAD };                 /* R_HEAD: a section's title bar (click: open / shut); sec = its g_sec index */
 typedef struct { int kind, idx, gi, y, h, nm, on, sec, *members; HWND main, sub, right, combo, btn; } Row;
 
@@ -370,7 +534,10 @@ static HWND g_bp;                                  /* the battle window's panel 
 static void bp_refresh(void);
 static int g_search_page;
 static HBRUSH g_box;
-static HWND g_win, g_side, g_host, g_title, g_count, g_note, g_off, g_close, g_share, g_import;
+static HWND g_win, g_side, g_host, g_title, g_count, g_note, g_close, g_share, g_import;
+static void follow_note(const wchar_t* t) { if (g_note) SetWindowTextW(g_note, t); }
+#define WM_REFRESH_PAGE (WM_APP + 9)
+static void refresh_ui(void) { if (g_host) PostMessageW(g_host, WM_REFRESH_PAGE, 0, 0); }
 static HFONT g_font, g_small, g_bold, g_head, g_mono;
 static HBRUSH g_white, g_gray;
 static HWND g_tip;
@@ -512,7 +679,7 @@ static void upd_start(void) {
     HANDLE h = CreateThread(NULL, 0, upd_thread, NULL, 0, NULL);
     if (h) CloseHandle(h);
 }
-/* the menu item Cheats > Check for update (frontend_sdl.c, command 368) */
+/* the menu item Cheats > Check for update (frontend_sdl.c, command 9368) */
 void mod_update_check(void) {
     if (!g_root[0]) return;
     HANDLE h = CreateThread(NULL, 0, upd_thread, (LPVOID)1, 0, NULL);
@@ -521,18 +688,15 @@ void mod_update_check(void) {
 
 static const char* label(const Ent* e) { return e->option[0] ? e->option : e->name; }
 
-/* the small grey line under a cheat: who needs it, the keys to hold, status, note */
-static const char* who_short(const Ent* e) {
-    if (!strcmp(e->kind, "live")) return "One player";                   /* (One player / Your PC only in yellow, All players in pink: rich_text) */
-    if (!strcmp(e->kind, "launch")) return !strncmp(e->env, "DQIX_MOD_", 9) ? "All players \xC2\xB7 next start" : "Your PC only \xC2\xB7 next start";
-    return "All players \xC2\xB7 needs a rebuild";
+/* the small grey line under a cheat: the keys to hold, status, note. Cheats of a session are the host's, sent to every guest automatically (follow_sync),
+ * so the grey line no longer says who has to switch what on; it only says when a change takes effect. */
+static const char* when_words(const char* kind) {
+    if (!strcmp(kind, "live")) return "";
+    if (!strcmp(kind, "launch")) return "next start";
+    return "needs a rebuild";
 }
-/* the same for a choice (a drop-down): by its kind, a launch choice by its first option */
-static const char* who_group(const Grp* g) {
-    if (!strcmp(g->kind, "live")) return "One player";
-    if (!strcmp(g->kind, "launch")) return g->nmem && !strncmp(g_e[g->mem[0]].env, "DQIX_MOD_", 9) ? "All players \xC2\xB7 next start" : "Your PC only \xC2\xB7 next start";
-    return "All players \xC2\xB7 needs a rebuild";
-}
+static const char* who_short(const Ent* e) { return when_words(e->kind); }
+static const char* who_group(const Grp* g) { return when_words(g->kind); }
 
 /* ---- smooth shapes (pills, round knobs, the drop-down's arrow): drawn into a 32-bit bitmap with anti-aliased edges (a signed
  * distance per pixel), text on top with GDI, then copied to the screen in one go (no flicker) */
@@ -608,14 +772,22 @@ static void cv_text(Cv* c, const wchar_t* t, RECT r, HFONT f, COLORREF col, UINT
 }
 
 /* the grey line under a cheat */
+static void tag_add(char* out, size_t n, const char* pre, const char* a, const char* b) {
+    if (!a[0] && !b[0]) return;
+    size_t u = strlen(out); if (u >= n) return;
+    snprintf(out + u, n - u, "%s%s%s%s", u ? " \xC2\xB7 " : "", pre, a, b);
+}
 static void tag_text(const Ent* e, char* out, size_t n) {
+    out[0] = 0;
     if (!strcmp(e->kind, "ui")) { snprintf(out, n, "%s", e->note); return; }
-    if (!strcmp(e->mode, "once") && !strcmp(e->kind, "live")) {      /* no switch: who needs it and "once" are no news */
-        snprintf(out, n, "%s%s%s", !strcmp(e->status, "untested") ? "untested" : "", !strcmp(e->status, "untested") && e->note[0] ? " \xC2\xB7 " : "", e->note);
-        return;
+    if (locked(e)) { snprintf(out, n, "%s", lock_why(e)); return; }
+    int untested = !strcmp(e->status, "untested");
+    if (!(!strcmp(e->mode, "once") && !strcmp(e->kind, "live"))) {    /* a one-time row has no switch: no news about when it takes effect */
+        tag_add(out, n, "", who_short(e), "");
+        if (e->keys[0]) tag_add(out, n, "hold ", e->keys, "");
     }
-    snprintf(out, n, "%s%s%s%s%s%s", who_short(e), e->keys[0] ? " \xC2\xB7 hold " : "", e->keys, !strcmp(e->status, "untested") ? " \xC2\xB7 untested" : "",
-             e->note[0] ? " \xC2\xB7 " : "", e->note);
+    if (untested) tag_add(out, n, "", "untested", "");
+    tag_add(out, n, "", e->note, "");
 }
 
 /* the hover text: the cheat's longer explanation (mods/system/about.tsv, through the catalog), nothing the row already shows
@@ -629,8 +801,6 @@ static void hover_text(const char* about, wchar_t* out, size_t n) {
 /* ---- the grey line, drawn by hand: word-wrapped like DrawText, with the DS buttons in it (hold L+R, START+UP, [R],
  * L + R + SELECT...) in their own colour. rich_text(..., draw=0) only measures (the row height). */
 #define COL_KEY RGB(122, 178, 255)
-#define COL_WHO RGB(230, 196, 92)                                 /* "One player" / "Your PC only" at the start: yellow */
-#define COL_ALL RGB(242, 132, 196)                                /* "All players": pink */
 static int key_part(const wchar_t* p, int n, int loose) {     /* one button name; loose: also "Start", "Up"... */
     static const wchar_t* up[] = { L"A", L"B", L"X", L"Y", L"L", L"R", L"START", L"SELECT", L"UP", L"DOWN", L"LEFT", L"RIGHT" };
     static const wchar_t* cap[] = { L"Start", L"Select", L"Up", L"Down", L"Left", L"Right" };
@@ -655,10 +825,6 @@ static int rich_text(HDC dc, const wchar_t* t, RECT rc, int draw) {
     SIZE z; GetTextExtentPoint32W(dc, L" ", 1, &z); sp = z.cx;
     int x = 0, y = 0, W = rc.right - rc.left, prevkey = 0, prevctx = 0;
     const wchar_t* p = t;
-    static const wchar_t* who[] = { L"One player", L"All players", L"Your PC only" };
-    const wchar_t* who_end = t;                                      /* the who-needs-it words at the start: yellow */
-    for (int i = 0; i < 3; i++) if (!wcsncmp(t, who[i], wcslen(who[i]))) who_end = t + wcslen(who[i]);
-    COLORREF who_col = !wcsncmp(t, L"All players", 11) ? COL_ALL : COL_WHO;
     if (draw) SetBkMode(dc, TRANSPARENT);
     while (*p) {
         int gap = 0; while (*p == L' ') { p++; gap++; }
@@ -677,10 +843,7 @@ static int rich_text(HDC dc, const wchar_t* t, RECT rc, int draw) {
         else if ((b - a) == 1 && *a == L'+' && prevkey) key = 1;       /* the "+" of "L + R" */
         GetTextExtentPoint32W(dc, p, n, &z);
         if (x > 0 && x + z.cx > W) { x = 0; y += lh; }
-        if (draw && p < who_end) {
-            SetTextColor(dc, who_col);
-            TextOutW(dc, rc.left + x, rc.top + y, p, n);
-        } else if (draw && key) {                                   /* only the button in blue: brackets, quotes, commas stay grey */
+        if (draw && key) {                                   /* only the button in blue: brackets, quotes, commas stay grey */
             SIZE za, zb; GetTextExtentPoint32W(dc, p, (int)(a - p), &za); GetTextExtentPoint32W(dc, p, (int)(b - p), &zb);
             SetTextColor(dc, COL_GRAY); TextOutW(dc, rc.left + x, rc.top + y, p, (int)(a - p));
             SetTextColor(dc, COL_KEY); TextOutW(dc, rc.left + x + za.cx, rc.top + y, a, (int)(b - a));
@@ -706,15 +869,17 @@ static HWND g_hot;                                                 /* the contro
 static LRESULT CALLBACK hot_proc(HWND h, UINT m, WPARAM wp, LPARAM lp);
 static void hook(HWND h) { SetPropW(h, L"dqix.old", (HANDLE)SetWindowLongPtrW(h, GWLP_WNDPROC, (LONG_PTR)hot_proc)); }
 
-/* a pill button (Everything off, Close, Share, Import; "Use" on a row in green) */
+/* a pill button (Close, Share, Import; "Use" on a row in green) */
+static Row* row_of_id(int id);
 static void draw_pill_button(const DRAWITEMSTRUCT* d) {
     RECT rc = d->rcItem; int w = rc.right - rc.left, h = rc.bottom - rc.top; Cv c;
     if (!cv_begin(&c, w, h, COL_BG)) return;
     int hot = g_hot == d->hwndItem, down = (d->itemState & ODS_SELECTED) != 0;
-    int bid = GetDlgCtrlID(d->hwndItem), use = bid != IDC_OFF && bid != IDC_CLOSE && bid != IDC_SHARE && bid != IDC_IMPORT;     /* a row's button: "Use" */
+    int bid = GetDlgCtrlID(d->hwndItem), use = bid != IDC_CLOSE && bid != IDC_SHARE && bid != IDC_IMPORT;     /* a row's button: "Use" */
     float r = (float)h / 2;
     if (use) {                                               /* green: it does something now (the gold is for switches that are on) */
-        cv_box(&c, 0.5f, 0.5f, (float)w - 0.5f, (float)h - 0.5f, r, down ? RGB(48, 128, 94) : hot ? RGB(112, 214, 164) : RGB(84, 184, 138), 0);
+        Row* tr = row_of_id(bid); int tg_on = tr && tr->idx >= 0 && !strcmp(g_e[tr->idx].mode, "toggle") && tr->on;      /* Vanish while vanished: gold */
+        cv_box(&c, 0.5f, 0.5f, (float)w - 0.5f, (float)h - 0.5f, r, tg_on ? (down ? RGB(190, 150, 50) : hot ? RGB(250, 208, 108) : COL_ACCENT) : down ? RGB(48, 128, 94) : hot ? RGB(112, 214, 164) : RGB(84, 184, 138), 0);
         wchar_t ut[64]; GetWindowTextW(d->hwndItem, ut, 64);
         RECT ur = { 0, down ? 1 : 0, w, h + (down ? 1 : 0) };
         cv_text(&c, ut, ur, g_bold, RGB(10, 32, 22), DT_CENTER | DT_VCENTER | DT_SINGLELINE);
@@ -816,7 +981,7 @@ static void update_count(void) {
     int cheats = 0, on = 0;
     for (int i = 0; i < g_nrows; i++) {
         Row* r = &g_rows[i];
-        if (r->kind == R_CHECK) { cheats++; on += ent_on(&g_e[r->idx]); }
+        if (r->kind == R_CHECK || (r->kind == R_ONCE && r->idx >= 0 && !strcmp(g_e[r->idx].mode, "toggle"))) { cheats++; on += ent_on(&g_e[r->idx]); }
         else if (r->kind == R_GROUP) { cheats++; for (int k = 0; k < r->nm; k++) if (ent_on(&g_e[r->members[k]])) { on++; break; } }
     }
     if (g_cur_page >= 0 && g_cur_page < g_npg) page_count(g_pg[g_cur_page], -1, &cheats, &on);     /* a page: shut sections count too */
@@ -845,7 +1010,7 @@ static void lay_rows(void) {
             if (g_tip) { TOOLINFOW ti; memset(&ti, 0, sizeof ti); ti.cbSize = sizeof ti; ti.hwnd = g_host; ti.uId = (UINT_PTR)i; ti.rect.right = W; ti.rect.top = y - g_scroll; ti.rect.bottom = ti.rect.top + r->h; SendMessageW(g_tip, TTM_NEWTOOLRECTW, 0, (LPARAM)&ti); }
             y += r->h; continue;
         }
-        int rightw = r->kind == R_GROUP ? 230 : r->kind == R_KEY ? (W - 2 * PAD_X) * 42 / 100 : r->btn ? 112 : 0;
+        int rightw = r->kind == R_GROUP ? 230 : r->kind == R_KEY ? (W - 2 * PAD_X) * 42 / 100 : r->btn ? (r->idx >= 0 && !strcmp(g_e[r->idx].mode, "toggle") ? 190 : 112) : 0;
         int gap = rightw ? 14 : 0, textw = W - 2 * PAD_X - rightw - gap, indent = r->kind == R_CHECK ? 48 : 0;
         int subh = 0, rh = 0;
         wchar_t buf[600];
@@ -953,7 +1118,9 @@ static void add_entry(int p, int i, char* seen) {
                 if (p == g_search_page ? (all || match_words(m)) : (special || !strcmp(m->cat, g_pg[p]) || !strcmp(m->also, g_pg[p]))) r->members[r->nm++] = g->mem[j];
             }
             r->main = mk(L"STATIC", g_g[gi].title, SS_NOPREFIX | SS_ENDELLIPSIS | SS_CENTERIMAGE, g_bold, id);
-            { char st[200]; snprintf(st, sizeof st, "%s \xC2\xB7 Choose one: only one of these can be on.", who_group(g));
+            { char st[300]; const char* wg = who_group(g);
+              if (locked_kind(g->kind, "")) snprintf(st, sizeof st, "%s", lock_why_kind2(g->kind));
+              else snprintf(st, sizeof st, "%s%sChoose one: only one of these can be on.", wg, wg[0] ? " \xC2\xB7 " : "");
               r->sub = mk(L"STATIC", st, SS_OWNERDRAW, g_small, id); SetWindowLongPtrW(r->sub, GWLP_USERDATA, 1); }
             r->combo = mk(L"COMBOBOX", "", CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP, g_font, id); dark(r->combo, L"DarkMode_CFD");
             SendMessageW(r->combo, CB_SETITEMHEIGHT, (WPARAM)-1, 24); SendMessageW(r->combo, CB_SETITEMHEIGHT, 0, 22);
@@ -966,14 +1133,17 @@ static void add_entry(int p, int i, char* seen) {
             }
             SendMessageW(r->combo, CB_SETCURSEL, (WPARAM)cur, 0);
             SendMessageW(r->combo, CB_SETMINVISIBLE, 12, 0);
+            if (locked_kind(g->kind, "")) EnableWindow(r->combo, FALSE);
             return;
         }
     }
     if (p == g_search_page && ++g_found > SEARCH_MAX) return;
     char shown[500]; snprintf(shown, sizeof shown, "%s", label(e));
     if (p == g_on_page) { const Grp* gg = e->gi >= 0 ? &g_g[e->gi] : NULL; if (gg) snprintf(shown, sizeof shown, "%s: %s", gg->title, label(e)); else snprintf(shown, sizeof shown, "%s", e->name); }
-    int once = !strcmp(e->mode, "once"), both = (!strcmp(e->kind, "live") && (once || !strcmp(e->mode, "both"))) || !strcmp(e->kind, "ui");
+    int tgl = !strcmp(e->mode, "toggle");                       /* a button that is switched on and off (Vanish) */
+    int once = !strcmp(e->mode, "once") || tgl, both = (!strcmp(e->kind, "live") && (once || !strcmp(e->mode, "both"))) || !strcmp(e->kind, "ui");
     Row* r = add_row(once ? R_ONCE : R_CHECK, i, -1); int id = IDC_ROW0 + g_nrows - 1;
+    if (tgl) r->on = ent_on(e);
     if (once) r->main = mk(L"STATIC", shown, SS_NOPREFIX | SS_ENDELLIPSIS | SS_CENTERIMAGE, g_font, id);
     else {
         r->main = mk(L"BUTTON", shown, BS_OWNERDRAW | WS_TABSTOP, g_font, id);
@@ -981,7 +1151,8 @@ static void add_entry(int p, int i, char* seen) {
     }
     char tag[700]; tag_text(e, tag, sizeof tag);
     r->sub = mk(L"STATIC", tag, SS_OWNERDRAW, g_small, id); SetWindowLongPtrW(r->sub, GWLP_USERDATA, 1);
-    if (both) r->btn = mk(L"BUTTON", !strcmp(e->kind, "ui") ? "Open" : "Use", BS_OWNERDRAW | WS_TABSTOP, g_font, id);
+    if (both) r->btn = mk(L"BUTTON", !strcmp(e->kind, "ui") ? "Open" : tgl ? (r->on ? "Vanished \xC2\xB7 show up" : "Vanish") : "Use", BS_OWNERDRAW | WS_TABSTOP, g_font, id);
+    if (locked(e)) { if (r->kind == R_CHECK) EnableWindow(r->main, FALSE); else if (r->btn && tgl) EnableWindow(r->btn, FALSE); }
 }
 
 /* a section's title in the battle window: who it is for, as it is now */
@@ -1109,7 +1280,6 @@ static void layout(int cw, int ch) {
     MoveWindow(g_host, sw, 66, cw - sw, ch - 66 - 50, TRUE);
     if (g_bp) MoveWindow(g_bp, 0, 66, cw, ch - 66 - 50, TRUE);
     MoveWindow(g_note, sw + PAD_X, ch - 34, cw - sw - 2 * PAD_X - 262, 18, TRUE);
-    MoveWindow(g_off, cw - PAD_X - 150 - 10 - 92, ch - 42, 150, 32, TRUE);
     MoveWindow(g_close, cw - PAD_X - 92, ch - 42, 92, 32, TRUE);
     if (g_nrows) lay_rows();
 }
@@ -1237,7 +1407,9 @@ static LRESULT CALLBACK hostproc(HWND h, UINT m, WPARAM wp, LPARAM lp) {
             RECT rc = d->rcItem; int w = rc.right - rc.left, ht = rc.bottom - rc.top, on = r->on, hot = g_hot == d->hwndItem; Cv c;
             if (!cv_begin(&c, w, ht, COL_BG)) return TRUE;
             float cy = (float)ht / 2, tw = 36, th = 20;
-            COLORREF track = on ? (hot ? RGB(240, 194, 86) : COL_ACCENT) : (hot ? RGB(86, 88, 97) : COL_OFF);
+            int dis = !IsWindowEnabled(d->hwndItem);                 /* locked in a session: dimmed, no hover */
+            if (dis) hot = 0;
+            COLORREF track = dis ? (on ? RGB(110, 94, 54) : RGB(50, 51, 56)) : on ? (hot ? RGB(240, 194, 86) : COL_ACCENT) : (hot ? RGB(86, 88, 97) : COL_OFF);
             cv_box(&c, 0, cy - th / 2, tw, cy + th / 2, th / 2, track, 0);
             if (!on) cv_box(&c, 0, cy - th / 2, tw, cy + th / 2, th / 2, hot ? RGB(110, 113, 123) : RGB(92, 94, 103), 1.0f);
             float k = 14, kx = on ? tw - 3 - k : 3;
@@ -1245,7 +1417,7 @@ static LRESULT CALLBACK hostproc(HWND h, UINT m, WPARAM wp, LPARAM lp) {
             cv_box(&c, kx, cy - k / 2, kx + k, cy + k / 2, k / 2, on ? RGB(255, 255, 255) : RGB(214, 215, 221), 0);
             if ((d->itemState & ODS_FOCUS) && !(d->itemState & ODS_NOFOCUSRECT)) cv_box(&c, -0.5f, cy - th / 2 - 3, tw + 3, cy + th / 2 + 3, th / 2 + 3, COL_ACCENT, 1.2f);
             wchar_t t[400]; GetWindowTextW(d->hwndItem, t, 400);
-            RECT tr = { 48, 0, w, ht }; cv_text(&c, t, tr, g_font, COL_TEXT, DT_SINGLELINE | DT_VCENTER | DT_END_ELLIPSIS);
+            RECT tr = { 48, 0, w, ht }; cv_text(&c, t, tr, g_font, dis ? COL_GRAY : COL_TEXT, DT_SINGLELINE | DT_VCENTER | DT_END_ELLIPSIS);
             cv_end(&c, d->hDC, rc.left, rc.top);
             return TRUE;
         }
@@ -1288,6 +1460,7 @@ static LRESULT CALLBACK hostproc(HWND h, UINT m, WPARAM wp, LPARAM lp) {
         return 0;
     case WM_SIZE: if (g_nrows) lay_rows(); return 0;
     case WM_TOGGLE_SECTION: toggle_section((int)wp); return 0;
+    case WM_REFRESH_PAGE: g_keep_scroll = g_scroll; g_last_q[0] = 0; build_page(); return 0;
     case WM_COMMAND: {
         Row* r = row_of_id(LOWORD(wp)); if (!r) break;
         int code = HIWORD(wp);
@@ -1299,6 +1472,10 @@ static LRESULT CALLBACK hostproc(HWND h, UINT m, WPARAM wp, LPARAM lp) {
             InvalidateRect(r->main, NULL, FALSE);
         } else if (r->btn && (HWND)lp == r->btn && code == BN_CLICKED && !strcmp(g_e[r->idx].kind, "ui")) {
             g_mode = 2; mod_roster(&g_ro); PostMessageW(g_win, WM_SHOW_CHEATS, 0, 0);          /* the battle window (cards) */
+        } else if (r->btn && (HWND)lp == r->btn && code == BN_CLICKED && !strcmp(g_e[r->idx].mode, "toggle")) {     /* Vanish: on, the button shows it, again: off */
+            int on = !r->on;
+            if (entry_changed(r, r->idx, on)) { r->on = on; SetWindowTextW(r->btn, on ? L"Vanished \u00B7 show up" : L"Vanish"); }
+            InvalidateRect(r->btn, NULL, FALSE);
         } else if (r->btn && (HWND)lp == r->btn && code == BN_CLICKED && !strcmp(g_e[r->idx].kind, "live")) {
             EnterCriticalSection(&g_cs); send_run(r->idx); LeaveCriticalSection(&g_cs);
         }
@@ -1497,7 +1674,7 @@ static const wchar_t* glyph_of(const Ent* e) {
     static const struct { const char* s; const wchar_t* g; } k[] = {
         { ":keep", L"∞" }, { ":max", L"♥" }, { ":tension", L"⚡" }, { ":coup", L"⚔" }, { ":invincible", L"✦" },
         { ":defeat", L"☠" }, { ":hp1", L"♡" }, { ":mp0", L"✖" }, { ":sleep", L"☾" }, { ":poison", L"☣" },
-        { ":stun", L"✺" }, { ":confuse", L"?" } };
+        { ":stun", L"✺" }, { ":confuse", L"?" }, { ":buffs", L"▲" }, { ":debuffs", L"▼" } };
     for (size_t i = 0; i < sizeof k / sizeof *k; i++) if (strstr(e->id, k[i].s)) return k[i].g;
     return L"•";
 }
@@ -1572,19 +1749,20 @@ static void bp_paint(HWND h) {
                 if (y1 < 0 || y0 > cr.bottom) continue;
                 cv_box(&c, x0, y0, x1, y1, 12, COL_LINE, 1.0f); cv_box(&c, x0 + 1, y0 + 1, x1 - 1, y1 - 1, 11, COL_BOX, 0);
                 cv_box(&c, x0 + 14, y0 + 12, x0 + 58, y0 + 56, 22, who_color(who), 0);
+                int down = !enemy && g_ro.hpmax[who] > 0 && g_ro.hp[who] == 0;                  /* a fallen member: red name, HP 0 */
                 char nm[40]; const char* name = enemy ? enemy_name(n) : g_ro.name[who];
                 if (!name || !name[0]) snprintf(nm, sizeof nm, "Enemy %d", n + 1); else snprintf(nm, sizeof nm, "%s", name);
                 RECT lr = { (int)x0 + 14, (int)y0 + 12, (int)x0 + 58, (int)y0 + 56 };
                 if (enemy) cv_text(&c, L"☠", lr, g_sym, RGB(40, 24, 24), DT_CENTER | DT_VCENTER | DT_SINGLELINE);
                 else { char l[2] = { nm[0], 0 }; put(&c, l, lr, g_head, RGB(30, 30, 34), DT_CENTER | DT_VCENTER | DT_SINGLELINE); }
                 RECT nr = { (int)x0 + 68, (int)y0 + 10, (int)x1 - 110, (int)y0 + 30 };
-                put(&c, nm, nr, g_bold, COL_TEXT, DT_SINGLELINE | DT_END_ELLIPSIS);
+                put(&c, nm, nr, g_bold, down ? RGB(240, 104, 104) : COL_TEXT, DT_SINGLELINE | DT_END_ELLIPSIS);
                 { char sub[40]; if (enemy) snprintf(sub, sizeof sub, "Enemy %d", n + 1); else if (who == 0) snprintf(sub, sizeof sub, "Hero"); else snprintf(sub, sizeof sub, "Player %d", who + 1);
                   RECT sr = { (int)x1 - 104, (int)y0 + 11, (int)x1 - 14, (int)y0 + 30 }; put(&c, sub, sr, g_small, COL_GRAY, DT_RIGHT | DT_SINGLELINE); }
                 int hp = enemy ? g_ro.enemy_hp[n] : g_ro.hp[who], hm = enemy ? g_ro.enemy_max_hp[n] : g_ro.hpmax[who];
                 float bx = x0 + 68, bw = x1 - 14 - bx - 74;
                 bar(&c, bx, y0 + 38, bw, 8, hp, hm, hp_color(hp, hm));
-                { char t[40]; if (hm > 0) snprintf(t, sizeof t, "HP %d/%d", hp, hm); else snprintf(t, sizeof t, "HP %d", hp);
+                { char t[40]; if (down) snprintf(t, sizeof t, "Fallen"); else if (hm > 0) snprintf(t, sizeof t, "HP %d/%d", hp, hm); else snprintf(t, sizeof t, "HP %d", hp);
                   RECT tr = { (int)(bx + bw + 8), (int)y0 + 33, (int)x1 - 8, (int)y0 + 49 }; put(&c, t, tr, g_small, COL_TEXT, DT_SINGLELINE); }
                 if (!enemy) {
                     int mp = g_ro.mp[who], mm = g_ro.mpmax[who];
@@ -1702,7 +1880,7 @@ static LRESULT CALLBACK wndproc(HWND h, UINT m, WPARAM wp, LPARAM lp) {
     case WM_MEASUREITEM: { MEASUREITEMSTRUCT* mi = (MEASUREITEMSTRUCT*)lp; if (mi->CtlID == IDC_SIDE) { mi->itemHeight = 32; return TRUE; } break; }
     case WM_DRAWITEM:
         if (wp == IDC_SIDE) { draw_side((DRAWITEMSTRUCT*)lp); return TRUE; }
-        if (wp == IDC_OFF || wp == IDC_CLOSE || wp == IDC_SHARE || wp == IDC_IMPORT) { draw_pill_button((DRAWITEMSTRUCT*)lp); return TRUE; }
+        if (wp == IDC_CLOSE || wp == IDC_SHARE || wp == IDC_IMPORT) { draw_pill_button((DRAWITEMSTRUCT*)lp); return TRUE; }
         break;
     case WM_COMMAND:
         switch (LOWORD(wp)) {
@@ -1714,9 +1892,6 @@ static LRESULT CALLBACK wndproc(HWND h, UINT m, WPARAM wp, LPARAM lp) {
         case IDC_CLOSE: case IDCANCEL: ShowWindow(h, SW_HIDE); return 0;
         case IDC_SHARE: share_settings(); return 0;
         case IDC_IMPORT: import_settings(); return 0;
-        case IDC_OFF:
-            if (MessageBoxW(h, L"Switch every cheat off?", L"Cheats", MB_YESNO | MB_ICONQUESTION) == IDYES) { all_off(); build_page(); SetWindowTextW(g_note, L"Everything is off."); }
-            return 0;
         }
         break;
     }
@@ -1758,7 +1933,6 @@ static void apply_mode(void) {
     ShowWindow(g_share, g_mode == 2 ? SW_HIDE : SW_SHOW); ShowWindow(g_import, g_mode == 2 ? SW_HIDE : SW_SHOW);
     if (g_bp) ShowWindow(g_bp, g_mode == 2 ? SW_SHOW : SW_HIDE);
     { RECT lr; GetClientRect(g_win, &lr); layout(lr.right, lr.bottom); }
-    SetWindowTextW(g_off, L"Everything off");
     SendMessageW(g_side, LB_RESETCONTENT, 0, 0);
     if (!g_mode) { int at0 = (int)SendMessageW(g_side, LB_ADDSTRING, 0, (LPARAM)L"Enabled"); SendMessageW(g_side, LB_SETITEMDATA, (WPARAM)at0, g_on_page); }
     for (int i = 0; i < g_npg; i++) {
@@ -1831,6 +2005,7 @@ static void test_step(int step) {
             InvalidateRect(g_bp, NULL, FALSE); return;
         }
         select_page_of(idx);
+        if (locked(&g_e[idx])) { fprintf(stderr, "cheatwin test: locked %s\n", id); return; }
         for (int i = 0; i < g_nrows && now; i++) {
             Row* r = &g_rows[i];
             if ((r->kind == R_CHECK || r->kind == R_ONCE) && r->idx == idx) {
@@ -1844,6 +2019,7 @@ static void test_step(int step) {
         for (int i = 0; i < g_nrows; i++) {
             Row* r = &g_rows[i]; int k = -1;
             if (r->kind == R_CHECK && r->idx == idx) { r->on = 1; InvalidateRect(r->main, NULL, FALSE); entry_changed(r, idx, 1); k = 0; }
+            else if (r->kind == R_ONCE && r->idx == idx && r->btn && !strcmp(g_e[idx].mode, "toggle")) { SendMessageW(r->btn, BM_CLICK, 0, 0); k = 0; }
             else if (r->kind == R_GROUP) { for (int q = 0; q < r->nm; q++) if (r->members[q] == idx) { SendMessageW(r->combo, CB_SETCURSEL, (WPARAM)(q + 1), 0); group_changed(r, q + 1); k = 0; } }
             if (k == 0) { fprintf(stderr, "cheatwin test: switched on %s\n", g_test_id); break; }
         }
@@ -1958,14 +2134,13 @@ static DWORD WINAPI ui_thread(LPVOID unused) {
     g_host = CreateWindowExW(WS_EX_CONTROLPARENT, L"DqixCheatPage", L"", WS_CHILD | WS_VISIBLE | WS_CLIPCHILDREN, 0, 0, 10, 10, g_win, NULL, hi, NULL);
     g_bp = CreateWindowExW(0, L"DqixBattlePanel", L"", WS_CHILD, 0, 0, 10, 10, g_win, NULL, hi, NULL);
     g_note = CreateWindowExW(0, L"STATIC", L"Switches work at once while you play. Save your game first.", WS_CHILD | WS_VISIBLE | SS_NOPREFIX | SS_ENDELLIPSIS, 0, 0, 10, 10, g_win, (HMENU)(UINT_PTR)IDC_NOTE, hi, NULL);
-    g_off = CreateWindowExW(0, L"BUTTON", L"Everything off", WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_OWNERDRAW, 0, 0, 10, 10, g_win, (HMENU)(UINT_PTR)IDC_OFF, hi, NULL);
     g_close = CreateWindowExW(0, L"BUTTON", L"Close", WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_OWNERDRAW, 0, 0, 10, 10, g_win, (HMENU)(UINT_PTR)IDC_CLOSE, hi, NULL);
     g_share = CreateWindowExW(0, L"BUTTON", L"Share", WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_OWNERDRAW, 0, 0, 10, 10, g_win, (HMENU)(UINT_PTR)IDC_SHARE, hi, NULL);
     g_import = CreateWindowExW(0, L"BUTTON", L"Import", WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_OWNERDRAW, 0, 0, 10, 10, g_win, (HMENU)(UINT_PTR)IDC_IMPORT, hi, NULL);
-    hook(g_off); hook(g_close); hook(g_share); hook(g_import);
+    hook(g_close); hook(g_share); hook(g_import);
     SendMessageW(g_share, WM_SETFONT, (WPARAM)g_font, TRUE); SendMessageW(g_import, WM_SETFONT, (WPARAM)g_font, TRUE);
     SendMessageW(g_title, WM_SETFONT, (WPARAM)g_head, TRUE); SendMessageW(g_count, WM_SETFONT, (WPARAM)g_small, TRUE); SendMessageW(g_note, WM_SETFONT, (WPARAM)g_small, TRUE);
-    SendMessageW(g_off, WM_SETFONT, (WPARAM)g_font, TRUE); SendMessageW(g_close, WM_SETFONT, (WPARAM)g_font, TRUE); SendMessageW(g_side, WM_SETFONT, (WPARAM)g_font, TRUE);
+    SendMessageW(g_close, WM_SETFONT, (WPARAM)g_font, TRUE); SendMessageW(g_side, WM_SETFONT, (WPARAM)g_font, TRUE);
     SendMessageW(g_side, LB_SETITEMHEIGHT, 0, 32);
     wc.lpfnWndProc = cardproc; wc.lpszClassName = L"DqixCheatCard"; wc.hbrBackground = NULL; wc.style = CS_DROPSHADOW; RegisterClassW(&wc);
     g_card = CreateWindowExW(WS_EX_TOOLWINDOW | WS_EX_TOPMOST | WS_EX_NOACTIVATE, L"DqixCheatCard", L"", WS_POPUP, 0, 0, 10, 10, g_win, NULL, hi, NULL);

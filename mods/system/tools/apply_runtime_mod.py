@@ -92,26 +92,26 @@ MENU_ORIGINAL = """\
 # The Nuzlocke menu is off while the Nuzlocke page is not finished (same flag as in apply_code_mods.py); the text stays here.
 from apply_code_mods import NUZLOCKE_ENABLED
 NZ_MENU = """\n    HMENU nuzlocke = sub(g_bar, L"&Nuzlocke");
-    item(nuzlocke, 365, L"&Settings...");                   /* 365, 366: handled in frontend_sdl.c, mod_cheatwin.c */
+    item(nuzlocke, 9365, L"&Settings...");                  /* 9365, 9366: handled in frontend_sdl.c, mod_cheatwin.c */
     sep(nuzlocke);
-    item(nuzlocke, 366, L"&What is this?");
+    item(nuzlocke, 9366, L"&What is this?");
 """
 NZ_MENU2 = """\n        HMENU nuzlocke = CreatePopupMenu();
-        item(nuzlocke, 365, L"&Settings...");               /* 365, 366: handled in frontend_sdl.c, mod_cheatwin.c */
+        item(nuzlocke, 9365, L"&Settings...");              /* 9365, 9366: handled in frontend_sdl.c, mod_cheatwin.c */
         sep(nuzlocke);
-        item(nuzlocke, 366, L"&What is this?");
+        item(nuzlocke, 9366, L"&What is this?");
         InsertMenuW(g_bar, (UINT)at + 1, MF_BYPOSITION | MF_POPUP | MF_STRING, (UINT_PTR)nuzlocke, L"&Nuzlocke");
 """
 
 MENU_PATCHED = MENU_BEGIN + """\
     HMENU cheats = sub(g_bar, L"&Cheats");
-    item(cheats, 360, L"&Cheats...");                       /* 360-363, 367: handled in frontend_sdl.c, mod_menu.c, mod_cheatwin.c */
-    item(cheats, 367, L"&Battle cheats...");
-    item(cheats, 362, L"&Save editor...");
-    item(cheats, 363, L"&Treasure maps...");
+    item(cheats, 9360, L"&Cheats...");                      /* 9360-9363, 9367: handled in frontend_sdl.c, mod_menu.c, mod_cheatwin.c */
+    item(cheats, 9367, L"&Battle cheats...");
+    item(cheats, 9362, L"&Save editor...");
+    item(cheats, 9363, L"&Treasure maps...");
     sep(cheats);
-    item(cheats, 361, L"&What is this?");
-    item(cheats, 368, L"Check for &update...");           /* 368: handled in frontend_sdl.c, mod_cheatwin.c */
+    item(cheats, 9361, L"&What is this?");
+    item(cheats, 9368, L"Check for &update...");          /* 9368: handled in frontend_sdl.c, mod_cheatwin.c */
 """ + (NZ_MENU if NUZLOCKE_ENABLED else "") + """""" + MENU_ORIGINAL + END
 
 # Newer versions of the game (v34 on) build the menu bar from a table (runtime/menu_items.c): there is no "Help" line to put
@@ -124,13 +124,13 @@ MENU2_ORIGINAL = """\
 MENU2_PATCHED = MENU2_BEGIN + """\
     {
         HMENU cheats = CreatePopupMenu();
-        item(cheats, 360, L"&Cheats...");                   /* 360-363, 367: handled in frontend_sdl.c, mod_menu.c, mod_cheatwin.c */
-        item(cheats, 367, L"&Battle cheats...");
-        item(cheats, 362, L"&Save editor...");
-        item(cheats, 363, L"&Treasure maps...");
+        item(cheats, 9360, L"&Cheats...");                  /* 9360-9363, 9367: handled in frontend_sdl.c, mod_menu.c, mod_cheatwin.c */
+        item(cheats, 9367, L"&Battle cheats...");
+        item(cheats, 9362, L"&Save editor...");
+        item(cheats, 9363, L"&Treasure maps...");
         sep(cheats);
-        item(cheats, 361, L"&What is this?");
-        item(cheats, 368, L"Check for &update...");        /* 368: handled in frontend_sdl.c, mod_cheatwin.c */
+        item(cheats, 9361, L"&What is this?");
+        item(cheats, 9368, L"Check for &update...");       /* 9368: handled in frontend_sdl.c, mod_cheatwin.c */
         int n = GetMenuItemCount(g_bar), at = n; wchar_t t[32];
         if (n > 0 && GetMenuStringW(g_bar, (UINT)(n - 1), t, 32, MF_BYPOSITION) && !lstrcmpW(t, L"&Help")) at = n - 1;
         InsertMenuW(g_bar, (UINT)at, MF_BYPOSITION | MF_POPUP | MF_STRING, (UINT_PTR)cheats, L"&Cheats");
@@ -142,13 +142,13 @@ ACT_ORIGINAL = """\
     case MI_UPDATE: update_menu(); break;
 """
 ACT_PATCHED = ACT_BEGIN + r"""
-    case 368: { void mod_update_check(void); mod_update_check(); break; }
-    case 360: case 361: case 362: case 363: case 365: case 366: case 367: {
+    case 9368: { void mod_update_check(void); mod_update_check(); break; }
+    case 9360: case 9361: case 9362: case 9363: case 9365: case 9366: case 9367: {
         void mod_cheatwin_show(void);
         void mod_nuzlocke_show(void);
         void mod_battle_show(void);
-        if (id == 367) { mod_battle_show(); break; }
-        if (id == 366) {
+        if (id == 9367) { mod_battle_show(); break; }
+        if (id == 9366) {
             info_box(SDL_MESSAGEBOX_INFORMATION, "Nuzlocke",
                 "A Nuzlocke is a challenge run: whoever falls stays fallen, and the game is shuffled so you can't know it by heart.\n\n"
                 "Settings... opens the rules (permadeath, the hero's death ends the run, soul link), the punishments and the randomizers "
@@ -156,9 +156,9 @@ ACT_PATCHED = ACT_BEGIN + r"""
                 "and every player of a session must use the same ones.", g_win);
             break;
         }
-        if (id == 365) { mod_nuzlocke_show(); break; }
+        if (id == 9365) { mod_nuzlocke_show(); break; }
         int mod_editor_launch(const char* tab), mod_open_url(const char* url);
-        if (id == 361) {
+        if (id == 9361) {
             info_box(SDL_MESSAGEBOX_INFORMATION, "Cheats",
                 "Cheats... opens the cheat list in a window of its own: every cheat is a switch, and it works at once while you play "
                 "(no restart, no rebuild). Pick one of several (experience x2, x4...) where the list says so.\n\n"
@@ -166,12 +166,12 @@ ACT_PATCHED = ACT_BEGIN + r"""
                 "Your save is not touched by the cheats (copies go to mods\system\save-backups). Updating the game from the Help menu keeps this tab.", g_win);
             break;
         }
-        if (id == 362) { if (!mod_editor_launch("party")) info_box(SDL_MESSAGEBOX_ERROR, "Save editor", "The editor couldn't be started: the editor helper is missing. Run Install.bat again.", g_win); break; }
-        if (id == 363) { if (!mod_open_url("https://dqix.github.io/Grotto-Searcher/")) info_box(SDL_MESSAGEBOX_ERROR, "Treasure maps", "The browser couldn't be opened. The page is https://dqix.github.io/Grotto-Searcher/", g_win); break; }
+        if (id == 9362) { if (!mod_editor_launch("party")) info_box(SDL_MESSAGEBOX_ERROR, "Save editor", "The editor couldn't be started: the editor helper is missing. Run Install.bat again.", g_win); break; }
+        if (id == 9363) { if (!mod_open_url("https://dqix.github.io/Grotto-Searcher/")) info_box(SDL_MESSAGEBOX_ERROR, "Treasure maps", "The browser couldn't be opened. The page is https://dqix.github.io/Grotto-Searcher/", g_win); break; }
         mod_cheatwin_show();
         break;
     }
-    case 364: {   /* the save editor pressed Export while the game runs (dqix-editor.exe, mod_menu.c): take the save, start again with it */
+    case 9364: {   /* the save editor pressed Export while the game runs (dqix-editor.exe, mod_menu.c): take the save, start again with it */
         static uint8_t ed[0x10000], base[0x10000];
         uint32_t en = 0, bn = 0, cn = 0;
         int mod_editor_take(uint8_t*, uint32_t*, uint8_t*, uint32_t*);
@@ -220,6 +220,37 @@ FAST_PATCHED = FAST_BEGIN + """    } else {   /* tests: DQIX_FAST=1 also lifts t
 # (file in runtime/, the lines as the game has them, with the mods, first marker line, what it is)
 # The marker lines (*_BEGIN, WRAP_BEGIN) are found by their exact text in games that already have them: never reword
 # them (they still name "Play with mods.bat", the patcher's old name), or those games keep an orphaned block.
+RELAY_BEGIN = "    /* >>> mods: reconnect keeps the relay code (mods/tools/apply_runtime_mod.py; an update removes this, Play with mods.bat puts it back) */\n"
+RELAY_ORIGINAL = """\
+        relay_new_code(code, sizeof code);
+"""
+RELAY_PATCHED = RELAY_BEGIN + """\
+        {   /* Reconnect (the Cheats window) starts the host again with the code the friends already have */
+            const char* keep = getenv("DQIX_RELAY_CODE");
+            if (keep && *keep) snprintf(code, sizeof code, "%.15s", keep); else relay_new_code(code, sizeof code);
+        }
+""" + END
+
+JOIN1_BEGIN = "    /* >>> mods: reconnect joins again until the host is back (mods/tools/apply_runtime_mod.py; an update removes this, Play with mods.bat puts it back) */\n"
+JOIN1_ORIGINAL = """\
+        if (!relay_join_start(code, &lp, why, sizeof why)) { news("%s", why); g_state = 5; }
+"""
+JOIN1_PATCHED = JOIN1_BEGIN + """\
+        if (!({ int tr_ = getenv("DQIX_JOIN_RETRY") ? atoi(getenv("DQIX_JOIN_RETRY")) : 0, ok_;     /* Reconnect: the host needs a few seconds to be back */
+                while (!(ok_ = relay_join_start(code, &lp, why, sizeof why)) && tr_-- > 0) sleep_ms(2000);
+                ok_; })) { news("%s", why); g_state = 5; }
+""" + END
+
+JOIN2_BEGIN = "    /* >>> mods: reconnect joins again until the host is back, direct (mods/tools/apply_runtime_mod.py; an update removes this, Play with mods.bat puts it back) */\n"
+JOIN2_ORIGINAL = """\
+        if (!start_join(a, port)) { g_state = 5; }
+"""
+JOIN2_PATCHED = JOIN2_BEGIN + """\
+        if (!({ int tr_ = getenv("DQIX_JOIN_RETRY") ? atoi(getenv("DQIX_JOIN_RETRY")) : 0, ok_;
+                while (!(ok_ = start_join(a, port)) && tr_-- > 0) sleep_ms(2000);
+                ok_; })) { g_state = 5; }
+""" + END
+
 SITES = [
     ("input.c", INPUT_ORIGINAL, INPUT_PATCHED, INPUT_BEGIN, "Cheats with friends"),
     ("card.c", CARD_ORIGINAL, CARD_PATCHED, CARD_BEGIN, "Instant loading only alone"),
@@ -228,9 +259,12 @@ SITES = [
     ("frontend_sdl.c", ACT_ORIGINAL, ACT_PATCHED, ACT_BEGIN, "Cheats tab: what it does"),
     ("update.c", UPD_ORIGINAL, UPD_PATCHED, UPD_BEGIN, "Cheats stay after an update of the game"),
     ("frontend_sdl.c", FAST_ORIGINAL, FAST_PATCHED, FAST_BEGIN, "Fast test runs without a window"),
+    ("session.c", RELAY_ORIGINAL, RELAY_PATCHED, RELAY_BEGIN, "Reconnect: the same relay code"),
+    ("session.c", JOIN1_ORIGINAL, JOIN1_PATCHED, JOIN1_BEGIN, "Reconnect: joining again (relay)"),
+    ("session.c", JOIN2_ORIGINAL, JOIN2_PATCHED, JOIN2_BEGIN, "Reconnect: joining again (direct)"),
 ]
-NEEDS_INPUT = {"data", "act"}                                       # they call the mods' own files, which come with "input"
-SITE_KEYS = ["input", "card", "data", "menu", "act", "update", "fast"]   # SITES in order; "wrap" is the lines in wrap.txt (live code mods)
+NEEDS_INPUT = {"data", "act", "menu"}                               # they call the mods' own files, which come with "input" (the menu entry opens the window: without them it would do nothing)
+SITE_KEYS = ["input", "card", "data", "menu", "act", "update", "fast", "relay", "join1", "join2"]   # SITES in order; "wrap" is the lines in wrap.txt (live code mods)
 VARIANTS = {"menu": [(MENU2_ORIGINAL, MENU2_PATCHED, MENU2_BEGIN)]}    # other forms of a place: tried after the first one
 FILES = ["mod_cheats.c", "ar_engine.h", "mod_data.c", "livepatch.c", "mod_cheatwin.c", "nuzlocke.c"]       # belong to the first site
 MENU_FILES = ["mod_menu.c"]                                  # belong to the "what it does" site (frontend_sdl.c)
@@ -265,8 +299,14 @@ ov023 021f4098 lowexp
 ov017 02196430 enccheck
 main 0208a91c noflee
 ov017 021970a0 firststrike
+ov000 0215d414 forcebtl
+main 0201b5d8 legacystats
+ov000 02159dbc legacylevel
+main 0209c480 forcebgm
+ov024 021e6a90 toughdmg
+ov024 021eb5d0 actrecalc
 """
-WRAP_FILES = ["lowexp.c", "vanish.c", "noflee.c", "firststrike.c"]
+WRAP_FILES = ["lowexp.c", "vanish.c", "noflee.c", "firststrike.c", "forcebtl.c", "challenges.c"]   # forcebtl.c: a forced boss is the battle a roamer starts
 
 
 def wrap_site(root, on, extra=""):
@@ -335,8 +375,9 @@ def livepatch_plan(root):
     return fns, [(n, a, num[(n, found[(n, a)][0])], sorted(words[(n, a)])) for n, a in sites]
 
 
-def livepatch_files(root, on):
-    """runtime/mod_livepatch_tab.c, mods/system/bin/livepatch.txt and the extra wrap.txt lines. -> (changed, wrap lines, functions, sites)"""
+def livepatch_files(root, on, need_tab=False):
+    """runtime/mod_livepatch_tab.c, mods/system/bin/livepatch.txt and the extra wrap.txt lines. -> (changed, wrap lines, functions, sites)
+    need_tab: livepatch.c (one of the "input" files) is in the game: it needs the table even with no live sites (off: empty)"""
     plan = livepatch_plan(root) if on else None
     fns, sites = plan if plan else ([], [])
     tab = ["/* written by mods/system/tools/apply_runtime_mod.py: the functions that live code mods can patch (see livepatch.c) */",
@@ -368,7 +409,7 @@ def livepatch_files(root, on):
     text = "\n".join(tab) + "\n"
     changed = False
     dst = os.path.join(root, "runtime", "mod_livepatch_tab.c")
-    if on:
+    if on or need_tab:
         if not os.path.isfile(dst) or read(dst).replace("\r\n", "\n") != text:
             write(dst, text)
             changed = True
@@ -578,6 +619,8 @@ def main():
         write_off_list(root, fresh)
     off = fresh
     on_keys = {k for k in SITE_KEYS if on and k not in off}
+    if "act" not in on_keys:
+        on_keys.discard("menu")                          # the Cheats entry without what it does would be an entry that does nothing
     report, states = [], {}
     for name in dict.fromkeys(n for n, *_ in SITES):     # (input.c first: the places below call into its files)
         did, st = patch_file(root, name, on_keys, report)
@@ -612,7 +655,7 @@ def main():
             os.remove(dst)
             changed = True
     wrap_on = on and states.get("input") == "on" and "wrap" not in off      # live code mods need the mods' own files (input)
-    lp_changed, lp_wrap, nfn, nsite = livepatch_files(root, wrap_on)
+    lp_changed, lp_wrap, nfn, nsite = livepatch_files(root, wrap_on, states.get("input") == "on")
     changed |= lp_changed
     if wrap_site(root, wrap_on, lp_wrap):
         changed = True

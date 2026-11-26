@@ -1,6 +1,5 @@
-"""Headless run: the cheat "Vanish" is switched on through the mailbox, the buttons L+R+SELECT are pressed twice (held for
-a few frames each time): vanish must go on at the first press and off at the second (once per press, not once per frame),
-and a press before the cheat is on must do nothing.
+"""Headless run: the cheat "Vanish" (the Cheats window's Vanish button) is switched on through the mailbox and off again (CLEAR):
+vanish must go on with the SET and off with the CLEAR, once each, and not before the SET.
    test_vanish.py <project root> <work dir>"""
 import mmap, os, shutil, struct, subprocess, sys, time
 
@@ -14,7 +13,7 @@ env = dict(os.environ)
 env.pop("NoDefaultCurrentDirectoryInExePath", None)
 FRAMES = 1500
 env.update(DQIX_NOWINDOW="1", SDL_AUDIODRIVER="dummy", DQIX_CHEATWIN_OFF="1", DQIX_NO_SETTINGS="1", DQIX_MODLOG="1",
-           DQIX_INPUT="300:L+R+SELECT:6;700:L+R+SELECT:6;900:L+R+SELECT:30;1100:L+R+SELECT:6")
+           )
 exe = os.path.join(root, "game", "dqix.exe")
 log = open(os.path.join(work, "run.log"), "wb")
 p = subprocess.Popen([exe, os.path.join(root, "game", "data", "dqix.nds"), os.path.join(root, "game", "data", "code"), str(FRAMES), "1", "test.sav"],
@@ -60,6 +59,5 @@ out = open(os.path.join(work, "run.log"), encoding="utf-8", errors="replace").re
 lines = [l.strip() for l in out.splitlines() if l.startswith("mod: vanish")]
 print("\n".join(lines))
 ok = [l.split(" at")[0] for l in lines] == ["mod: vanish on", "mod: vanish off"]
-# 700: first press with the cheat on -> on, 900 (held 30 frames): -> off once; 1100 after CLEAR: nothing
 print("RESULT:", "PASS" if ok else "FAIL")
 sys.exit(0 if ok else 1)

@@ -113,7 +113,7 @@ def plain_writes(batch):
             count[a] = count.get(a, 0) + 1
     want = {}
     for e in batch:
-        if all(a >> 28 == 0 and count[a] == 1 and not 0x02F5A5A0 <= a < 0x02F5A600 and not 0x02F60000 <= (a & 0x0FFFFFFF) < 0x02F70000 for a, b in e["ops"]):      # 02F5A5A0..FF are switches (lowexp, vanish, noflee, the Nuzlocke rules), not memory
+        if all(a >> 28 == 0 and count[a] == 1 and not 0x02F5A5A0 <= a < 0x02F5A640 and not 0x02F60000 <= (a & 0x0FFFFFFF) < 0x02F70000 for a, b in e["ops"]):      # 02F5A5A0..63F are switches (lowexp, vanish, noflee, the Nuzlocke rules, the Challenges page), not memory
             for a, b in e["ops"]:
                 want[a & 0x3FFFFF] = (b, e["name"])
     return want
@@ -145,11 +145,12 @@ def suspicious(d):
 
 
 def watch(procs, m):
-    last, t0 = -1, time.time()
+    last, t0, tmove = -1, time.time(), time.time()
     while any(p.poll() is None for p in procs):
         time.sleep(0.5)
         f = m.u(28)
-        if f == last and time.time() - t0 > 30:
+        if f != last: tmove = time.time()
+        if f == last and time.time() - tmove > 30:      # no new frame for 30 s (not: since the start, which tripped on a slow exit at the last frame)
             print("FAIL: the game stopped at frame", f)
             for p in procs:
                 p.kill()

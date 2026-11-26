@@ -122,6 +122,7 @@ Each cheat is one of these:
 |---|---|
 | **Switch** | On = it works from now on, every frame, like a ticked code on an R4. |
 | **Use** | Carries the code out one time, now (99 of every shield, all Zoom places...). |
+| **Button** (Vanish) | Press it to switch the cheat on; the button shows the state ("Vanished · show up") and pressing it again switches it off. |
 | **Choice** | Experience x2 / x4 / ... / x128, movement speed, a vocation: only one can be on. |
 | **With buttons** ("hold SELECT", "hold L+R"...) | Works like on a DS: switch it on, then hold those buttons in the game. *Use* does it right away without the buttons. |
 
@@ -132,9 +133,8 @@ The labels in the grey line:
 | `untested` | From the R4 list and checked as far as a program can, but not tried here. **Save first.** |
 | `needs a rebuild` | A code mod that can't switch while the game runs. None of the shipped cheats needs it; it can appear for a code of your own or from a newer R4 list. The window offers to rebuild the game (a few minutes) and start it again. |
 | `next start` | Takes effect the next time the game starts ("Battle any monster you want", "Metal slimes only", "Instant loading"...). The window offers to restart the game. |
-| *Only one player* / *All players* / *Your PC only* | How it behaves in a session with friends. |
 
-**Everything off** switches all of it off. The Fun cheats (big head, size, hidden party) put the game back the moment they are switched off.
+The Fun cheats (big head, size, hidden party) put the game back the moment they are switched off.
 
 **Share** copies what you have on as one line of text to the clipboard; paste it to your friends. They copy it and press **Import** to get exactly the same cheats on (what they had on before is switched off).
 
@@ -167,11 +167,12 @@ In a session every PC runs every player's DS, and they must all compute exactly 
 
 1. Give every player this download; each extracts it and runs `Install.bat` once.
 2. Host and join as usual (Wireless > Play with friends).
-3. Use the cheats as when alone. They only change your own DS (hero, gold, bag), on every PC at once. Friends don't need the same cheats on.
+3. Use the cheats as when alone. **Only the host needs to switch cheats on:** a friend who joins gets the host's cheats automatically. While the session runs, the Cheats window of every guest shows the host's cheats as switched on and sends them for the guest's own DS (a note in the window says so); changes the host makes later follow. A guest can switch any of them off again. When the session ends the guest's own switches are back exactly as they were (they are never changed). Turn the automatic part off with the environment variable `DQIX_AR_NO_HOST_CHEATS=1`.
 
 Notes:
 
-- **Code mods switched in the window** travel like any other cheat, so they stay in sync. A code mod that **needs a rebuild** (none of the shipped ones) would change how the game computes: every player would need it the same, or the session goes OUT OF SYNC.
+- **When a session breaks** (out of sync, a player lost): the game logs it with the cheats that were on in `mods\system\session-incidents.txt` (send that file when something goes wrong) and offers **Reconnect**. Both players press it: the host's game waits again with the same code, the guest's game joins again by itself (it keeps trying for a minute). No leaving the lobby and hosting a new one.
+- **Locked during a session** (greyed out, with the reason in the grey line): everything that would put the PCs out of sync if one PC had it different: the options that take effect at the next start (*next start*, e.g. the Nuzlocke randomizers, Metal slimes only, Battle any monster, Instant loading) and code mods that need a rebuild. Change those before the session. Every live cheat can be switched on and off during a session: it travels in your input stream, so every PC carries out the same change on the same frame.
 - **Instant loading** only works alone; in a session the game keeps the cartridge's real timing by itself.
 - If one player's game doesn't have the cheats in it, the first cheat puts the session out of sync (the title bar says so). Without cheats such a session plays normally.
 
@@ -232,7 +233,7 @@ The installer and the cheats are plain, readable scripts and C source: nothing i
 
 ## Uninstall
 
-1. Press **Everything off** in the Cheats window and close the game.
+1. Switch your cheats off (the **Enabled** page lists everything that is on) and close the game.
 2. Set `sync_cheats = no` in `mods\settings.txt` and double-click `mods\Apply.bat`: it takes the Cheats tab and everything else out of the game's source and rebuilds it.
 3. Delete the `mods` folder.
 
@@ -267,7 +268,7 @@ The marked places in the game's source are listed in `SITES` in `apply_runtime_m
 
 ## Credits
 
-- <img src="https://github.com/Duwang2.png?size=48" width="24" height="24" align="top"> **[Duwang2](https://github.com/Duwang2)** helped with the battle and spell features. He shared the source of his own DQIX trainer (`cheats.c`) and the skill table generator (`gen_skills.py`): where a character's learned spells and abilities are kept, which game functions decide what each vocation may use, and how a fighter's buffs and debuffs are laid out in memory. That is what the "Every vocation can use every spell and ability" cheats and the corrected "Effects last all battle" switch are built on. The code here is written for this project and checked in the game.
+- <img src="https://github.com/Duwang2.png?size=48" width="24" height="24" align="top"> **[Duwang2](https://github.com/Duwang2)** helped with the battle and spell features. He shared the source of his own DQIX trainer (`cheats.c`) and the skill table generator (`gen_skills.py`): where a character's learned spells and abilities are kept, which game functions decide what each vocation may use, and how a fighter's buffs and debuffs are laid out in memory. That is what the "Every vocation can use every spell and ability" cheats and the corrected "Effects last all battle" switch are built on. A later set of changes from Duwang2 added "Battle any monster you want" (including legacy bosses at a chosen level), the real-battle-state versions of "Always high tension" and "Coup de Grace always ready", and the update to "Any vocation, all spells". The code here is written for this project and checked in the game.
 - <img src="https://github.com/sackchief.png?size=48" width="24" height="24" align="top"> [DQIX Enhanced](https://github.com/sackchief/dqix-enhanced) by sackchief is the game port all of this is built into.
 
 ---

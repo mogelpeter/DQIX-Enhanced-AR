@@ -57,6 +57,10 @@ call "%CD%\BUILD.bat"
 if errorlevel 1 goto build_failed
 :built
 
+rem ---- the build tools' Python has to be whole (a lost DLL, e.g. zlib1.dll, only shows when something imports it)
+"%BASH%" -lc "%PYRUN% -c 'import binascii, zlib'" >nul 2>&1
+if errorlevel 1 goto broken_python
+
 if /i "%WHAT%"=="catalog" goto catalog
 
 rem ---- the cheat list, worked out against this ROM
@@ -70,7 +74,8 @@ if errorlevel 1 goto end_bad
 
 rem ---- the save editor's helper, made here from its source when it's missing or older
 if not exist "mods\system\bin" mkdir "mods\system\bin"
-"%BASH%" -lc "[ mods/system/bin/dqix-editor.exe -nt mods/system/src/editor/EditorHost.cs ]" && goto editor_made
+rem (by content, not by date: the release zip dates its files older than a helper made before an update)
+"%BASH%" -lc "%PYRUN% mods/system/tools/build_stamp.py . editor-check" && goto editor_made
 set "NET=%WINDIR%\Microsoft.NET\Framework64\v4.0.30319"
 if not exist "%NET%\csc.exe" set "NET=%WINDIR%\Microsoft.NET\Framework\v4.0.30319"
 if not exist "%NET%\csc.exe" goto no_csc
@@ -80,6 +85,7 @@ echo Making the save editor helper...
 "%SYS32%\tasklist.exe" /fi "imagename eq dqix-editor.exe" 2>nul | "%SYS32%\find.exe" /i "dqix-editor.exe" >nul && goto editor_made
 "%NET%\csc.exe" -nologo -target:winexe -platform:x64 -optimize+ "-out:mods\system\bin\dqix-editor.exe" %ICON% -r:System.Windows.Forms.dll -r:System.Core.dll "mods\system\src\editor\EditorHost.cs"
 if errorlevel 1 goto no_csc
+"%BASH%" -lc "%PYRUN% mods/system/tools/build_stamp.py . editor-write"
 :editor_made
 echo.
 echo Done. Start the game as always (game\dqix.exe), then: menu bar, Cheats, Cheats...
@@ -123,6 +129,18 @@ if not defined WHAT pause
 exit /b 1
 :no_tools
 echo The build tools (MSYS2) aren't ready: run BUILD.bat once, then this again.
+if not defined WHAT pause
+exit /b 1
+:broken_python
+echo.
+echo The build tools (MSYS2) are damaged: their Python doesn't work (a file of it is missing).
+echo To repair them, open "MSYS2 UCRT64" from the Start menu (installed in %MSYSROOT%) and run:
+echo.
+echo   pacman -Syu
+echo     (if the window closes, open it again)
+echo   pacman -S mingw-w64-ucrt-x86_64-python mingw-w64-ucrt-x86_64-zlib
+echo.
+echo Then run this again. If it still fails, see if your antivirus removed a file from that folder.
 if not defined WHAT pause
 exit /b 1
 :list_failed

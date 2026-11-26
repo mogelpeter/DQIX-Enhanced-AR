@@ -1,9 +1,13 @@
 # name: Every vocation can use every spell and ability
 # enabled: no
 # category: Party
-# about: Spells and abilities show up in the menus whatever the vocation (and the weapon), as long as the character knows them. Use "Learn every spell and ability" (Party page) once to teach everything. Both together: any class casts any spell and uses any ability, in the field and in battle.
+# about: Spells and abilities show up in the menus whatever the vocation (and the weapon), as long as the character knows them, and every character keeps the abilities of all 26 skill books (Swordcraft in Summary ... Secrets of the Shield, Warrior's Workbook ... Luminary's Lore) without carrying the book. Use "Learn every spell and ability" (Party page) once to teach everything. Both together: any class casts any spell and uses any ability, in the field and in battle.
 # How: a character's vocation (record + 0x950) decides which spells the menus list: 0 means "every learned spell, every ability". The vocation is looked at in four places and each is told it is 0:
 # the "is this spell on the vocation's list" check (main 0209ac28), the spell list of the field menu (ov002 02157294) and of ov026 (021dcae8), and the battle Abilities list (ov000 0217c404).
+# The skill books (items 22265..22290, item type 0x1F, ability at item + 0x14): two loops go over them, ov026 021dc978 and ov004 0215ebdc. A book in the
+# character's own bag (8 items at record + 0x454) teaches its ability (main 02083acc), a book not there takes it away again (main 02083b28). The branch
+# to "take it away" (beq) becomes a nop in both, so every character learns every book's ability whether or not they carry the book. Switched off,
+# the next pass of either loop takes the abilities of the books a character doesn't carry away again, as the game always does.
 check 0209AC28 E92D4038 @main
 patch 0209AC28 E92D4038 E3A00001 @main
 patch 0209AC2C E1A05000 E12FFF1E @main
@@ -13,3 +17,9 @@ check 021DCAE0 E5900950 @ov026
 patch 021DCAE8 1A000004 E1A00000 @ov026
 check 0217C400 E5911950 @ov000
 patch 0217C404 E3510000 E1510001 @ov000
+check 021DC9E8 E35B0000 @ov026
+check 021DC9F0 0A000001 @ov026
+patch 021DC9F0 0A000001 E1A00000 @ov026
+check 0215EC54 E3590000 @ov004
+check 0215EC5C 0A000001 @ov004
+patch 0215EC5C 0A000001 E1A00000 @ov004

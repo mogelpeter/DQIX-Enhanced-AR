@@ -66,7 +66,7 @@ try:
     rep = report()
     if not (rep.get("menu", "").startswith("on (relaxed") and rep.get("act", "").startswith("on (relaxed")):
         errors.append(f"2: relaxed places not found: menu={rep.get('menu')} act={rep.get('act')}")
-    if 'L"&Cheats"' not in rd(rt("menu_win32.c")) or "case 360:" not in rd(rt("frontend_sdl.c")):
+    if 'L"&Cheats"' not in rd(rt("menu_win32.c")) or "case 9360:" not in rd(rt("frontend_sdl.c")):
         errors.append("2: the places are not in the files")
     print("2  reformatted update:", rep.get("menu"), "|", rep.get("act"), flush=True)
 
