@@ -27,6 +27,25 @@ One rule: **do the cheapest check that can catch the mistake, and never repeat a
 | `livepatch.c`, a live code mod | `dev test livepatch` (needs `TEST_SAVE` = a save in a dungeon) | runs patched functions in the interpreter, compares with the compiled code |
 | a code mod (patch) | `dev scratch` (add `--rounds` for the x4/x8/Always Fail alternatives) | builds in a scratch copy in about a minute, your `game\` is not touched |
 | only tests / docs | `dev test static` | nothing in the game changed |
+| `mod_control.c`, `tools/drive.py` (remote control) | `dev test control` after a build | a headless game waits, takes input, shows the screen, takes a cheat, ends |
+
+## Trying a mod by hand: the game one command at a time
+
+`python mods\system\tools\drive.py` plays a headless game that stands still between commands (no window, no sound,
+always on a copy of the save). For looking at what a change does, without writing a test first.
+
+```
+drive.py start --field                        load the test save, stand in the field
+drive.py do "X .:60"                          press X, let 60 frames pass
+drive.py do "touch=128,100:6 .:30"            stylus on the bottom screen (256 x 192)
+drive.py cheat file:cheats/max-gold.txt on    a live cheat, arrives while the next frames run
+drive.py read 020F6D48 4                      DS main RAM
+drive.py log                                  what the mods printed
+drive.py stop
+```
+
+`start` and `do` print the frame and the path of a PNG of both screens. Always `stop` at the end: `dev test` refuses to
+run while a `dqix.exe` runs (a forgotten game ends itself after 30 minutes without a command).
 
 ## Why it is fast
 

@@ -2,6 +2,12 @@
 
 Newest first. One block per working session: what changed, why, how it was checked.
 
+## 2026-11-27 (83)  Remote control for tests: play a headless game one command at a time
+- New `tools/drive.py`: `start [--field]`, `do "<buttons/touch:frames ...>"`, `look` (PNG of both screens), `read` (main RAM), `cheat <id> on|off`, `log`, `stop`. The game stands still between commands, so there is no time pressure when trying a mod by hand. It always plays on a copy of the save.
+- New `src/runtime/mod_control.c`, called from the existing input place in `runtime/input.c`. It does nothing without `DQIX_CONTROL=<folder>`; with it the game writes screen + RAM and waits for `cmd.txt`, and ends itself after 30 minutes without one.
+- Needs one rebuild (`Apply.bat apply`).
+- Checked: `test_control.py` (`dev test control`, seen failing first): waits, exact frame counts, loads the save by buttons, touch lands on the pixel, a live cheat reaches RAM, quits, save unchanged.
+
 ## 2026-11-26 (82)  The installer works on a PC without a D: drive
 - Report: the installer stopped at step 1/5 ("a drive with the name D was not found"). `Find-Candidates` also looks in `D:\`, and `Join-Path` throws `DriveNotFoundException` for a drive the PC does not have. It now uses `[IO.Path]::Combine`.
 - The same crash in `Get-MsysRoot` when `msys2-root.txt` names a missing drive: fixed the same way.

@@ -320,6 +320,7 @@ def runners(root, work):
         "nz-data":        (inproc(t_nzdata, "nz-data"), True, 20),
         **{"nz-" + n: (fn("test_nuzlocke.py", [n]), True, 150)
            for n in ("control", "perma", "persist", "link", "hero", "goldhalf", "goldall", "newrun", "battle", "battleko")},
+        "control":        (fn("test_control.py", [], {"TEST_SAVE": os.path.join(root, "mods", "system", "tests", "dqix_test.sav")}), True, 60),   # tools/drive.py: a game that waits for commands
         "editor":         (inproc(t_editor, "editor"), False, 10),
     }
 
@@ -327,7 +328,7 @@ def runners(root, work):
 TIERS = {
     "fast": ["static", "live-fast", "session-fast", "all-quick", "editor", "update-notice"],
     "nuzlocke": ["nz-data"] + ["nz-" + n for n in ("control", "perma", "persist", "link", "hero", "goldhalf", "goldall", "newrun", "battle", "battleko")],
-    "full": ["static", "live", "session", "all-single", "all-session", "cheatwin", "battle-live", "noabil", "editor"],
+    "full": ["static", "live", "session", "all-single", "all-session", "cheatwin", "battle-live", "noabil", "control", "editor"],
 }
 
 

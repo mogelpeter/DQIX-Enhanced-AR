@@ -50,6 +50,10 @@ INPUT_ORIGINAL = """\
     }
 """
 INPUT_PATCHED = INPUT_BEGIN + """\
+    {   /* tests: DQIX_CONTROL=<folder> = remote control, the game waits for commands (mod_control.c, tools/drive.py) */
+        void mod_control(uint16_t*, int*, int*, int*);
+        mod_control(&g_keys_down, &g_touch_down, &g_touch_x, &g_touch_y);
+    }
     {   /* cheats travel in this console's input stream, so every PC of a session carries them out alike */
         uint32_t mod_cheats_out(uint32_t), mod_cheats_in(uint32_t);
         uint32_t pressed = session_pack(g_keys_down, g_touch_down, g_touch_x, g_touch_y);
@@ -266,7 +270,7 @@ SITES = [
 NEEDS_INPUT = {"data", "act", "menu"}                               # they call the mods' own files, which come with "input" (the menu entry opens the window: without them it would do nothing)
 SITE_KEYS = ["input", "card", "data", "menu", "act", "update", "fast", "relay", "join1", "join2"]   # SITES in order; "wrap" is the lines in wrap.txt (live code mods)
 VARIANTS = {"menu": [(MENU2_ORIGINAL, MENU2_PATCHED, MENU2_BEGIN)]}    # other forms of a place: tried after the first one
-FILES = ["mod_cheats.c", "ar_engine.h", "mod_data.c", "livepatch.c", "mod_cheatwin.c", "nuzlocke.c"]       # belong to the first site
+FILES = ["mod_cheats.c", "ar_engine.h", "mod_data.c", "livepatch.c", "mod_cheatwin.c", "nuzlocke.c", "mod_control.c"]       # belong to the first site
 MENU_FILES = ["mod_menu.c"]                                  # belong to the "what it does" site (frontend_sdl.c)
 GONE = ["mod_plugins.c", "dqix_plugin.h"]                   # files of earlier versions of the mods: taken out of runtime/ again
 

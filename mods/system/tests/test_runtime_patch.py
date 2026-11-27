@@ -26,7 +26,7 @@ try:
 
     def snap():
         d = {}
-        for n in ("input.c", "card.c", "menu_win32.c", "frontend_sdl.c", "update.c", "mod_menu.c", "mod_cheats.c", "noflee.c", "lowexp.c", "firststrike.c"):
+        for n in ("input.c", "card.c", "menu_win32.c", "frontend_sdl.c", "update.c", "mod_menu.c", "mod_cheats.c", "noflee.c", "lowexp.c", "firststrike.c", "mod_control.c"):
             p = os.path.join(tmp, "runtime", n)
             d[n] = open(p, "rb").read() if os.path.isfile(p) else None
         return d
@@ -98,6 +98,8 @@ try:
         errors.append("Apply.bat doesn't ask build_stamp.py whether the save editor helper is current")
     if b"Apply.bat" not in on1["update.c"]:
         errors.append("the updater does not put the mods back")
+    if on1["mod_control.c"] is None or b"mod_control(&g_keys_down" not in on1["input.c"]:
+        errors.append("remote control (mod_control.c) not put in")
     if on1["noflee.c"] is None:
         errors.append("noflee.c not put in")
     if "main 0208a91c noflee" not in open(os.path.join(tmp, "wrap.txt"), encoding="utf-8").read():
