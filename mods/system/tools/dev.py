@@ -328,7 +328,7 @@ def runners(root, work):
 TIERS = {
     "fast": ["static", "live-fast", "session-fast", "all-quick", "editor", "update-notice"],
     "nuzlocke": ["nz-data"] + ["nz-" + n for n in ("control", "perma", "persist", "link", "hero", "goldhalf", "goldall", "newrun", "battle", "battleko")],
-    "full": ["static", "live", "session", "all-single", "all-session", "cheatwin", "battle-live", "noabil", "control", "editor"],
+    "full": ["static", "live", "session", "all-single", "all-session", "cheatwin", "battle-live", "noabil", "vanish-walk", "vanish-ghost", "control", "editor"],
 }
 
 

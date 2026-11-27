@@ -2,6 +2,13 @@
 
 Newest first. One block per working session: what changed, why, how it was checked.
 
+## 2026-11-27 (84)  Vanish no longer crashes the game
+- Switching **Vanish** on in the field stopped the game (`FATAL ARM9 BIOS call 7f not implemented`, open since (71)/(72)). Cause: `vanish.c` held the European addresses of `GetProtagonist`, `GetPartyMemberByIndex` and `TransitionInheritedAlpha` as if they were USA ones, and `usa_main()` moved them a second time. Now the USA addresses of `config/usa/arm9/symbols.txt` (0200FDCC, 0200FDF0, 020372B8).
+- Tests: `vanish-walk` and `vanish-ghost` are part of `dev test full` (they were not, so the crash went unnoticed). `test_effects.py` knows the switches up to 02F5A63F (9 false FAILs before). `test_launchers.py` looked for `launch:monster:` entries that no longer exist and passed with 0 monsters; it now fights every `live:monster:` choice through the mailbox and fails when there is nothing to test.
+- `test_effects.py` leaves out only the switch bytes, so a cheat that writes switches and memory (battle buffs) still has its memory checked: all 669 live cheats, 102 confirmed (98 before), 0 FAIL.
+- Checked (EU): both Vanish tests seen failing, pass after the rebuild; `test full` plus the button / revive / session tests incl. the relay (all pass); all 369 monster choices start their battle.
+- Checked (USA, scratch build `YDQE`): vanish, vanish-walk, vanish-ghost, noflee, firststrike, every 12th monster choice (31/31).
+
 ## 2026-11-27 (83)  Remote control for tests: play a headless game one command at a time
 - New `tools/drive.py`: `start [--field]`, `do "<buttons/touch:frames ...>"`, `look` (PNG of both screens), `read` (main RAM), `cheat <id> on|off`, `log`, `stop`. The game stands still between commands, so there is no time pressure when trying a mod by hand. It always plays on a copy of the save.
 - New `src/runtime/mod_control.c`, called from the existing input place in `runtime/input.c`. It does nothing without `DQIX_CONTROL=<folder>`; with it the game writes screen + RAM and waits for `cmd.txt`, and ends itself after 30 minutes without one.

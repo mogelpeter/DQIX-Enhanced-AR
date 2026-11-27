@@ -39,6 +39,12 @@ def catalog():
 from ar_port import predict                               # the independent port of ar_engine.h (keys = all held)
 
 
+def switch(a):
+    """an address mod_cheats.c takes as a switch (the range test_all.py uses) or a live code mod's: never lands in RAM"""
+    a &= 0x0FFFFFFF
+    return 0x02F5A5A0 <= a < 0x02F5A640 or 0x02F60000 <= a < 0x02F70000
+
+
 entries = catalog()[first:first + count]
 print("cheats in this run:", len(entries))
 
@@ -133,10 +139,11 @@ for k, e in enumerate(entries):
     want = {}
     for a, n, v in w:
         for i, byte in enumerate(v.to_bytes(n, "little")):
-            want[(a & 0x3FFFFF) + i] = byte
+            if not switch(a + i):                            # a cheat can write switches and memory: the memory is checked
+                want[(a & 0x3FFFFF) + i] = byte
     want = {a: b for a, b in want.items() if prev[a] != b and later.get(a) == k}
-    if any(0x02F5A5A0 <= (a & 0x0FFFFFFF) < 0x02F5A600 or 0x02F60000 <= (a & 0x0FFFFFFF) < 0x02F70000 for a, b in e["ops"]):
-        status = "NOCHANGE(SWITCH address (02F5A5xx / 02F6xxxx live code mod): handled by mod_cheats.c, see test_noflee / test_vanish / test_livepatch)"
+    if not want and any(switch(a) for a, b in e["ops"]):
+        status = "NOCHANGE(SWITCH address (02F5A5A0-63F / 02F6xxxx live code mod): handled by mod_cheats.c, see test_noflee / test_noabil / test_launchers / test_livepatch)"
     elif not w:
         status = "NOCHANGE(no write: condition not met here)"
     elif not want:

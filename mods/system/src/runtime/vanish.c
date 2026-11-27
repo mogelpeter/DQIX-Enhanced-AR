@@ -36,10 +36,11 @@ void wrap_enccheck_orig(Cpu* c);
 /* The game's functions are called by address through dispatch_call (cpu.h): the recompiled one when the recompiler made one
  * there, else the interpreter. Calling them by name (fn_main_...) fails to link when a version of the recompiler doesn't
  * make a function of its own at that address (0200fe00 and 020372c8 are such: "undefined reference" in the build). */
+/* USA addresses, as in config/usa/arm9/symbols.txt: usa_main() below moves them for the European ROM. */
 #define GAME_GET_INSTANCE   0x0200F398u  /* GameState::GetInstance */
-#define GAME_PROTAGONIST    0x0200FDDCu  /* GameState::GetProtagonist(this): the hero's field object */
-#define GAME_PARTY_MEMBER   0x0200FE00u  /* GameState::GetPartyMemberByIndex(this, i): the field object of party member i */
-#define GAME_FADE           0x020372C8u  /* Object3D::TransitionInheritedAlpha(obj, alpha 0..31, frames): the game's own fade (monsters fade out with it) */
+#define GAME_PROTAGONIST    0x0200FDCCu  /* GameState::GetProtagonist(this): the hero's field object */
+#define GAME_PARTY_MEMBER   0x0200FDF0u  /* GameState::GetPartyMemberByIndex(this, i): the field object of party member i */
+#define GAME_FADE           0x020372B8u  /* Object3D::TransitionInheritedAlpha(obj, alpha 0..31, frames): the game's own fade (monsters fade out with it) */
 /* A main-module address in USA numbers -> this ROM's: the European ROM has 16 bytes more near the start of the main code (tools/region.py's EUR_SHIFTS).
  * Overlay and data addresses are the same in both. */
 static uint32_t usa_main(uint32_t a) { return rom_is_eur() ? (a >= 0x0200FB20u && a < 0x020EEBD0u ? a + 0x10u : a >= 0x0200F3B8u && a < 0x0200FB20u ? a + 8u : a) : a; }
